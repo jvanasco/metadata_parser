@@ -1,4 +1,4 @@
-from metdata_parser import MetadataParser
+from metadata_parser import MetadataParser
 
 if 1:
 	a= MetadataParser(url='http://cnn.com')
