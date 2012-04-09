@@ -11,77 +11,98 @@ RE_url= re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
 class MetadataParser(object):
     """turns text or a URL into a dict of dicts, extracting as much relvant metadata as possible.
     
-    	the 'keys' will be either the 'name' or 'property' attribute of the node.
-    	
-    	the attribute's prefix are removed when storing into it's bucket
-    	eg:
-    		og:title -> 'og':{'title':''}
-    	
-    	metadata is stored into subgroups:
-    	
-		page
-			extracted from page elements
-			saved into MetadataParser.metadata['page']
-			example:
-				<head><title>Awesome</title></head>
-				MetadataParser.metadata = { 'page': { 'title':'Awesome' } }
+        the 'keys' will be either the 'name' or 'property' attribute of the node.
+        
+        the attribute's prefix are removed when storing into it's bucket
+        eg:
+            og:title -> 'og':{'title':''}
+        
+        metadata is stored into subgroups:
+        
+        page
+            extracted from page elements
+            saved into MetadataParser.metadata['page']
+            example:
+                <head><title>Awesome</title></head>
+                MetadataParser.metadata = { 'page': { 'title':'Awesome' } }
     
-    	opengraph
-			has 'og:' prefix
-			saved into MetadataParser.metadata['og']
-			example:
-				<meta property="og:title" content="Awesome"/>
-				MetadataParser.metadata = { 'og': { 'og:title':'Awesome' } }
-	
-    	dublin core
-			has 'dc:' prefix
-			saved into MetadataParser.metadata['dc']
-			example:
-				<meta property="dc:title" content="Awesome"/>
-				MetadataParser.metadata = { 'dc': { 'dc:title':'Awesome' } }
+        opengraph
+            has 'og:' prefix
+            saved into MetadataParser.metadata['og']
+            example:
+                <meta property="og:title" content="Awesome"/>
+                MetadataParser.metadata = { 'og': { 'og:title':'Awesome' } }
+    
+        dublin core
+            has 'dc:' prefix
+            saved into MetadataParser.metadata['dc']
+            example:
+                <meta property="dc:title" content="Awesome"/>
+                MetadataParser.metadata = { 'dc': { 'dc:title':'Awesome' } }
 
-    	meta
-			has no prefix
-			saved into MetadataParser.metadata['meta']
-			example:
-				<meta property="title" content="Awesome"/>
-				MetadataParser.metadata = { 'meta': { 'dc:title':'Awesome' } }
+        meta
+            has no prefix
+            saved into MetadataParser.metadata['meta']
+            example:
+                <meta property="title" content="Awesome"/>
+                MetadataParser.metadata = { 'meta': { 'dc:title':'Awesome' } }
     
     """
-    _url = None
+    url = None
     strategy= None
     metadata= None
 
-    og_requirements= [ 'og_title', 'og_type' , 'og_image' , 'og_url' ]
+    og_minimum_requirements= [ 'title', 'type' , 'image' , 'url' ]
+    strategy= ['og','dc','meta','page']
 
 
-    def __init__(self, url=None, html=None, strategy='og,dc,meta,page'):
+    def __init__(self, url=None, html=None, strategy=None):
         self.metadata= {
             'og':{},
             'meta':{},
             'dc':{},
             'page':{},
         }
-        self.strategy= strategy.split(',')
-        if url is not None:
-            html= self.fetch(url)
+        if strategy:
+            self.strategy= strategy
+        self.url = url
+        if html is None:
+            html= self.fetch_url()
         self.parser(html)
 
 
-    def is_valid_opengraph(self):
-        return all([hasattr(self, attr) for attr in self.og_requirements])
+    def is_opengraph_minimum(self):
+        """returns true/false if the page has the minimum amount of opengraph tags"""
+        return all([hasattr(self, attr) for attr in self.og_minimum_requirements])
 
 
-    def fetch(self, url):
+    def fetch_url(self):
+        """fetches the url and returns it.  this was busted out so you could subclass.
         """
-        """
-        self._url = url
-        raw = urllib2.urlopen(url)
+        raw = urllib2.urlopen(self.url)
         html = raw.read()
+        return html
+        
+
+    def absolute_url( self, link=None ):
+        """makes the url absolute, as sometimes people use a relative url. sigh.
+        """
+        rval = link
+        link_parts= RE_url.match(link)
+        if link_parts:
+            grouped= link_parts.groups()
+            if grouped[0]:
+                pass # just return the link/rval
+            else:
+                # fix with a domain if we can
+                if self.url :
+                    domain= RE_url.match(self.url).groups()[0]
+                    rval= "%s%s" % ( domain , link )
+        return rval
 
 
     def parser(self, html):
-        """
+        """parses the html
         """
         if not isinstance(html,BeautifulSoup):
             try:
@@ -102,16 +123,6 @@ class MetadataParser(object):
         canonical= doc.findAll('link', attrs={'rel':re.compile("^canonical$", re.I)})
         if canonical:
             link= canonical[0]['href']
-            canonical_parts= RE_url.match(link)
-            if canonical_parts:
-                grouped= canonical_parts.groups()
-                if grouped[0]:
-                    pass
-                else:
-                    # fix with a domain if we can
-                    if self._url :
-                        domain= RE_url.match(self._url).groups()[0]
-                        link= "%s%s" % ( domain , link )
             self.metadata['page']['canonical']= link
 
         # pull out all the metadata
@@ -125,26 +136,48 @@ class MetadataParser(object):
                 k= 'name'
             elif 'property' in attrs:
                 k= 'property'
+            elif 'http-equiv' in attrs:
+                k= 'http-equiv'
             if k:
                 k= attrs[k].strip()
                 if 'content' in attrs:
                     v= attrs['content'].strip()
-            if ( len(k) > 3 ) and ( k[:3] == 'dc:'):
-                self.metadata['dc'][k[3:]]= v
-            else:
-                self.metadata['meta'][k]= v
+                if ( len(k) > 3 ) and ( k[:3] == 'dc:'):
+                    self.metadata['dc'][k[3:]]= v
+                else:
+                    self.metadata['meta'][k]= v
 
 
     def get_metadata(self,field,strategy=None):
+        """looks for the field in various stores.  defaults to the core strategy, though you may specify a certain item.  if you search for 'all' it will return a dict of all values."""
         if strategy:
-            _strategy= strategy.split(',')
+            _strategy= strategy
         else:
             _strategy= self.strategy
+        if _strategy == 'all':
+            rval= {}
+            for store in self.metadata:
+                if field in self.metadata[store]:
+                    rval[store]= self.metadata[store][field]
+            return rval
         for store in _strategy:
-            if field in self.metadata[store]:
-                return self.metadata[store][field]
+            if store in self.metadata:
+                if field in self.metadata[store]:
+                    return self.metadata[store][field]
+        return None
+
+
+    def get_discrete_url(self,og_first=True,canonical_first=False):
+        """convenience method."""
+        og = self.get_metadata('url',strategy=['og'])
+        canonical = self.get_metadata('canonical',strategy=['page'])
+        rval= []
+        if og_first:
+             rval.extend((og,canonical))
+        elif canonical_first:
+             rval.extend((canonical,og))
+        for i in rval:
+            if i:
+                return self.absolute_url( i )
+        return None
         
-    
-    
-    
-    
