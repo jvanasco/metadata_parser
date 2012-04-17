@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.4.1'
+version = '0.4.4'
 
 setup(name='metadata_parser',
       version=version,
@@ -13,7 +13,7 @@ setup(name='metadata_parser',
       'Programming Language :: Python',
       'Topic :: Text Processing :: Markup :: HTML',
       'Topic :: Software Development :: Libraries :: Python Modules',
-      ], 
+      ],
       keywords='opengraph protocol facebook',
       author='Jonathan Vanasco',
       author_email='jonathan@findmeon.com',

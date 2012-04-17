@@ -10,29 +10,29 @@ RE_url= re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
 
 class MetadataParser(object):
     """turns text or a URL into a dict of dicts, extracting as much relvant metadata as possible.
-    
+
         the 'keys' will be either the 'name' or 'property' attribute of the node.
-        
+
         the attribute's prefix are removed when storing into it's bucket
         eg:
             og:title -> 'og':{'title':''}
-        
+
         metadata is stored into subgroups:
-        
+
         page
             extracted from page elements
             saved into MetadataParser.metadata['page']
             example:
                 <head><title>Awesome</title></head>
                 MetadataParser.metadata = { 'page': { 'title':'Awesome' } }
-    
+
         opengraph
             has 'og:' prefix
             saved into MetadataParser.metadata['og']
             example:
                 <meta property="og:title" content="Awesome"/>
                 MetadataParser.metadata = { 'og': { 'og:title':'Awesome' } }
-    
+
         dublin core
             has 'dc:' prefix
             saved into MetadataParser.metadata['dc']
@@ -46,9 +46,11 @@ class MetadataParser(object):
             example:
                 <meta property="title" content="Awesome"/>
                 MetadataParser.metadata = { 'meta': { 'dc:title':'Awesome' } }
-    
+
     """
     url = None
+    url_actual = None
+    url_info = None
     strategy= None
     metadata= None
 
@@ -56,7 +58,7 @@ class MetadataParser(object):
     strategy= ['og','dc','meta','page']
 
 
-    def __init__(self, url=None, html=None, strategy=None):
+    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None ):
         self.metadata= {
             'og':{},
             'meta':{},
@@ -67,7 +69,7 @@ class MetadataParser(object):
             self.strategy= strategy
         self.url = url
         if html is None:
-            html= self.fetch_url()
+            html= self.fetch_url(url_data=url_data, url_headers=url_headers)
         self.parser(html)
 
 
@@ -76,17 +78,30 @@ class MetadataParser(object):
         return all([hasattr(self, attr) for attr in self.og_minimum_requirements])
 
 
-    def fetch_url(self):
+    def fetch_url(self, url_data=None, url_headers=None ):
         """fetches the url and returns it.  this was busted out so you could subclass.
         """
-        raw = urllib2.urlopen(self.url)
+        raw= None
+        req= None
+        if url_data or url_headers:
+            req = urllib2.Request(self.url, url_data, url_headers)
+            raw = urllib2.urlopen(req)
+            print "using headers || %s - %s" % ( self.url , url_headers )
+        else:
+            raw = urllib2.urlopen(self.url)
         html = raw.read()
+        self.url_actual= raw.geturl()
+        self.url_info= raw.info()
         return html
-        
+
 
     def absolute_url( self, link=None ):
         """makes the url absolute, as sometimes people use a relative url. sigh.
         """
+        if not link:
+           link= self.url_actual
+        if not link:
+            return None
         rval = link
         link_parts= RE_url.match(link)
         if link_parts:
@@ -95,7 +110,10 @@ class MetadataParser(object):
                 pass # just return the link/rval
             else:
                 # fix with a domain if we can
-                if self.url :
+                if self.url_actual :
+                    domain= RE_url.match(self.url_actual).groups()[0]
+                    rval= "%s%s" % ( domain , link )
+                elif self.url :
                     domain= RE_url.match(self.url).groups()[0]
                     rval= "%s%s" % ( domain , link )
         return rval
@@ -117,17 +135,26 @@ class MetadataParser(object):
             self.metadata['og'][og[u'property'][3:]]=og[u'content']
 
         # pull the text off the title
-        self.metadata['page']['title']= doc.html.head.title.text
-        
+        try:
+            self.metadata['page']['title']= doc.html.head.title.text
+        except AttributeError:
+            pass
+
         # figure out the canonical url
         canonical= doc.findAll('link', attrs={'rel':re.compile("^canonical$", re.I)})
         if canonical:
-            link= canonical[0]['href']
-            self.metadata['page']['canonical']= link
+            try:
+                link= canonical[0]['href']
+                self.metadata['page']['canonical']= link
+            except KeyError:
+                link= canonical[0]['content']
+                self.metadata['page']['canonical']= link
+            except:
+                pass
 
         # pull out all the metadata
         meta= doc.html.head.findAll(name='meta')
-        for m in meta: 
+        for m in meta:
             k = None
             v = None
             attrs = m.attrs
@@ -179,5 +206,4 @@ class MetadataParser(object):
         for i in rval:
             if i:
                 return self.absolute_url( i )
-        return None
-        
+        return self.absolute_url()
