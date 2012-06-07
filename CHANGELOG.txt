@@ -1,0 +1,15 @@
+0.4.5
+	- fixed a bug that prevented toplevel directories from being parsed
+
+0.4.4
+	- made redirect/masked/shortened links have better dereferenced url support
+
+0.4.2
+	- Wrapped title tag traversal with an AttributeException try block
+	- Wrapped canonical tag lookup with a KeyError try block, defaulting to 'href' then 'content'
+	- Added support for `url_actual` and `url_info` , which persist the data from the urllib2.urlopen object's `geturl()` and `info()`
+	- `get_discrete_url` and `absolute_url` use the underlying url_actual data
+	- added support for passing data and headers into urllib2 requests
+
+0.4.1
+	Initial Release
