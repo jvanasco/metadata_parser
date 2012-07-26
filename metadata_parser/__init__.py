@@ -1,4 +1,7 @@
+import gzip
+import zlib
 import re
+import struct
 import urllib2
 import urlparse
 
@@ -6,6 +9,14 @@ try:
     from bs4 import BeautifulSoup
 except:
     from BeautifulSoup import BeautifulSoup
+
+try:
+    from io import BytesIO as _StringIO
+except ImportError:
+    try:
+        from cStringIO import StringIO as _StringIO
+    except ImportError:
+        from StringIO import StringIO as _StringIO
 
 
 RE_url= re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
@@ -134,15 +145,38 @@ class MetadataParser(object):
                         pass
                     else:
                         raise NotParsable("I don't know what this file is")
-        raw= None
+
+
+        ## borrowing some ideas from http://code.google.com/p/feedparser/source/browse/trunk/feedparser/feedparser.py#3701
+
         req= None
+        raw= None
+        http_headers = {}
         if url_data or url_headers:
             req = urllib2.Request(self.url, url_data, url_headers)
+            req.add_header('Accept-encoding', 'gzip, deflate')
             raw = CustomHTTPRedirectOpener.open(req)
         else:
             req = urllib2.Request(self.url)
+            req.add_header('Accept-encoding', 'gzip, deflate')
             raw = CustomHTTPRedirectOpener.open(req)
+
+
         html = raw.read()
+
+        # lowercase all of the HTTP headers for comparisons per RFC 2616
+        http_headers = dict((k.lower(), v) for k, v in raw.headers.items())
+        if 'gzip' in http_headers.get('content-encoding', ''):
+            try:
+                html = gzip.GzipFile(fileobj=_StringIO(html)).read()
+            except (IOError, struct.error), e:
+                raise
+        elif 'deflate' in http_headers.get('content-encoding', ''):
+            try:
+                html = zlib.decompress(html)
+            except zlib.error, e:
+                raise
+
         self.url_actual= raw.geturl()
         self.url_info= raw.info()
         return html
@@ -176,6 +210,7 @@ class MetadataParser(object):
         """parses the html
         """
         if not isinstance(html,BeautifulSoup):
+            html = unicode(html,errors='ignore')
             try:
                 doc = BeautifulSoup(html,"lxml")
             except:
@@ -186,8 +221,8 @@ class MetadataParser(object):
         try:
             ogs = doc.html.head.findAll(property=re.compile(r'^og'))
             for og in ogs:
-                self.metadata['og'][og[u'property'][3:]]=og[u'content']
-        except AttributeError:
+                self.metadata['og'][og[u'property'][3:]] = og[u'content']
+        except ( AttributeError , KeyError ):
             pass
 
         # pull the text off the title

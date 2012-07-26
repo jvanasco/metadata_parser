@@ -1,3 +1,6 @@
+0.4.6
+	- realized that some servers return gzip content, despite not advertising that this client accepts that content ; fixed by using some ideas from mark pilgrim's feedparser.  metadata_parser now advertises gzip and zlib, and processes it as needed
+
 0.4.5
 	- fixed a bug that prevented toplevel directories from being parsed
 
