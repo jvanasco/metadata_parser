@@ -1,3 +1,11 @@
+0.4.8
+	- added support for twitter's own og style markup
+	- cleaned up the beautifulsoup finds for og data
+	- moved 'try' from encapsulating 'for' blocks to encapsulating the inner loop.  this will pull more data out if an error occurs.
+
+0.4.7
+	- cleaned up some code
+
 0.4.6
 	- realized that some servers return gzip content, despite not advertising that this client accepts that content ; fixed by using some ideas from mark pilgrim's feedparser.  metadata_parser now advertises gzip and zlib, and processes it as needed
 

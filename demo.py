@@ -64,7 +64,7 @@ if 0:
         a= MetadataParser(url=i)
         print a.__dict__
 
-if 1:
+if 0:
     url = 'http://soundcloud.com/electricyouthmusic'
     a= MetadataParser(url=url)
     print a.__dict__

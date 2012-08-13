@@ -105,6 +105,7 @@ class MetadataParser(object):
     LEN_MAX_TITLE = 255
 
     og_minimum_requirements= [ 'title', 'type' , 'image' , 'url' ]
+    twitter_sections= ['card','title','site','description']
     strategy= ['og','dc','meta','page']
 
 
@@ -114,6 +115,7 @@ class MetadataParser(object):
             'meta':{},
             'dc':{},
             'page':{},
+            'twitter':{}
         }
         if strategy:
             self.strategy= strategy
@@ -151,16 +153,12 @@ class MetadataParser(object):
 
         req= None
         raw= None
-        http_headers = {}
-        if url_data or url_headers:
-            req = urllib2.Request(self.url, url_data, url_headers)
-            req.add_header('Accept-encoding', 'gzip, deflate')
-            raw = CustomHTTPRedirectOpener.open(req)
-        else:
-            req = urllib2.Request(self.url)
-            req.add_header('Accept-encoding', 'gzip, deflate')
-            raw = CustomHTTPRedirectOpener.open(req)
 
+        if not url_headers:
+            url_headers= {}
+        req = urllib2.Request(self.url, url_data, url_headers)
+        req.add_header('Accept-encoding', 'gzip, deflate')
+        raw = CustomHTTPRedirectOpener.open(req)
 
         html = raw.read()
 
@@ -175,7 +173,11 @@ class MetadataParser(object):
             try:
                 html = zlib.decompress(html)
             except zlib.error, e:
-                raise
+                try:
+                    # The data may have no headers and no checksum.
+                    html = zlib.decompress(html, -15)
+                except zlib.error, e:
+                    raise
 
         self.url_actual= raw.geturl()
         self.url_info= raw.info()
@@ -218,12 +220,19 @@ class MetadataParser(object):
         else:
             doc = html
 
-        try:
-            ogs = doc.html.head.findAll(property=re.compile(r'^og'))
-            for og in ogs:
+        ogs = doc.html.head.findAll('meta',attrs={'property':re.compile(r'^og')})
+        for og in ogs:
+            try:
                 self.metadata['og'][og[u'property'][3:]] = og[u'content']
-        except ( AttributeError , KeyError ):
-            pass
+            except ( AttributeError , KeyError ):
+                pass
+
+        twitters = doc.html.head.findAll('meta',attrs={'name':re.compile(r'^twitter')})
+        for twitter in twitters:
+            try:
+                self.metadata['twitter'][twitter[u'name'][8:]] = twitter[u'value']
+            except ( AttributeError , KeyError ):
+                pass
 
         # pull the text off the title
         try:
@@ -260,9 +269,9 @@ class MetadataParser(object):
                 pass
 
         # pull out all the metadata
-        try:
-            meta= doc.html.head.findAll(name='meta')
-            for m in meta:
+        meta= doc.html.head.findAll(name='meta')
+        for m in meta:
+            try:
                 k = None
                 v = None
                 attrs = m.attrs
@@ -281,8 +290,8 @@ class MetadataParser(object):
                         self.metadata['dc'][k[3:]]= v
                     else:
                         self.metadata['meta'][k]= v
-        except AttributeError:
-            pass
+            except AttributeError:
+                pass
 
 
     def get_metadata(self,field,strategy=None):
