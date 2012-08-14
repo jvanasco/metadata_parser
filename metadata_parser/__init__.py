@@ -121,7 +121,7 @@ class MetadataParser(object):
             self.strategy= strategy
         self.url = url
         if html is None:
-            html= self.fetch_url( url_data=url_data, url_headers=url_headers, force_parse=False )
+            html= self.fetch_url( url_data=url_data, url_headers=url_headers, force_parse=force_parse )
         self.parser(html, force_parse=force_parse)
 
 
@@ -139,11 +139,11 @@ class MetadataParser(object):
             if url_parts[1] :
                 url_fpath = url_parts[1].split('.')
                 if len(url_fpath) == 0:
-                    # i have no idea what this file is
+                    # i have no idea what this file is , it's likely using a directory index
                     pass
                 elif len(url_fpath) > 1:
                     url_fext = url_fpath[-1]
-                    if url_fext in ( 'html','txt','json','htm','xml' ):
+                    if url_fext in ( 'html','txt','json','htm','xml','php','asp','aspx','ece','xhtml','cfm'):
                         pass
                     else:
                         raise NotParsable("I don't know what this file is")

@@ -1,3 +1,7 @@
+0.4.10
+	- fixed force_parse arg on init
+	- added support for more filetypes
+
 0.4.9
 	- support for gzip documents that pad with extra data ( spec allows, python module doesn't )
 	- ensure proper document format
