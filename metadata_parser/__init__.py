@@ -168,7 +168,14 @@ class MetadataParser(object):
             try:
                 html = gzip.GzipFile(fileobj=_StringIO(html)).read()
             except (IOError, struct.error), e:
-                raise
+                try:
+                    # apparently the gzip module isn't too good and doesn't follow spec
+                    # here's a wonderful workaround
+                    # http://stackoverflow.com/questions/4928560/how-can-i-work-with-gzip-files-which-contain-extra-data
+                    gzipfile= _StringIO(html)
+                    html = zlib.decompress(gzipfile.read()[10:], -zlib.MAX_WBITS)
+                except:
+                    raise
         elif 'deflate' in http_headers.get('content-encoding', ''):
             try:
                 html = zlib.decompress(html)
@@ -219,6 +226,10 @@ class MetadataParser(object):
                 doc = BeautifulSoup(html)
         else:
             doc = html
+
+        # let's ensure that we have a real document...
+        if not doc or not doc.html or not doc.html.head :
+            return
 
         ogs = doc.html.head.findAll('meta',attrs={'property':re.compile(r'^og')})
         for og in ogs:
