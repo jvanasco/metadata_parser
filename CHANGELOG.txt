@@ -1,3 +1,6 @@
+0.4.11
+	- added more relaxed controls for parsing safe files
+
 0.4.10
 	- fixed force_parse arg on init
 	- added support for more filetypes

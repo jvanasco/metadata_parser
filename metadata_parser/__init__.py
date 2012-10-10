@@ -26,6 +26,8 @@ RE_bad_title= re.compile("""(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/
 RE_url_parts= re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+?)?)(\/[^?#]*)?""", re.I)
 
 
+ONLY_PARSE_SAFE_FILES = False
+PARSE_SAFE_FILES = ( 'html','txt','json','htm','xml','php','asp','aspx','ece','xhtml','cfm','cgi')
 
 ## This is taken from the following blogpost.  thanks.
 ## http://hustoknow.blogspot.com/2011/05/urlopen-opens-404.html
@@ -134,7 +136,7 @@ class MetadataParser(object):
         """fetches the url and returns it.  this was busted out so you could subclass.
         """
         # should we even download/parse this?
-        if not force_parse:
+        if not force_parse and ONLY_PARSE_SAFE_FILES :
             url_parts= RE_url_parts.match(self.url).groups()
             if url_parts[1] :
                 url_fpath = url_parts[1].split('.')
@@ -143,7 +145,7 @@ class MetadataParser(object):
                     pass
                 elif len(url_fpath) > 1:
                     url_fext = url_fpath[-1]
-                    if url_fext in ( 'html','txt','json','htm','xml','php','asp','aspx','ece','xhtml','cfm'):
+                    if url_fext in PARSE_SAFE_FILES :
                         pass
                     else:
                         raise NotParsable("I don't know what this file is")
