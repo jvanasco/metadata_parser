@@ -158,7 +158,12 @@ class MetadataParser(object):
 
         if not url_headers:
             url_headers= {}
-        req = urllib2.Request(self.url, url_data, url_headers)
+            
+        # if someone does usertracking with sharethis.com, they get a hashbang like this: http://example.com/page#.UHeGb2nuVo8
+        # that fucks things up.
+        url = self.url.split('#')[0]
+            
+        req = urllib2.Request(url, url_data, url_headers)
         req.add_header('Accept-encoding', 'gzip, deflate')
         raw = CustomHTTPRedirectOpener.open(req)
 

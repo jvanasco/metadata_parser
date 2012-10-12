@@ -1,3 +1,7 @@
+0.4.12
+	- created a workaround for sharethis hashbang urls, which urllib2 doesn't like
+	- we need to move to requests.py
+
 0.4.11
 	- added more relaxed controls for parsing safe files
 
