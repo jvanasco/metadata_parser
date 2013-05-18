@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.4.12'
+version = '0.4.13'
 
 setup(name='metadata_parser',
       version=version,

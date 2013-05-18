@@ -1,3 +1,8 @@
+0.4.13
+	- trapping all errors in httplib and urrlib2 ; raising as an NotParsable and sticking the original error into the `raised` attribute.
+		this will allow for cleaner error handling
+	- we *really* need to move to requests.py
+
 0.4.12
 	- created a workaround for sharethis hashbang urls, which urllib2 doesn't like
 	- we need to move to requests.py

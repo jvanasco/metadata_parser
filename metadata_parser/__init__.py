@@ -1,9 +1,10 @@
 import gzip
-import zlib
+import httplib
 import re
 import struct
 import urllib2
 import urlparse
+import zlib
 
 try:
     from bs4 import BeautifulSoup
@@ -56,7 +57,19 @@ CustomHTTPRedirectOpener = urllib2.build_opener(CustomHTTPRedirectHandler())
 
 
 class NotParsable(Exception):
+    message= None
+    raised= None
+
+    def __init__( self , message='' , raised=None ):
+        self.message = message
+        self.raised = raised
+
+    def __str__( self ):
+        return "ApiError: %s | %s" % ( self.message , self.raised )
+
+class NotParsableFetchError(NotParsable):
     pass
+    
 
 
 class MetadataParser(object):
@@ -162,12 +175,24 @@ class MetadataParser(object):
         # if someone does usertracking with sharethis.com, they get a hashbang like this: http://example.com/page#.UHeGb2nuVo8
         # that fucks things up.
         url = self.url.split('#')[0]
-            
-        req = urllib2.Request(url, url_data, url_headers)
-        req.add_header('Accept-encoding', 'gzip, deflate')
-        raw = CustomHTTPRedirectOpener.open(req)
-
-        html = raw.read()
+        
+        try :
+            req = urllib2.Request(url, url_data, url_headers)
+            req.add_header('Accept-encoding', 'gzip, deflate')
+            raw = CustomHTTPRedirectOpener.open(req)
+            html = raw.read()
+        except httplib.BadStatusLine , error :
+            raise NotParsableFetchError(raised=error)
+        except httplib.InvalidURL , error :
+            raise NotParsableFetchError(raised=error)
+        except httplib.HTTPException , error :
+            raise NotParsableFetchError(raised=error)
+        except urllib2.HTTPError , error:
+            raise NotParsableFetchError(raised=error)
+        except urllib2.URLError , error :
+            raise NotParsableFetchError(raised=error)
+        except Exception as error:
+            raise NotParsableFetchError(raised=error)
 
         # lowercase all of the HTTP headers for comparisons per RFC 2616
         http_headers = dict((k.lower(), v) for k, v in raw.headers.items())
