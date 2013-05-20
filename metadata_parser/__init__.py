@@ -146,7 +146,7 @@ class MetadataParser(object):
         r = None
         try :
             # requests gives us unicode and the correct encoding , yay
-            r = requests.get( url, params=url_data , headers=url_headers , allow_redirects=True , )
+            r = requests.get( url, params=url_data , headers=url_headers , allow_redirects=True , verify=self.ssl_verify )
             html = r.text
             self.response = r
 

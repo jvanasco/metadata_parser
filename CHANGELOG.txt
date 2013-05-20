@@ -1,3 +1,6 @@
+0.5.1
+	- missed the ssl_verify command
+
 0.5.0
 	- migrated to the requests library
 
