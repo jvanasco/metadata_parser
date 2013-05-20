@@ -1,3 +1,6 @@
+0.5.0
+	- migrated to the requests library
+
 0.4.13
 	- trapping all errors in httplib and urrlib2 ; raising as an NotParsable and sticking the original error into the `raised` attribute.
 		this will allow for cleaner error handling

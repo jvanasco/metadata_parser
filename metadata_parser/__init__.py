@@ -1,24 +1,10 @@
-import gzip
-import httplib
 import re
-import struct
-import urllib2
-import urlparse
-import zlib
+import requests
 
 try:
     from bs4 import BeautifulSoup
 except:
     from BeautifulSoup import BeautifulSoup
-
-try:
-    from io import BytesIO as _StringIO
-except ImportError:
-    try:
-        from cStringIO import StringIO as _StringIO
-    except ImportError:
-        from StringIO import StringIO as _StringIO
-
 
 RE_url= re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
 
@@ -33,39 +19,17 @@ PARSE_SAFE_FILES = ( 'html','txt','json','htm','xml','php','asp','aspx','ece','x
 ## This is taken from the following blogpost.  thanks.
 ## http://hustoknow.blogspot.com/2011/05/urlopen-opens-404.html
 
-class CustomHTTPRedirectHandler(urllib2.HTTPRedirectHandler):
-    # If a redirect happens within a 301, we deal with it here.
-
-    def redirect_request(self, req, fp, code, msg, hdrs, newurl):
-        parsed_url = urlparse.urlparse(newurl)
-
-        # See http://code.google.com/web/ajaxcrawling/docs/getting-started.html
-        #
-        # Strip out the hash fragment, since fragments are never (by
-        # specification) sent to the server.  If you do, a 404 error can occur.
-        # urllib2.urlopen() also will die a glorius death if you try, so you must
-        # remove it.   See http://stackoverflow.com/questions/3798422 for more info.
-        # Facebook does not really conform to the Google standard, so we can't
-        # send the fragment as _escaped_fragment_=key=value.
-
-        # Strip out the URL fragment and reconstruct everything if a hash tag exists.
-        if newurl.find('#') != -1:
-            newurl = "%s://%s%s" % (parsed_url.scheme, parsed_url.netloc, parsed_url.path)
-        return urllib2.HTTPRedirectHandler.redirect_request(self, req, fp, code, msg, hdrs, newurl)
-
-CustomHTTPRedirectOpener = urllib2.build_opener(CustomHTTPRedirectHandler())
 
 
 class NotParsable(Exception):
-    message= None
-    raised= None
 
-    def __init__( self , message='' , raised=None ):
+    def __init__( self , message='' , raised=None , code=None ):
         self.message = message
         self.raised = raised
+        self.code = code
 
     def __str__( self ):
-        return "ApiError: %s | %s" % ( self.message , self.raised )
+        return "ApiError: %s | %s | %s" % ( self.message , self.code , self.raised )
 
 class NotParsableFetchError(NotParsable):
     pass
@@ -111,10 +75,13 @@ class MetadataParser(object):
                 <meta property="title" content="Awesome"/>
                 MetadataParser.metadata = { 'meta': { 'dc:title':'Awesome' } }
 
+        NOTE:
+            passing in ssl_verify=False will turn off ssl verification checking in the requests library. 
+            this can be necessary on development machines
+
     """
     url = None
     url_actual = None
-    url_info = None
     strategy= None
     metadata= None
     LEN_MAX_TITLE = 255
@@ -124,7 +91,7 @@ class MetadataParser(object):
     strategy= ['og','dc','meta','page']
 
 
-    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False ):
+    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False , ssl_verify=True):
         self.metadata= {
             'og':{},
             'meta':{},
@@ -135,6 +102,9 @@ class MetadataParser(object):
         if strategy:
             self.strategy= strategy
         self.url = url
+        self.ssl_verify = ssl_verify
+        self.response = None
+        self.response_headers = {}
         if html is None:
             html= self.fetch_url( url_data=url_data, url_headers=url_headers, force_parse=force_parse )
         self.parser(html, force_parse=force_parse)
@@ -166,9 +136,6 @@ class MetadataParser(object):
 
         ## borrowing some ideas from http://code.google.com/p/feedparser/source/browse/trunk/feedparser/feedparser.py#3701
 
-        req= None
-        raw= None
-
         if not url_headers:
             url_headers= {}
             
@@ -176,50 +143,23 @@ class MetadataParser(object):
         # that fucks things up.
         url = self.url.split('#')[0]
         
+        r = None
         try :
-            req = urllib2.Request(url, url_data, url_headers)
-            req.add_header('Accept-encoding', 'gzip, deflate')
-            raw = CustomHTTPRedirectOpener.open(req)
-            html = raw.read()
-        except httplib.BadStatusLine , error :
-            raise NotParsableFetchError(raised=error)
-        except httplib.InvalidURL , error :
-            raise NotParsableFetchError(raised=error)
-        except httplib.HTTPException , error :
-            raise NotParsableFetchError(raised=error)
-        except urllib2.HTTPError , error:
-            raise NotParsableFetchError(raised=error)
-        except urllib2.URLError , error :
-            raise NotParsableFetchError(raised=error)
-        except Exception as error:
-            raise NotParsableFetchError(raised=error)
+            # requests gives us unicode and the correct encoding , yay
+            r = requests.get( url, params=url_data , headers=url_headers , allow_redirects=True , )
+            html = r.text
+            self.response = r
 
-        # lowercase all of the HTTP headers for comparisons per RFC 2616
-        http_headers = dict((k.lower(), v) for k, v in raw.headers.items())
-        if 'gzip' in http_headers.get('content-encoding', ''):
-            try:
-                html = gzip.GzipFile(fileobj=_StringIO(html)).read()
-            except (IOError, struct.error), e:
-                try:
-                    # apparently the gzip module isn't too good and doesn't follow spec
-                    # here's a wonderful workaround
-                    # http://stackoverflow.com/questions/4928560/how-can-i-work-with-gzip-files-which-contain-extra-data
-                    gzipfile= _StringIO(html)
-                    html = zlib.decompress(gzipfile.read()[10:], -zlib.MAX_WBITS)
-                except:
-                    raise
-        elif 'deflate' in http_headers.get('content-encoding', ''):
-            try:
-                html = zlib.decompress(html)
-            except zlib.error, e:
-                try:
-                    # The data may have no headers and no checksum.
-                    html = zlib.decompress(html, -15)
-                except zlib.error, e:
-                    raise
+            # lowercase all of the HTTP headers for comparisons per RFC 2616
+            self.repsonse_headers = dict((k.lower(), v) for k, v in r.headers.items())
+            self.url_actual= r.url
+            
+            if r.status_code != 200 :
+                raise NotParsableFetchError(message="Status Code is not 200" , code=r.status_code)
 
-        self.url_actual= raw.geturl()
-        self.url_info= raw.info()
+        except requests.exceptions.RequestException as error:
+            raise NotParsableFetchError(message="Error with `requests` library.  Inspect the `raised` attribute of this error.", raised=error)
+
         return html
 
 
@@ -251,7 +191,6 @@ class MetadataParser(object):
         """parses the html
         """
         if not isinstance(html,BeautifulSoup):
-            html = unicode(html,errors='ignore')
             try:
                 doc = BeautifulSoup(html,"lxml")
             except:

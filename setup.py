@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.4.13'
+version = '0.5.0'
 
 setup(name='metadata_parser',
       version=version,
@@ -23,7 +23,8 @@ setup(name='metadata_parser',
       include_package_data=True,
       zip_safe=False,
       install_requires=[
-          'BeautifulSoup'
+          'BeautifulSoup',
+          'requests>=1.2'
       ],
       entry_points="""
       # -*- Entry points: -*-
