@@ -1,3 +1,6 @@
+0.5.2
+	- fixed an issue on html title parsing.  the old method incorrectly regexed on a BS4 tag, not tag contents, creating character encoding issues.
+
 0.5.1
 	- missed the ssl_verify command
 

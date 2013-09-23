@@ -149,7 +149,7 @@ class MetadataParser(object):
             r = requests.get( url, params=url_data , headers=url_headers , allow_redirects=True , verify=self.ssl_verify )
             html = r.text
             self.response = r
-
+            
             # lowercase all of the HTTP headers for comparisons per RFC 2616
             self.repsonse_headers = dict((k.lower(), v) for k, v in r.headers.items())
             self.url_actual= r.url
@@ -218,14 +218,14 @@ class MetadataParser(object):
 
         # pull the text off the title
         try:
-            self.metadata['page']['title']= doc.html.head.title.text
-            if len(self.metadata['page']['title']) > self.LEN_MAX_TITLE:
-                broken_title= RE_bad_title.match("%s"%doc.html.head.title)
-                if broken_title:
-                    self.metadata['page']['title']= broken_title.groups(0)[0][:self.LEN_MAX_TITLE]
+            _title_text = doc.html.head.title.text
+            if len(_title_text) > self.LEN_MAX_TITLE:
+                _title_text = _title_text[:self.LEN_MAX_TITLE]
+            self.metadata['page']['title'] = _title_text
+
         except AttributeError:
             pass
-
+            
         # is there an image_src?
         image= doc.findAll('link', attrs={'rel':re.compile("^image_src$", re.I)})
         if image:
