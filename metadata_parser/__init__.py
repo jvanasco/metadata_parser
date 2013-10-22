@@ -101,6 +101,8 @@ class MetadataParser(object):
         }
         if strategy:
             self.strategy= strategy
+        if url is not None:
+            url = url.strip()
         self.url = url
         self.ssl_verify = ssl_verify
         self.response = None
@@ -179,10 +181,10 @@ class MetadataParser(object):
             else:
                 # fix with a domain if we can
                 if self.url_actual :
-                    domain= RE_url.match(self.url_actual).groups()[0]
+                    domain= RE_url.match(self.url_actual).groups()[0].strip()
                     rval= "%s%s" % ( domain , link )
                 elif self.url :
-                    domain= RE_url.match(self.url).groups()[0]
+                    domain= RE_url.match(self.url).groups()[0].strip()
                     rval= "%s%s" % ( domain , link )
         return rval
 
@@ -205,14 +207,14 @@ class MetadataParser(object):
         ogs = doc.html.head.findAll('meta',attrs={'property':re.compile(r'^og')})
         for og in ogs:
             try:
-                self.metadata['og'][og[u'property'][3:]] = og[u'content']
+                self.metadata['og'][og[u'property'][3:]] = og[u'content'].strip()
             except ( AttributeError , KeyError ):
                 pass
 
         twitters = doc.html.head.findAll('meta',attrs={'name':re.compile(r'^twitter')})
         for twitter in twitters:
             try:
-                self.metadata['twitter'][twitter[u'name'][8:]] = twitter[u'value']
+                self.metadata['twitter'][twitter[u'name'][8:]] = twitter[u'value'].strip()
             except ( AttributeError , KeyError ):
                 pass
 
@@ -230,10 +232,10 @@ class MetadataParser(object):
         image= doc.findAll('link', attrs={'rel':re.compile("^image_src$", re.I)})
         if image:
             try:
-                img = image[0]['href']
+                img = image[0]['href'].strip()
                 self.metadata['page']['image']= img
             except KeyError:
-                img = image[0]['content']
+                img = image[0]['content'].strip()
                 self.metadata['page']['image']= img
             except:
                 pass
@@ -242,10 +244,10 @@ class MetadataParser(object):
         canonical= doc.findAll('link', attrs={'rel':re.compile("^canonical$", re.I)})
         if canonical:
             try:
-                link= canonical[0]['href']
+                link= canonical[0]['href'].strip()
                 self.metadata['page']['canonical']= link
             except KeyError:
-                link= canonical[0]['content']
+                link= canonical[0]['content'].strip()
                 self.metadata['page']['canonical']= link
             except:
                 pass
