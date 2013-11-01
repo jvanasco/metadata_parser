@@ -153,7 +153,7 @@ class MetadataParser(object):
             self.response = r
             
             # lowercase all of the HTTP headers for comparisons per RFC 2616
-            self.repsonse_headers = dict((k.lower(), v) for k, v in r.headers.items())
+            self.response_headers = dict((k.lower(), v) for k, v in r.headers.items())
             self.url_actual= r.url
             
             if r.status_code != 200 :
