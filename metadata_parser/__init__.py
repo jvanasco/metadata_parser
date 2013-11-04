@@ -1,10 +1,7 @@
 import re
 import requests
 
-try:
-    from bs4 import BeautifulSoup
-except:
-    from BeautifulSoup import BeautifulSoup
+from bs4 import BeautifulSoup
 
 RE_url= re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
 
