@@ -1,3 +1,7 @@
+0.5.4
+	- Pull Request - https://github.com/jvanasco/metadata_parser/pull/1
+		Credit to Paul Bonser [ https://github.com/pib ]
+
 0.5.3
 	- added a few `.strip()` calls to clean up metadata values
 
