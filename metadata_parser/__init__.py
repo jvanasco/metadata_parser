@@ -153,7 +153,7 @@ class MetadataParser(object):
             self.response = r
             
             # lowercase all of the HTTP headers for comparisons per RFC 2616
-            self.response_headers = dict((k.lower(), v) for k, v in r.headers.items())
+            self.response_headers = dict((k.lower(), v) for k, v in list(r.headers.items()))
             self.url_actual= r.url
             
             if r.status_code != 200 :
@@ -207,14 +207,14 @@ class MetadataParser(object):
         ogs = doc.html.head.findAll('meta',attrs={'property':re.compile(r'^og')})
         for og in ogs:
             try:
-                self.metadata['og'][og[u'property'][3:]] = og[u'content'].strip()
+                self.metadata['og'][og['property'][3:]] = og['content'].strip()
             except ( AttributeError , KeyError ):
                 pass
 
         twitters = doc.html.head.findAll('meta',attrs={'name':re.compile(r'^twitter')})
         for twitter in twitters:
             try:
-                self.metadata['twitter'][twitter[u'name'][8:]] = twitter[u'value'].strip()
+                self.metadata['twitter'][twitter['name'][8:]] = twitter['value'].strip()
             except ( AttributeError , KeyError ):
                 pass
 
