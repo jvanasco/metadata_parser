@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
-import sys, os
+import sys
+import os
 
 version = '0.5.4'
 
@@ -8,11 +9,11 @@ setup(name='metadata_parser',
       description="A module to parse metadata out of documents",
       long_description=open("README.rst").read() + "\n",
       classifiers=[
-      'Development Status :: 3 - Alpha',
-      'Intended Audience :: Developers',
-      'Programming Language :: Python',
-      'Topic :: Text Processing :: Markup :: HTML',
-      'Topic :: Software Development :: Libraries :: Python Modules',
+          'Development Status :: 3 - Alpha',
+          'Intended Audience :: Developers',
+          'Programming Language :: Python',
+          'Topic :: Text Processing :: Markup :: HTML',
+          'Topic :: Software Development :: Libraries :: Python Modules',
       ],
       keywords='opengraph protocol facebook',
       author='Jonathan Vanasco',
@@ -23,7 +24,7 @@ setup(name='metadata_parser',
       include_package_data=True,
       zip_safe=False,
       install_requires=[
-          'BeautifulSoup',
+          'BeautifulSoup4',
           'requests>=1.2'
       ],
       entry_points="""
