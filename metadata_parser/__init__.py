@@ -3,6 +3,7 @@ import requests
 
 from bs4 import BeautifulSoup
 
+#RE_url = re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)(\/.*)?""", re.I)
 RE_url = re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
 
 RE_bad_title = re.compile(
@@ -103,6 +104,7 @@ class MetadataParser(object):
         if url is not None:
             url = url.strip()
         self.url = url
+        self.url_actual = url
         self.ssl_verify = ssl_verify
         self.response = None
         self.response_headers = {}
@@ -166,27 +168,52 @@ class MetadataParser(object):
 
         return html
 
+
+
     def absolute_url(self, link=None):
         """makes the url absolute, as sometimes people use a relative url. sigh.
         """
+        # set the fallback return value, in case we're parsing a bad url from the page
+        rval_fallback = self.url_actual or None
+
+        # use the self.url_actual as a fallback to check
         if not link:
             link = self.url_actual
+
+        # ok, exit now if this is futile
         if not link:
-            return None
+            return rval_fallback
+
         rval = link
         link_parts = RE_url.match(link)
         if link_parts:
-            grouped = link_parts.groups()
-            if grouped[0]:
+            ( link_part__host , link_part__local ) = link_parts.groups()
+
+            if link_part__host :
                 pass  # just return the link/rval
             else:
-                # fix with a domain if we can
-                if self.url_actual:
-                    domain = RE_url.match(self.url_actual).groups()[0].strip()
-                    rval = "%s%s" % (domain, link)
-                elif self.url:
-                    domain = RE_url.match(self.url).groups()[0].strip()
-                    rval = "%s%s" % (domain, link)
+                if link_part__local :
+
+
+                    ## prepend with a /
+                    if link_part__local[0] != "/":
+                        known_invalid_plugins = [ '...', ]  # some stock plugins create invalid urls like '...' in meta-data
+                        if link_part__local in known_invalid_plugins :
+                            return rval_fallback
+
+                        link_part__local = "/%s" % link_part__local
+
+                    # fix with a domain if we can
+                    if self.url_actual:
+                        domain = RE_url.match(self.url_actual).groups()[0].strip()
+                        rval = "%s%s" % (domain, link_part__local)
+
+                    elif self.url:
+                        domain = RE_url.match(self.url).groups()[0].strip()
+                        rval = "%s%s" % (domain, link_part__local)
+                else:
+                    # honestly, don't know how to address this part or if it could happen
+                    pass
         return rval
 
     def parser(self, html, force_parse=False):
@@ -300,16 +327,27 @@ class MetadataParser(object):
                     return self.metadata[store][field]
         return None
 
-    def get_discrete_url(self, og_first=True, canonical_first=False):
+
+    def get_discrete_url(self, og_first=True, canonical_first=False, allow_invalid=False ):
         """convenience method."""
+        
         og = self.get_metadata('url', strategy=['og'])
         canonical = self.get_metadata('canonical', strategy=['page'])
+        
+        if not allow_invalid:
+            if og and not RE_url.match(og) :
+                og = None
+            if canonical and not RE_url.match(canonical):
+                canonical = None
+
         rval = []
         if og_first:
             rval.extend((og, canonical))
         elif canonical_first:
             rval.extend((canonical, og))
+            
         for i in rval:
             if i:
                 return self.absolute_url(i)
+
         return self.absolute_url()

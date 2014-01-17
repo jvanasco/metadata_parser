@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import sys
 import os
 
-version = '0.5.4'
+version = '0.5.6'
 
 setup(name='metadata_parser',
       version=version,
@@ -21,6 +21,7 @@ setup(name='metadata_parser',
       url='https://github.com/jvanasco/metadata_parser',
       license='MIT',
       packages=find_packages(exclude=['ez_setup', 'tests']),
+      test_suite='tests',
       include_package_data=True,
       zip_safe=False,
       install_requires=[

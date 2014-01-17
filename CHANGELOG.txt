@@ -1,3 +1,9 @@
+0.5.6 [ candidate ]
+	- trying to ensure we return a valid url in get_discrete_url()
+	- adding in some proper unit tests; migrating from the private demo's slowly ( the private demo's hit a lot of internal files and public urls ; wouldn't be proper to make these public )
+	- setting `self.url_actual = url` on __init__. this will get overridden on a `fetch`, but allows for a fallback on html docs passed through
+
+
 0.5.5 [ candidate ]
 	- Dropped BS3 support
 	- test Python3 support ( support added by Paul Bonser [ https://github.com/pib ] )
