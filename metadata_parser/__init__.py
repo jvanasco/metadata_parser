@@ -13,9 +13,9 @@ RE_url_parts = re.compile(
     """(https?\:\/\/[^\/]*(?:\:[\d]+?)?)(\/[^?#]*)?""", re.I)
 
 
-ONLY_PARSE_SAFE_FILES = False
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
+                    
 
 # This is taken from the following blogpost.  thanks.
 # http://hustoknow.blogspot.com/2011/05/urlopen-opens-404.html
@@ -86,12 +86,43 @@ class MetadataParser(object):
     strategy = None
     metadata = None
     LEN_MAX_TITLE = 255
+    only_parse_file_extensions = None
 
     og_minimum_requirements = ['title', 'type', 'image', 'url']
     twitter_sections = ['card', 'title', 'site', 'description']
     strategy = ['og', 'dc', 'meta', 'page']
 
-    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False, ssl_verify=True):
+    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False, ssl_verify=True, only_parse_file_extensions=None , force_parse_invalid_content_type=False ):
+        """
+        creates a new `MetadataParser` instance.
+        
+        kwargs:
+            `url` 
+                url to parse
+            `html`
+                instead of a url, parse raw html
+            `strategy`
+                default : None
+                sets default metadata strategy ( ['og', 'dc', 'meta', 'page'] )
+                see also `MetadataParser.get_metadata()`
+            `url_data`
+                data passed to `requests` library as `params`
+            `url_headers`
+                data passed to `requests` library as `headers`
+            `force_parse` 
+                default: False
+                force parsing invalid content
+            `ssl_verify` 
+                default: True
+                disable ssl verification, sometimes needed in development
+            `only_parse_file_extensions`
+                default: None
+                set a list of valid file extensions.  see `metadata_parser.PARSE_SAFE_FILES` for an example list
+            `force_parse_invalid_content_type`
+                default: False
+                force parsing invalid content types
+                by default this will only parse text/html content
+        """
         self.metadata = {
             'og': {},
             'meta': {},
@@ -108,20 +139,22 @@ class MetadataParser(object):
         self.ssl_verify = ssl_verify
         self.response = None
         self.response_headers = {}
+        if only_parse_file_extensions is not None:
+            self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
             html = self.fetch_url(url_data=url_data, url_headers=url_headers,
-                                  force_parse=force_parse)
+                                  force_parse=force_parse, force_parse_invalid_content_type=force_parse_invalid_content_type )
         self.parser(html, force_parse=force_parse)
 
     def is_opengraph_minimum(self):
         """returns true/false if the page has the minimum amount of opengraph tags"""
         return all([hasattr(self, attr) for attr in self.og_minimum_requirements])
 
-    def fetch_url(self, url_data=None, url_headers=None, force_parse=False):
+    def fetch_url(self, url_data=None, url_headers=None, force_parse=False, force_parse_invalid_content_type=False ):
         """fetches the url and returns it.  this was busted out so you could subclass.
         """
         # should we even download/parse this?
-        if not force_parse and ONLY_PARSE_SAFE_FILES:
+        if not force_parse and self.only_parse_file_extensions is not None :
             url_parts = RE_url_parts.match(self.url).groups()
             if url_parts[1]:
                 url_fpath = url_parts[1].split('.')
@@ -131,7 +164,7 @@ class MetadataParser(object):
                     pass
                 elif len(url_fpath) > 1:
                     url_fext = url_fpath[-1]
-                    if url_fext in PARSE_SAFE_FILES:
+                    if url_fext in self.only_parse_file_extensions:
                         pass
                     else:
                         raise NotParsable("I don't know what this file is")
@@ -150,6 +183,17 @@ class MetadataParser(object):
             # requests gives us unicode and the correct encoding , yay
             r = requests.get(url, params=url_data, headers=url_headers,
                              allow_redirects=True, verify=self.ssl_verify)
+                             
+            content_type = None
+            if 'content-type' in r.headers :
+                content_type = r.headers['content-type']
+                ## content type can have a character encoding in it...
+                content_type = [ i.strip() for i in content_type.split(';') ]
+                content_type = content_type[0].lower()
+
+            if ( content_type is None or ( content_type != 'text/html' ) ) and not force_parse_invalid_content_type  :
+                raise NotParsable("I don't know what type of file this is! content-type:'[%s]" % content_type )
+        
             html = r.text
             self.response = r
 
