@@ -1,6 +1,11 @@
+0.5.8
+	- trying to fix some issues with distribution
+
 0.5.7
 	- trying to parse unparsable pages was creating an error
-	--
+	-- `MetadataParser.init` now accepts `only_parse_file_extensions` -- list of the only file extensions to parse
+	-- `MetadataParser.init` now accepts `force_parse_invalid_content_type` -- forces to parse invalid content
+	-- `MetadataParser.fetch_url` will only parse "text/html" content by default
 
 0.5.6
 	- trying to ensure we return a valid url in get_discrete_url()
