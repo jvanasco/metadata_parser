@@ -1,3 +1,11 @@
+0.6.0
+	- Several fixes to improve support of canonical and absolute urls
+	-- replaced REGEX parsing of urls with `urlparse` parsing and inspection; too many edge cases got in
+	-- refactored `MediaParser.absolute_url` , now proxies a call to new function `url_to_absolute_url`
+	-- refactored `MediaParser.get_discrete_url` , now cleaner and leaner.
+	-- refactored how some tests run, so there is cleaner output
+	
+
 0.5.8
 	- trying to fix some issues with distribution
 

@@ -2,23 +2,103 @@ import re
 import requests
 
 from bs4 import BeautifulSoup
+import urlparse
 
-#RE_url = re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)(\/.*)?""", re.I)
-RE_url = re.compile("""(https?\:\/\/[^\/]*(?:\:[\d]+)?)?(.*)""", re.I)
 
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
-
-RE_url_parts = re.compile(
-    """(https?\:\/\/[^\/]*(?:\:[\d]+?)?)(\/[^?#]*)?""", re.I)
-
 
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
                     
 
-# This is taken from the following blogpost.  thanks.
-# http://hustoknow.blogspot.com/2011/05/urlopen-opens-404.html
+
+
+def is_parsed_valid_url(parsed):
+    """returns bool"""
+    assert isinstance( parsed, urlparse.ParseResult )
+    if not all( (parsed.scheme, parsed.hostname) ):
+        return False
+    return True
+
+def is_parsed_valid_relative(parsed):
+    """returns bool"""
+    assert isinstance( parsed, urlparse.ParseResult )
+    if parsed.path and not any( (parsed.scheme, parsed.hostname) ):
+        return True
+    return False
+
+def parsed_to_relative(parsed):
+    """turns a parsed url into a full relative url"""
+    assert isinstance( parsed, urlparse.ParseResult )
+    _path = parsed.path
+    ## cleanup, might be unnecessary now
+    if _path and _path[0] != "/":
+        ## prepend a slash
+        _path = "/%s" % _path
+    if parsed.query :
+        _path += "?" + parsed.query
+    if parsed.fragment :
+        _path += "#" + parsed.fragment
+    return _path    
+
+def is_url_valid(url):
+    """tries to parse a url. if valid returns `urlparse.ParseResult` (boolean eval is True); if invalid returns `False`"""
+    if url is None:
+        return False
+    parsed = urlparse.urlparse(url)
+    if is_parsed_valid_url(parsed):
+        return parsed
+    return False
+
+
+def url_to_absolute_url( url_test, url_fallback=None ):
+    ## this shouldn't happen, but does
+    if url_test is None and url_fallback is not None:
+        return url_fallback
+        
+    parsed = urlparse.urlparse( url_test )
+    
+    _path = parsed.path
+    if _path :
+        ## sanity check
+        # some stock plugins create invalid urls/files like '/...' in meta-data
+        if _path[0] != "/":
+          ## prepend a slash
+          _path = "/%s" % _path
+        known_invalid_plugins = [ '/...', ]  
+        if _path in known_invalid_plugins :
+            return url_fallback
+        
+    # finally, fix the path
+    ## this isn't nested, because we could have kwargs
+    _path = parsed_to_relative( parsed )
+    
+    if not _path:
+        ## so if our _path is BLANK , fuck it.
+        ## this can happen if someone puts in "" for the canonical
+        return url_fallback
+
+    rval = None
+    
+    # we'll use a placeholder for a source 'parsed' object that has a domain...
+    parsed_domain_source = None
+    
+    # if we have a valid URL ( OMFG, PLEASE )...
+    if is_parsed_valid_url( parsed ):
+        parsed_domain_source = parsed
+    else:
+        ## ok, the URL isn't valid
+        ## can we re-assemble it...
+        if url_fallback :
+            parsed_fallback = urlparse.urlparse( url_fallback )
+            if is_parsed_valid_url( parsed_fallback ):
+                parsed_domain_source = parsed_fallback
+    if parsed_domain_source:
+        rval = "%s://%s%s" % (parsed_domain_source.scheme, parsed_domain_source.netloc, _path)
+    return rval
+
+
 
 
 class NotParsable(Exception):
@@ -92,7 +172,7 @@ class MetadataParser(object):
     twitter_sections = ['card', 'title', 'site', 'description']
     strategy = ['og', 'dc', 'meta', 'page']
 
-    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False, ssl_verify=True, only_parse_file_extensions=None , force_parse_invalid_content_type=False ):
+    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False, ssl_verify=True, only_parse_file_extensions=None, force_parse_invalid_content_type=False ):
         """
         creates a new `MetadataParser` instance.
         
@@ -142,8 +222,9 @@ class MetadataParser(object):
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
-            html = self.fetch_url(url_data=url_data, url_headers=url_headers,
-                                  force_parse=force_parse, force_parse_invalid_content_type=force_parse_invalid_content_type )
+            html = self.fetch_url( url_data = url_data, url_headers = url_headers,
+                force_parse = force_parse, 
+                force_parse_invalid_content_type = force_parse_invalid_content_type )
         self.parser(html, force_parse=force_parse)
 
     def is_opengraph_minimum(self):
@@ -155,11 +236,12 @@ class MetadataParser(object):
         """
         # should we even download/parse this?
         if not force_parse and self.only_parse_file_extensions is not None :
-            url_parts = RE_url_parts.match(self.url).groups()
-            if url_parts[1]:
-                url_fpath = url_parts[1].split('.')
+            parsed = urlparse.urlparse( self.url )
+            path = parsed.path
+            if path:
+                url_fpath = path.split('.')
                 if len(url_fpath) == 0:
-                    # i have no idea what this file is , it's likely using a
+                    # i have no idea what this file is, it's likely using a
                     # directory index
                     pass
                 elif len(url_fpath) > 1:
@@ -180,7 +262,7 @@ class MetadataParser(object):
 
         r = None
         try:
-            # requests gives us unicode and the correct encoding , yay
+            # requests gives us unicode and the correct encoding, yay
             r = requests.get(url, params=url_data, headers=url_headers,
                              allow_redirects=True, verify=self.ssl_verify)
                              
@@ -217,48 +299,10 @@ class MetadataParser(object):
     def absolute_url(self, link=None):
         """makes the url absolute, as sometimes people use a relative url. sigh.
         """
-        # set the fallback return value, in case we're parsing a bad url from the page
-        rval_fallback = self.url_actual or None
+        url_fallback = self.url_actual or self.url or None
+        return url_to_absolute_url( link, url_fallback = url_fallback)
+        
 
-        # use the self.url_actual as a fallback to check
-        if not link:
-            link = self.url_actual
-
-        # ok, exit now if this is futile
-        if not link:
-            return rval_fallback
-
-        rval = link
-        link_parts = RE_url.match(link)
-        if link_parts:
-            ( link_part__host , link_part__local ) = link_parts.groups()
-
-            if link_part__host :
-                pass  # just return the link/rval
-            else:
-                if link_part__local :
-
-
-                    ## prepend with a /
-                    if link_part__local[0] != "/":
-                        known_invalid_plugins = [ '...', ]  # some stock plugins create invalid urls like '...' in meta-data
-                        if link_part__local in known_invalid_plugins :
-                            return rval_fallback
-
-                        link_part__local = "/%s" % link_part__local
-
-                    # fix with a domain if we can
-                    if self.url_actual:
-                        domain = RE_url.match(self.url_actual).groups()[0].strip()
-                        rval = "%s%s" % (domain, link_part__local)
-
-                    elif self.url:
-                        domain = RE_url.match(self.url).groups()[0].strip()
-                        rval = "%s%s" % (domain, link_part__local)
-                else:
-                    # honestly, don't know how to address this part or if it could happen
-                    pass
-        return rval
 
     def parser(self, html, force_parse=False):
         """parses the html
@@ -276,7 +320,7 @@ class MetadataParser(object):
             return
 
         ogs = doc.html.head.findAll(
-            'meta', attrs={'property': re.compile(r'^og')})
+            'meta', attrs = { 'property' : re.compile(r'^og') } )
         for og in ogs:
             try:
                 self.metadata['og'][og['property'][3:]] = og['content'].strip()
@@ -284,7 +328,7 @@ class MetadataParser(object):
                 pass
 
         twitters = doc.html.head.findAll(
-            'meta', attrs={'name': re.compile(r'^twitter')})
+            'meta', attrs = { 'name' : re.compile(r'^twitter') } )
         for twitter in twitters:
             try:
                 self.metadata['twitter'][
@@ -304,7 +348,7 @@ class MetadataParser(object):
 
         # is there an image_src?
         image = doc.findAll(
-            'link', attrs={'rel': re.compile("^image_src$", re.I)})
+            'link', attrs = { 'rel' : re.compile("^image_src$", re.I) } )
         if image:
             try:
                 img = image[0]['href'].strip()
@@ -317,7 +361,7 @@ class MetadataParser(object):
 
         # figure out the canonical url
         canonical = doc.findAll(
-            'link', attrs={'rel': re.compile("^canonical$", re.I)})
+            'link', attrs = { 'rel' : re.compile("^canonical$", re.I) } )
         if canonical:
             try:
                 link = canonical[0]['href'].strip()
@@ -373,25 +417,33 @@ class MetadataParser(object):
 
 
     def get_discrete_url(self, og_first=True, canonical_first=False, allow_invalid=False ):
-        """convenience method."""
+        """convenience method.
+        
+            if `allow_invalid` is True, it will return the raw data.
+            if `allow_invalid` is False (default), it will try to correct the data (relative to absolute) or reset to None.
+        """
         
         og = self.get_metadata('url', strategy=['og'])
         canonical = self.get_metadata('canonical', strategy=['page'])
-        
+
         if not allow_invalid:
-            if og and not RE_url.match(og) :
-                og = None
-            if canonical and not RE_url.match(canonical):
-                canonical = None
+            # fallback url is used to drop a domain
+            url_fallback = self.url_actual or self.url or None
+
+            if og and not is_url_valid( og ):
+                og = url_to_absolute_url( og, url_fallback = url_fallback )      
+        
+            if canonical and not is_url_valid( canonical ):
+                canonical = url_to_absolute_url( canonical, url_fallback = url_fallback )      
 
         rval = []
         if og_first:
-            rval.extend((og, canonical))
+            rval = (og, canonical)
         elif canonical_first:
-            rval.extend((canonical, og))
+            rval = (canonical, og)
             
         for i in rval:
             if i:
-                return self.absolute_url(i)
+                return i
 
         return self.absolute_url()
