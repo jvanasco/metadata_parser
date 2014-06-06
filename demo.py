@@ -1,5 +1,8 @@
 from metadata_parser import MetadataParser
 
+## hey use lxml >= 2.3.5 ; use 3.x though!
+## otherwise this site will break ! http://www.nasa.gov/externalflash/discovery/index.html
+
 if 0:
     a= MetadataParser(url='http://cnn.com')
     print(a.get_metadata('title'))
