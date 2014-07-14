@@ -1,3 +1,6 @@
+0.6.3
+	- no changes.  `sdist upload` was picking up a reference file that wasn't in github; that file killed the distribution install
+
 0.6.2
 	- formatting fixes via flake8
 
