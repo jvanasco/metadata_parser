@@ -77,6 +77,16 @@ docs = {
             'get_discrete_url()' : 'http://example.com/one-two-three.html',
         },
     },
+    'bad-canonical3' : {
+        'url-real' : """http://example.com/one-two-three.html""",
+        'head' : {
+            'url-canonical' : """http://contentcreation""",
+            'url-og' : None ,
+        },
+        'expected' : {
+            'get_discrete_url()' : 'http://example.com/one-two-three.html',
+        },
+    },
     'bad-og' : {
         'url-real' : """http://example.com/one-two-three.html""",
         'head' : {
@@ -87,8 +97,6 @@ docs = {
             'get_discrete_url()' : 'http://example.com/one-two-three.html',
         },
     },
-
-
 }
 
 ## setup the test_docs with html bodies
@@ -107,7 +115,7 @@ def _docs_test( test_names ):
     for test in test_names:
         url = docs[test]['url-real']
         url_expected = docs[test]['expected']['get_discrete_url()']
-        parsed = metadata_parser.MetadataParser( url=url , html=docs[test]['doc'] )
+        parsed = metadata_parser.MetadataParser( url=url, html=docs[test]['doc'] )
         url_retrieved = parsed.get_discrete_url()
         if url_retrieved != url_expected :
             errors.append( [test, url_expected, url_retrieved, ] )
@@ -136,7 +144,7 @@ class TestHtmlDocument( unittest.TestCase ):
 
 
     def test_get_discrete_url__bad(self):
-        errors = _docs_test( ['bad-canonical', 'bad-canonical2', 'bad-og', ] )
+        errors = _docs_test( ['bad-canonical', 'bad-canonical2', 'bad-canonical3', 'bad-og', ] )
         if errors:
             raise ValueError(errors)
 
