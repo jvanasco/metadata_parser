@@ -24,14 +24,14 @@ URLS_BAD = [
 ]
 
 
-class TestUrls( unittest.TestCase ):
+class TestUrls(unittest.TestCase):
 
     def test_urls_good(self):
         for i in URLS_GOOD:
             parsed = urlparse.urlparse(i)
-            self.assertTrue( metadata_parser.is_parsed_valid_url( parsed ) )
+            self.assertTrue(metadata_parser.is_parsed_valid_url(parsed))
 
     def test_urls_bad(self):
         for i in URLS_BAD:
             parsed = urlparse.urlparse(i)
-            self.assertFalse( metadata_parser.is_parsed_valid_url( parsed ) )
+            self.assertFalse(metadata_parser.is_parsed_valid_url(parsed))

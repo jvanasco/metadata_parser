@@ -1,3 +1,6 @@
+0.6.2
+	- formatting fixes via flake8
+
 0.6.1
 	- Lightweight, but functional, url validation 
 	-- new 'init' argument (defaults to True) : `require_public_netloc`

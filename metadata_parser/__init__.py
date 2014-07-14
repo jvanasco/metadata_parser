@@ -7,25 +7,22 @@ import requests
 from bs4 import BeautifulSoup
 import urlparse
 
-
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
 
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
 
-
-## based on DJANGO
-## https://github.com/django/django/blob/master/django/core/validators.py        
+# based on DJANGO
+# https://github.com/django/django/blob/master/django/core/validators.py
 RE_VALID_HOSTNAME = re.compile(
-        r'(?:'
-            r'(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?)'  # domain...
-            r'|'
-            r'localhost'  # localhost...
-            r'|'
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'  # ...or ipv4
-        r'?)' 
-        , re.IGNORECASE)
+    r'(?:'
+        r'(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?)'  # domain...
+        r'|'
+        r'localhost'  # localhost...
+        r'|'
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'  # ...or ipv4
+    r'?)', re.IGNORECASE)
 
 RE_DOMAIN_NAME = re.compile(
     r"""(^
@@ -42,30 +39,27 @@ RE_DOMAIN_NAME = re.compile(
                 |
                 [A-Z0-9-]{2,}
             (?<!-)\.?)
-        $)""", re.VERBOSE|re.IGNORECASE
-)
+        $)""", re.VERBOSE | re.IGNORECASE)
+
 RE_IPV4_ADDRESS = re.compile(
-    r'^(\d{1,3})\.(\d{1,3}).(\d{1,3}).(\d{1,3})$'  # grab 4 octets 
+    r'^(\d{1,3})\.(\d{1,3}).(\d{1,3}).(\d{1,3})$'  # grab 4 octets
 )
 
 RE_ALL_NUMERIC = re.compile("^[\d\.]+$")
 
 
-
-
-
 def is_parsed_valid_url(parsed, require_public_netloc=True):
     """returns bool"""
-    assert isinstance( parsed, urlparse.ParseResult )
-    log.debug("is_parsed_valid_url = %s", parsed )
-    if not all( (parsed.scheme, parsed.netloc) ):
+    assert isinstance(parsed, urlparse.ParseResult)
+    log.debug("is_parsed_valid_url = %s", parsed)
+    if not all((parsed.scheme, parsed.netloc)):
         log.debug(" FALSE - missing `scheme` or `netloc`")
         return False
     if require_public_netloc:
         log.debug(" validating netloc")
-        if not RE_VALID_HOSTNAME.match( parsed.netloc ):
+        if not RE_VALID_HOSTNAME.match(parsed.netloc):
             return False
-        octets = RE_IPV4_ADDRESS.match( parsed.netloc )
+        octets = RE_IPV4_ADDRESS.match(parsed.netloc)
         if octets:
             log.debug(" validating against ipv4")
             for g in octets.groups():
@@ -79,43 +73,46 @@ def is_parsed_valid_url(parsed, require_public_netloc=True):
             if parsed.netloc == 'localhost':
                 log.debug(" localhost!")
                 return True
-            elif RE_ALL_NUMERIC.match( parsed.netloc ):
-                log.debug(" This only has numeric characters. this is probably a fake or typo ip address.")
+            elif RE_ALL_NUMERIC.match(parsed.netloc):
+                log.debug(" This only has numeric characters. "
+                    "this is probably a fake or typo ip address.")
                 return False
-            elif RE_DOMAIN_NAME.match( parsed.netloc ):
+            elif RE_DOMAIN_NAME.match(parsed.netloc):
                 log.debug(" valid public domain name format")
                 return True
         log.debug(" this appears to be invalid")
         return False
     return True
 
-                
-                
-
 
 def is_parsed_valid_relative(parsed):
     """returns bool"""
-    assert isinstance( parsed, urlparse.ParseResult )
-    if parsed.path and not any( (parsed.scheme, parsed.hostname) ):
+    assert isinstance(parsed, urlparse.ParseResult)
+    if parsed.path and not any((parsed.scheme, parsed.hostname)):
         return True
     return False
 
+
 def parsed_to_relative(parsed):
     """turns a parsed url into a full relative url"""
-    assert isinstance( parsed, urlparse.ParseResult )
+    assert isinstance(parsed, urlparse.ParseResult)
     _path = parsed.path
-    ## cleanup, might be unnecessary now
+    # cleanup, might be unnecessary now
     if _path and _path[0] != "/":
-        ## prepend a slash
+        # prepend a slash
         _path = "/%s" % _path
-    if parsed.query :
+    if parsed.query:
         _path += "?" + parsed.query
-    if parsed.fragment :
+    if parsed.fragment:
         _path += "#" + parsed.fragment
     return _path
 
+
 def is_url_valid(url, require_public_netloc=None):
-    """tries to parse a url. if valid returns `urlparse.ParseResult` (boolean eval is True); if invalid returns `False`"""
+    """
+    tries to parse a url. if valid returns `urlparse.ParseResult`
+    (boolean eval is True); if invalid returns `False`
+    """
     if url is None:
         return False
     parsed = urlparse.urlparse(url)
@@ -124,7 +121,7 @@ def is_url_valid(url, require_public_netloc=None):
     return False
 
 
-def url_to_absolute_url( url_test, url_fallback=None, require_public_netloc=None ):
+def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None):
     """
         returns an "absolute url" if we have one.
         if we don't, it tries to fix the current url based on the fallback
@@ -132,65 +129,64 @@ def url_to_absolute_url( url_test, url_fallback=None, require_public_netloc=None
         this shouldn't be needed, but it is.
 
         called by:
-        
+
             MetadataParser.absolute_url()
             MetadataParser.get_discrete_url()
-            
+
         args:
             `url_test` - the url to return/fix
-            `url_fallback` - a fallback url.  this is returned in VERY bad 
+            `url_fallback` - a fallback url.  this is returned in VERY bad
                 errors. in "not so bad" errors, this is parsed and used as the
                 base to construct a new url.
-            `require_public_netloc` - requires the hostname/netloc to be a 
+            `require_public_netloc` - requires the hostname/netloc to be a
                 valid IPV4 or public dns domain name
-            
-            
     """
     if url_test is None and url_fallback is not None:
         return url_fallback
-        
-    parsed = urlparse.urlparse( url_test )
-    
+
+    parsed = urlparse.urlparse(url_test)
+
     _path = parsed.path
-    if _path :
-        ## sanity check
+    if _path:
+        # sanity check
         # some stock plugins create invalid urls/files like '/...' in meta-data
         if _path[0] != "/":
-          ## prepend a slash
-          _path = "/%s" % _path
-        known_invalid_plugins = [ '/...', ]  
-        if _path in known_invalid_plugins :
+            # prepend a slash
+            _path = "/%s" % _path
+        known_invalid_plugins = ['/...', ]
+        if _path in known_invalid_plugins:
             return url_fallback
-        
+
     # finally, fix the path
-    ## this isn't nested, because we could have kwargs
-    _path = parsed_to_relative( parsed )
-    
+    # this isn't nested, because we could have kwargs
+    _path = parsed_to_relative(parsed)
+
     if not _path:
-        ## so if our _path is BLANK , fuck it.
-        ## this can happen if someone puts in "" for the canonical
+        # so if our _path is BLANK, fuck it.
+        # this can happen if someone puts in "" for the canonical
         return url_fallback
 
     rval = None
-    
+
     # we'll use a placeholder for a source 'parsed' object that has a domain...
     parsed_domain_source = None
-    
-    # if we have a valid URL ( OMFG, PLEASE )...
-    if is_parsed_valid_url( parsed, require_public_netloc=require_public_netloc ):
+
+    # if we have a valid URL (OMFG, PLEASE)...
+    if is_parsed_valid_url(parsed, require_public_netloc=require_public_netloc):
         parsed_domain_source = parsed
     else:
-        ## ok, the URL isn't valid
-        ## can we re-assemble it
-        if url_fallback :
-            parsed_fallback = urlparse.urlparse( url_fallback )
-            if is_parsed_valid_url( parsed_fallback, require_public_netloc=require_public_netloc ):
+        # ok, the URL isn't valid
+        # can we re-assemble it
+        if url_fallback:
+            parsed_fallback = urlparse.urlparse(url_fallback)
+            if is_parsed_valid_url(parsed_fallback,
+                require_public_netloc=require_public_netloc
+            ):
                 parsed_domain_source = parsed_fallback
     if parsed_domain_source:
-        rval = "%s://%s%s" % (parsed_domain_source.scheme, parsed_domain_source.netloc, _path)
+        rval = "%s://%s%s" % (parsed_domain_source.scheme,
+            parsed_domain_source.netloc, _path)
     return rval
-
-
 
 
 class NotParsable(Exception):
@@ -209,49 +205,50 @@ class NotParsableFetchError(NotParsable):
 
 
 class MetadataParser(object):
+    """
+    turns text or a URL into a dict of dicts, extracting as much relevant
+    metadata as possible.
 
-    """turns text or a URL into a dict of dicts, extracting as much relvant metadata as possible.
+    the 'keys' will be either the 'name' or 'property' attribute of the node.
 
-        the 'keys' will be either the 'name' or 'property' attribute of the node.
+    the attribute's prefix are removed when storing into it's bucket
+    eg:
+        og:title -> 'og':{'title':''}
 
-        the attribute's prefix are removed when storing into it's bucket
-        eg:
-            og:title -> 'og':{'title':''}
+    metadata is stored into subgroups:
 
-        metadata is stored into subgroups:
+    page
+        extracted from page elements
+        saved into MetadataParser.metadata['page']
+        example:
+            <head><title>Awesome</title></head>
+            MetadataParser.metadata = {'page': {'title':'Awesome'}}
 
-        page
-            extracted from page elements
-            saved into MetadataParser.metadata['page']
-            example:
-                <head><title>Awesome</title></head>
-                MetadataParser.metadata = { 'page': { 'title':'Awesome' } }
+    opengraph
+        has 'og:' prefix
+        saved into MetadataParser.metadata['og']
+        example:
+            <meta property="og:title" content="Awesome"/>
+            MetadataParser.metadata = {'og': {'og:title':'Awesome'}}
 
-        opengraph
-            has 'og:' prefix
-            saved into MetadataParser.metadata['og']
-            example:
-                <meta property="og:title" content="Awesome"/>
-                MetadataParser.metadata = { 'og': { 'og:title':'Awesome' } }
+    dublin core
+        has 'dc:' prefix
+        saved into MetadataParser.metadata['dc']
+        example:
+            <meta property="dc:title" content="Awesome"/>
+            MetadataParser.metadata = {'dc': {'dc:title':'Awesome'}}
 
-        dublin core
-            has 'dc:' prefix
-            saved into MetadataParser.metadata['dc']
-            example:
-                <meta property="dc:title" content="Awesome"/>
-                MetadataParser.metadata = { 'dc': { 'dc:title':'Awesome' } }
+    meta
+        has no prefix
+        saved into MetadataParser.metadata['meta']
+        example:
+            <meta property="title" content="Awesome"/>
+            MetadataParser.metadata = {'meta': {'dc:title':'Awesome'}}
 
-        meta
-            has no prefix
-            saved into MetadataParser.metadata['meta']
-            example:
-                <meta property="title" content="Awesome"/>
-                MetadataParser.metadata = { 'meta': { 'dc:title':'Awesome' } }
-
-        NOTE:
-            passing in ssl_verify=False will turn off ssl verification checking in the requests library.
-            this can be necessary on development machines
-
+    NOTE:
+        passing in ssl_verify=False will turn off ssl verification checking
+        in the requests library.
+        this can be necessary on development machines
     """
     url = None
     url_actual = None
@@ -265,39 +262,47 @@ class MetadataParser(object):
     twitter_sections = ['card', 'title', 'site', 'description']
     strategy = ['og', 'dc', 'meta', 'page']
 
-    def __init__(self, url=None, html=None, strategy=None, url_data=None, url_headers=None, force_parse=False, ssl_verify=True, only_parse_file_extensions=None, force_parse_invalid_content_type=False, require_public_netloc=True ):
+    def __init__(self,
+            url=None, html=None, strategy=None, url_data=None,
+            url_headers=None, force_parse=False, ssl_verify=True,
+            only_parse_file_extensions=None,
+            force_parse_invalid_content_type=False, require_public_netloc=True
+        ):
         """
         creates a new `MetadataParser` instance.
-        
+
         kwargs:
-            `url` 
+            `url`
                 url to parse
             `html`
                 instead of a url, parse raw html
             `strategy`
-                default : None
-                sets default metadata strategy ( ['og', 'dc', 'meta', 'page'] )
+                default: None
+                sets default metadata strategy (['og', 'dc', 'meta', 'page'])
                 see also `MetadataParser.get_metadata()`
             `url_data`
                 data passed to `requests` library as `params`
             `url_headers`
                 data passed to `requests` library as `headers`
-            `force_parse` 
+            `force_parse`
                 default: False
                 force parsing invalid content
-            `ssl_verify` 
+            `ssl_verify`
                 default: True
                 disable ssl verification, sometimes needed in development
             `only_parse_file_extensions`
                 default: None
-                set a list of valid file extensions.  see `metadata_parser.PARSE_SAFE_FILES` for an example list
+                set a list of valid file extensions.
+                see `metadata_parser.PARSE_SAFE_FILES` for an example list
             `force_parse_invalid_content_type`
                 default: False
                 force parsing invalid content types
                 by default this will only parse text/html content
             `require_public_netloc`
                 default: True
-                require a valid `netloc` for the host.  if `True`, valid hosts must be a properly formatted public domain name, IPV4 address or "localhost"
+                require a valid `netloc` for the host.  if `True`, valid hosts
+                must be a properly formatted public domain name, IPV4 address
+                or "localhost"
         """
         self.metadata = {
             'og': {},
@@ -319,21 +324,31 @@ class MetadataParser(object):
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
-            html = self.fetch_url( url_data = url_data, url_headers = url_headers,
-                force_parse = force_parse, 
-                force_parse_invalid_content_type = force_parse_invalid_content_type )
+            html = self.fetch_url(
+                url_data=url_data, url_headers=url_headers,
+                force_parse=force_parse,
+                force_parse_invalid_content_type=force_parse_invalid_content_type
+            )
         self.parser(html, force_parse=force_parse)
 
     def is_opengraph_minimum(self):
-        """returns true/false if the page has the minimum amount of opengraph tags"""
-        return all([hasattr(self, attr) for attr in self.og_minimum_requirements])
+        """
+        returns true/false if the page has the minimum amount of opengraph tags
+        """
+        return all([hasattr(self, attr)
+            for attr in self.og_minimum_requirements])
 
-    def fetch_url(self, url_data=None, url_headers=None, force_parse=False, force_parse_invalid_content_type=False ):
-        """fetches the url and returns it.  this was busted out so you could subclass.
+    def fetch_url(self,
+            url_data=None, url_headers=None, force_parse=False,
+            force_parse_invalid_content_type=False
+        ):
+        """
+        fetches the url and returns it.
+        this was busted out so you could subclass.
         """
         # should we even download/parse this?
-        if not force_parse and self.only_parse_file_extensions is not None :
-            parsed = urlparse.urlparse( self.url )
+        if not force_parse and self.only_parse_file_extensions is not None:
+            parsed = urlparse.urlparse(self.url)
             path = parsed.path
             if path:
                 url_fpath = path.split('.')
@@ -353,26 +368,31 @@ class MetadataParser(object):
         if not url_headers:
             url_headers = {}
 
-        # if someone does usertracking with sharethis.com, they get a hashbang like this: http://example.com/page#.UHeGb2nuVo8
+        # if someone does usertracking with sharethis.com, they get a hashbang
+        # like this: http://example.com/page#.UHeGb2nuVo8
         # that fucks things up.
         url = self.url.split('#')[0]
 
         r = None
         try:
             # requests gives us unicode and the correct encoding, yay
-            r = requests.get(url, params=url_data, headers=url_headers,
-                             allow_redirects=True, verify=self.ssl_verify)
-                             
+            r = requests.get(
+                url, params=url_data, headers=url_headers,
+                allow_redirects=True, verify=self.ssl_verify
+            )
             content_type = None
-            if 'content-type' in r.headers :
+            if 'content-type' in r.headers:
                 content_type = r.headers['content-type']
-                ## content type can have a character encoding in it...
-                content_type = [ i.strip() for i in content_type.split(';') ]
+                # content type can have a character encoding in it...
+                content_type = [i.strip() for i in content_type.split(';')]
                 content_type = content_type[0].lower()
 
-            if ( content_type is None or ( content_type != 'text/html' ) ) and not force_parse_invalid_content_type  :
-                raise NotParsable("I don't know what type of file this is! content-type:'[%s]" % content_type )
-        
+            if (content_type is None or (content_type != 'text/html')) and \
+               (not force_parse_invalid_content_type)\
+            :
+                raise NotParsable("I don't know what type of file this is! "
+                    "content-type:'[%s]" % content_type)
+
             html = r.text
             self.response = r
 
@@ -383,23 +403,29 @@ class MetadataParser(object):
 
             if r.status_code != 200:
                 raise NotParsableFetchError(
-                    message="Status Code is not 200", code=r.status_code)
+                    message="Status Code is not 200",
+                    code=r.status_code
+                )
 
         except requests.exceptions.RequestException as error:
             raise NotParsableFetchError(
-                message="Error with `requests` library.  Inspect the `raised` attribute of this error.", raised=error)
+                message="Error with `requests` library.  Inspect the `raised`"
+                    " attribute of this error.",
+                raised=error
+            )
 
         return html
 
-
-
     def absolute_url(self, link=None):
-        """makes the url absolute, as sometimes people use a relative url. sigh.
+        """
+        makes the url absolute, as sometimes people use a relative url. sigh.
         """
         url_fallback = self.url_actual or self.url or None
-        return url_to_absolute_url( link, url_fallback = url_fallback, require_public_netloc=self.require_public_netloc)
-        
-
+        return url_to_absolute_url(
+            link,
+            url_fallback=url_fallback,
+            require_public_netloc=self.require_public_netloc
+        )
 
     def parser(self, html, force_parse=False):
         """parses the html
@@ -417,7 +443,9 @@ class MetadataParser(object):
             return
 
         ogs = doc.html.head.findAll(
-            'meta', attrs = { 'property' : re.compile(r'^og') } )
+            'meta',
+            attrs={'property': re.compile(r'^og')}
+        )
         for og in ogs:
             try:
                 self.metadata['og'][og['property'][3:]] = og['content'].strip()
@@ -425,7 +453,9 @@ class MetadataParser(object):
                 pass
 
         twitters = doc.html.head.findAll(
-            'meta', attrs = { 'name' : re.compile(r'^twitter') } )
+            'meta',
+            attrs={'name': re.compile(r'^twitter')}
+        )
         for twitter in twitters:
             try:
                 self.metadata['twitter'][
@@ -445,7 +475,9 @@ class MetadataParser(object):
 
         # is there an image_src?
         image = doc.findAll(
-            'link', attrs = { 'rel' : re.compile("^image_src$", re.I) } )
+            'link',
+            attrs={'rel': re.compile("^image_src$", re.I)}
+        )
         if image:
             try:
                 img = image[0]['href'].strip()
@@ -458,7 +490,9 @@ class MetadataParser(object):
 
         # figure out the canonical url
         canonical = doc.findAll(
-            'link', attrs = { 'rel' : re.compile("^canonical$", re.I) } )
+            'link',
+            attrs={'rel': re.compile("^canonical$", re.I)}
+        )
         if canonical:
             try:
                 link = canonical[0]['href'].strip()
@@ -495,7 +529,11 @@ class MetadataParser(object):
                 pass
 
     def get_metadata(self, field, strategy=None):
-        """looks for the field in various stores.  defaults to the core strategy, though you may specify a certain item.  if you search for 'all' it will return a dict of all values."""
+        """
+            looks for the field in various stores.  defaults to the core
+            strategy, though you may specify a certain item.  if you search for
+            'all' it will return a dict of all values.
+        """
         if strategy:
             _strategy = strategy
         else:
@@ -512,35 +550,54 @@ class MetadataParser(object):
                     return self.metadata[store][field]
         return None
 
-
-    def get_discrete_url(self, og_first=True, canonical_first=False, allow_invalid=False ):
+    def get_discrete_url(self,
+            og_first=True, canonical_first=False, allow_invalid=False
+        ):
         """convenience method.
-        
             if `allow_invalid` is True, it will return the raw data.
-            if `allow_invalid` is False (default), it will try to correct the data (relative to absolute) or reset to None.
+            if `allow_invalid` is False (default), it will try to correct
+                the data (relative to absolute) or reset to None.
         """
-        
         og = self.get_metadata('url', strategy=['og'])
         canonical = self.get_metadata('canonical', strategy=['page'])
 
         if not allow_invalid:
-            
+
             # fallback url is used to drop a domain
             url_fallback = self.url_actual or self.url or None
 
-        
-            if og and not is_url_valid( og, require_public_netloc=self.require_public_netloc ):
-                ## try making it absolute
-                og = url_to_absolute_url( og, url_fallback = url_fallback, require_public_netloc=self.require_public_netloc )
-                if not is_url_valid( og, require_public_netloc=self.require_public_netloc ):
-                    ## set to NONE if invalid
+            if og and not is_url_valid(
+                    og,
+                    require_public_netloc=self.require_public_netloc
+                ):
+                # try making it absolute
+                og = url_to_absolute_url(
+                    og,
+                    url_fallback=url_fallback,
+                    require_public_netloc=self.require_public_netloc
+                )
+                if not is_url_valid(
+                    og,
+                    require_public_netloc=self.require_public_netloc
+                ):
+                    # set to NONE if invalid
                     og = None
-                    
-            if canonical and not is_url_valid( canonical, require_public_netloc=self.require_public_netloc ):
-                ## try making it absolute
-                canonical = url_to_absolute_url( canonical, url_fallback = url_fallback, require_public_netloc=self.require_public_netloc )
-                if not is_url_valid( canonical, require_public_netloc=self.require_public_netloc ):
-                    ## set to NONE if invalid
+
+            if canonical and not is_url_valid(
+                    canonical,
+                    require_public_netloc=self.require_public_netloc
+                ):
+                # try making it absolute
+                canonical = url_to_absolute_url(
+                    canonical,
+                    url_fallback=url_fallback,
+                    require_public_netloc=self.require_public_netloc
+                )
+                if not is_url_valid(
+                    canonical,
+                    require_public_netloc=self.require_public_netloc
+                ):
+                    # set to NONE if invalid
                     canonical = None
 
         rval = []
@@ -548,7 +605,7 @@ class MetadataParser(object):
             rval = (og, canonical)
         elif canonical_first:
             rval = (canonical, og)
-            
+
         for i in rval:
             if i:
                 return i
