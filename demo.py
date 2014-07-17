@@ -1,16 +1,16 @@
 from metadata_parser import MetadataParser
 
-## hey use lxml >= 2.3.5 ; use 3.x though!
-## otherwise this site will break ! http://www.nasa.gov/externalflash/discovery/index.html
+# hey use lxml >= 2.3.5 ; use 3.x though!
+# otherwise this site will break ! http://www.nasa.gov/externalflash/discovery/index.html
 
 if 0:
-    a= MetadataParser(url='http://cnn.com')
+    a = MetadataParser(url='http://cnn.com')
     print(a.get_metadata('title'))
 
-    b= MetadataParser(url='http://nyt.com')
+    b = MetadataParser(url='http://nyt.com')
     print(b.get_metadata('title'))
 
-    c= MetadataParser(url='http://thedailybeast.com')
+    c = MetadataParser(url='http://thedailybeast.com')
     print(c.get_metadata('title'))
 
     print("\n-------------------------------------------------------\n")
@@ -29,7 +29,7 @@ if 0:
     print(c.get_discrete_url())
 
 if 0:
-    a= MetadataParser(url='http://liqr.co/rsvpnewyork')
+    a = MetadataParser(url='http://liqr.co/rsvpnewyork')
     print("title:")
     print(a.get_metadata('title'))
     print("canonical:")
@@ -45,18 +45,18 @@ if 0:
 
 
 if 0:
-    a= MetadataParser(url='http://www.ted.com/talks/drew_curtis_how_i_beat_a_patent_troll.html')
+    a = MetadataParser(url='http://www.ted.com/talks/drew_curtis_how_i_beat_a_patent_troll.html')
     print(a.__dict__)
 
 if 0:
-    broken_html= open('broken.html','r').read()
-    #a= MetadataParser(url="http://brewskeeball.com/rosenblog")
-    a= MetadataParser(html=broken_html)
+    broken_html = open('broken.html', 'r').read()
+    # a= MetadataParser(url="http://brewskeeball.com/rosenblog")
+    a = MetadataParser(html=broken_html)
     print(a.get_metadata('title'))
 
 
 if 0:
-    urls = [\
+    urls = [
         'http://www.cnn.com',
         'http://www.cnn.com/',
         'http://www.michaeleisen.org/blog/?p=358',
@@ -64,10 +64,10 @@ if 0:
         'http://hw.libsyn.com/p/d/d/6/dd6b0db2d4858640/ARIYNBF_107_JamesGunn.mp3?sid=78edb823ad1b62ff6f329d68bbb2cc6a&l_sid=35168&l_eid=&l_mid=2952818&expiration=1334720066&hwt=7acfe1754c8dedc4f134b473894c9208'
     ]
     for i in urls:
-        a= MetadataParser(url=i)
+        a = MetadataParser(url=i)
         print(a.__dict__)
 
 if 0:
     url = 'http://soundcloud.com/electricyouthmusic'
-    a= MetadataParser(url=url)
+    a = MetadataParser(url=url)
     print(a.__dict__)

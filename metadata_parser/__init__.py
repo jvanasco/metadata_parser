@@ -39,7 +39,8 @@ RE_DOMAIN_NAME = re.compile(
                 |
                 [A-Z0-9-]{2,}
             (?<!-)\.?)
-        $)""", re.VERBOSE | re.IGNORECASE)
+        $)""",
+    re.VERBOSE | re.IGNORECASE)
 
 RE_IPV4_ADDRESS = re.compile(
     r'^(\d{1,3})\.(\d{1,3}).(\d{1,3}).(\d{1,3})$'  # grab 4 octets
@@ -75,7 +76,7 @@ def is_parsed_valid_url(parsed, require_public_netloc=True):
                 return True
             elif RE_ALL_NUMERIC.match(parsed.netloc):
                 log.debug(" This only has numeric characters. "
-                    "this is probably a fake or typo ip address.")
+                          "this is probably a fake or typo ip address.")
                 return False
             elif RE_DOMAIN_NAME.match(parsed.netloc):
                 log.debug(" valid public domain name format")
@@ -179,12 +180,14 @@ def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None)
         # can we re-assemble it
         if url_fallback:
             parsed_fallback = urlparse.urlparse(url_fallback)
-            if is_parsed_valid_url(parsed_fallback,
+            if is_parsed_valid_url(
+                parsed_fallback,
                 require_public_netloc=require_public_netloc
             ):
                 parsed_domain_source = parsed_fallback
     if parsed_domain_source:
-        rval = "%s://%s%s" % (parsed_domain_source.scheme,
+        rval = "%s://%s%s" % (
+            parsed_domain_source.scheme,
             parsed_domain_source.netloc, _path)
     return rval
 
@@ -262,12 +265,12 @@ class MetadataParser(object):
     twitter_sections = ['card', 'title', 'site', 'description']
     strategy = ['og', 'dc', 'meta', 'page']
 
-    def __init__(self,
-            url=None, html=None, strategy=None, url_data=None,
-            url_headers=None, force_parse=False, ssl_verify=True,
-            only_parse_file_extensions=None,
-            force_parse_invalid_content_type=False, require_public_netloc=True
-        ):
+    def __init__(
+        self,
+        url=None, html=None, strategy=None, url_data=None, url_headers=None,
+        force_parse=False, ssl_verify=True, only_parse_file_extensions=None,
+        force_parse_invalid_content_type=False, require_public_netloc=True
+    ):
         """
         creates a new `MetadataParser` instance.
 
@@ -336,12 +339,13 @@ class MetadataParser(object):
         returns true/false if the page has the minimum amount of opengraph tags
         """
         return all([hasattr(self, attr)
-            for attr in self.og_minimum_requirements])
+                   for attr in self.og_minimum_requirements])
 
-    def fetch_url(self,
-            url_data=None, url_headers=None, force_parse=False,
-            force_parse_invalid_content_type=False
-        ):
+    def fetch_url(
+        self,
+        url_data=None, url_headers=None, force_parse=False,
+        force_parse_invalid_content_type=False
+    ):
         """
         fetches the url and returns it.
         this was busted out so you could subclass.
@@ -387,11 +391,17 @@ class MetadataParser(object):
                 content_type = [i.strip() for i in content_type.split(';')]
                 content_type = content_type[0].lower()
 
-            if (content_type is None or (content_type != 'text/html')) and \
-               (not force_parse_invalid_content_type)\
-            :
+            if (
+                (
+                    (content_type is None)
+                    or
+                    (content_type != 'text/html')
+                )
+                and
+                (not force_parse_invalid_content_type)
+            ):
                 raise NotParsable("I don't know what type of file this is! "
-                    "content-type:'[%s]" % content_type)
+                                  "content-type:'[%s]" % content_type)
 
             html = r.text
             self.response = r
@@ -410,7 +420,7 @@ class MetadataParser(object):
         except requests.exceptions.RequestException as error:
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
-                    " attribute of this error.",
+                        " attribute of this error.",
                 raised=error
             )
 
@@ -550,9 +560,10 @@ class MetadataParser(object):
                     return self.metadata[store][field]
         return None
 
-    def get_discrete_url(self,
-            og_first=True, canonical_first=False, allow_invalid=False
-        ):
+    def get_discrete_url(
+        self,
+        og_first=True, canonical_first=False, allow_invalid=False
+    ):
         """convenience method.
             if `allow_invalid` is True, it will return the raw data.
             if `allow_invalid` is False (default), it will try to correct
@@ -567,9 +578,9 @@ class MetadataParser(object):
             url_fallback = self.url_actual or self.url or None
 
             if og and not is_url_valid(
-                    og,
-                    require_public_netloc=self.require_public_netloc
-                ):
+                og,
+                require_public_netloc=self.require_public_netloc
+            ):
                 # try making it absolute
                 og = url_to_absolute_url(
                     og,
@@ -584,9 +595,9 @@ class MetadataParser(object):
                     og = None
 
             if canonical and not is_url_valid(
-                    canonical,
-                    require_public_netloc=self.require_public_netloc
-                ):
+                canonical,
+                require_public_netloc=self.require_public_netloc
+            ):
                 # try making it absolute
                 canonical = url_to_absolute_url(
                     canonical,

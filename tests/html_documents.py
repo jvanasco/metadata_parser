@@ -91,7 +91,7 @@ docs = {
         'url-real': """http://example.com/one-two-three.html""",
         'head': {
             'url-canonical': None,
-            'url-og':  """...""",
+            'url-og': """...""",
         },
         'expected': {
             'get_discrete_url()': 'http://example.com/one-two-three.html',
@@ -117,8 +117,10 @@ def _docs_test(test_names):
     for test in test_names:
         url = docs[test]['url-real']
         url_expected = docs[test]['expected']['get_discrete_url()']
-        parsed = metadata_parser.MetadataParser(url=url,
-            html=docs[test]['doc'])
+        parsed = metadata_parser.MetadataParser(
+            url=url,
+            html=docs[test]['doc']
+        )
         url_retrieved = parsed.get_discrete_url()
         if url_retrieved != url_expected:
             errors.append([test, url_expected, url_retrieved, ])
@@ -134,7 +136,9 @@ class TestHtmlDocument(unittest.TestCase):
 
     def test_get_discrete_url__good_relative(self):
         errors = _docs_test(['good-canonical-relative',
-            'good-canonical-relative_alt', 'good-og-relative_alt', ])
+                             'good-canonical-relative_alt',
+                             'good-og-relative_alt', ]
+                            )
         if errors:
             raise ValueError(errors)
 
@@ -145,7 +149,9 @@ class TestHtmlDocument(unittest.TestCase):
 
     def test_get_discrete_url__bad(self):
         errors = _docs_test(['bad-canonical',
-            'bad-canonical2', 'bad-canonical3', 'bad-og', ])
+                             'bad-canonical2',
+                             'bad-canonical3',
+                             'bad-og', ]
+                            )
         if errors:
             raise ValueError(errors)
-
