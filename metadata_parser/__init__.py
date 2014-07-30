@@ -261,6 +261,9 @@ class MetadataParser(object):
     only_parse_file_extensions = None
     require_public_netloc = None
 
+    # allow for the beautiful_soup to be saved
+    soup = None
+
     og_minimum_requirements = ['title', 'type', 'image', 'url']
     twitter_sections = ['card', 'title', 'site', 'description']
     strategy = ['og', 'dc', 'meta', 'page']
@@ -321,6 +324,7 @@ class MetadataParser(object):
         self.url = url
         self.url_actual = url
         self.ssl_verify = ssl_verify
+        self.soup = None
         self.response = None
         self.response_headers = {}
         self.require_public_netloc = require_public_netloc
@@ -451,6 +455,9 @@ class MetadataParser(object):
         # let's ensure that we have a real document...
         if not doc or not doc.html or not doc.html.head:
             return
+
+        # stash the bs4 doc for further operations
+        self.soup = doc
 
         ogs = doc.html.head.findAll(
             'meta',

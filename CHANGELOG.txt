@@ -1,3 +1,8 @@
+0.6.5
+	- keeping the parsed BS4 document; a user may wish to perform further operations on it.
+	-- `MetadataParser.soup` attribute holds BS4 document
+
+
 0.6.4
 	- flake8 fixes. purely cosmetic.
 
