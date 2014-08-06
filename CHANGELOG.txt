@@ -1,7 +1,11 @@
+0.6.6
+	- protecting against bad doctypes, like nasa.gov
+	-- added `force_doctype` to __init__.  defaults to False. this will change the doctype to get around to bs4/lxml issues
+	-- this is defaulted to False.
+
 0.6.5
 	- keeping the parsed BS4 document; a user may wish to perform further operations on it.
 	-- `MetadataParser.soup` attribute holds BS4 document
-
 
 0.6.4
 	- flake8 fixes. purely cosmetic.

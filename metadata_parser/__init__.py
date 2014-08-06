@@ -9,6 +9,10 @@ import urlparse
 
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
+    
+
+REGEX_doctype = re.compile("^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
+    
 
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
@@ -213,6 +217,8 @@ class MetadataParser(object):
     metadata as possible.
 
     the 'keys' will be either the 'name' or 'property' attribute of the node.
+    
+    we EXPECT/REQUIRE a `head` in the document.
 
     the attribute's prefix are removed when storing into it's bucket
     eg:
@@ -260,6 +266,7 @@ class MetadataParser(object):
     LEN_MAX_TITLE = 255
     only_parse_file_extensions = None
     require_public_netloc = None
+    force_doctype = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -272,7 +279,8 @@ class MetadataParser(object):
         self,
         url=None, html=None, strategy=None, url_data=None, url_headers=None,
         force_parse=False, ssl_verify=True, only_parse_file_extensions=None,
-        force_parse_invalid_content_type=False, require_public_netloc=True
+        force_parse_invalid_content_type=False, require_public_netloc=True,
+        force_doctype=False,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -309,6 +317,11 @@ class MetadataParser(object):
                 require a valid `netloc` for the host.  if `True`, valid hosts
                 must be a properly formatted public domain name, IPV4 address
                 or "localhost"
+            `force_doctype`
+                default: False
+                if set to true, will replace a doctype with 'html'
+                why? some cms give a bad doctype (like nasa.gov) 
+                which can break lxml/bsd
         """
         self.metadata = {
             'og': {},
@@ -325,6 +338,7 @@ class MetadataParser(object):
         self.url_actual = url
         self.ssl_verify = ssl_verify
         self.soup = None
+        self.force_doctype = force_doctype
         self.response = None
         self.response_headers = {}
         self.require_public_netloc = require_public_netloc
@@ -445,6 +459,9 @@ class MetadataParser(object):
         """parses the html
         """
         if not isinstance(html, BeautifulSoup):
+            # clean the html?
+            if self.force_doctype:
+                html = REGEX_doctype.sub("<!DOCTYPE html>", html)
             try:
                 doc = BeautifulSoup(html, "lxml")
             except:
