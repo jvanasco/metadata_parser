@@ -1,3 +1,6 @@
+0.6.8
+	- added a kwarg `requests_timeout` to proxy a timeout value to `requests.get()`
+
 0.6.7
 	- added a lockdown to `is_parsed_valid_url` titled `http_only` -- requires http/https for the scheme
 

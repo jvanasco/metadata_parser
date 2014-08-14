@@ -275,6 +275,7 @@ class MetadataParser(object):
     only_parse_file_extensions = None
     require_public_netloc = None
     force_doctype = None
+    requests_timeout = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -288,7 +289,7 @@ class MetadataParser(object):
         url=None, html=None, strategy=None, url_data=None, url_headers=None,
         force_parse=False, ssl_verify=True, only_parse_file_extensions=None,
         force_parse_invalid_content_type=False, require_public_netloc=True,
-        force_doctype=False,
+        force_doctype=False, requests_timeout=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -330,6 +331,10 @@ class MetadataParser(object):
                 if set to true, will replace a doctype with 'html'
                 why? some cms give a bad doctype (like nasa.gov)
                 which can break lxml/bsd
+            `requests_timeout`
+                default: None
+                if set, proxies the value into `requests.get` as `timeout`
+
         """
         self.metadata = {
             'og': {},
@@ -350,6 +355,7 @@ class MetadataParser(object):
         self.response = None
         self.response_headers = {}
         self.require_public_netloc = require_public_netloc
+        self.requests_timeout = requests_timeout
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
@@ -408,7 +414,8 @@ class MetadataParser(object):
             # requests gives us unicode and the correct encoding, yay
             r = requests.get(
                 url, params=url_data, headers=url_headers,
-                allow_redirects=True, verify=self.ssl_verify
+                allow_redirects=True, verify=self.ssl_verify,
+                timeout=self.requests_timeout,
             )
             content_type = None
             if 'content-type' in r.headers:
