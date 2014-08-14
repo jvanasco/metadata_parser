@@ -1,3 +1,6 @@
+0.6.7
+	- added a lockdown to `is_parsed_valid_url` titled `http_only` -- requires http/https for the scheme
+
 0.6.6
 	- protecting against bad doctypes, like nasa.gov
 	-- added `force_doctype` to __init__.  defaults to False. this will change the doctype to get around to bs4/lxml issues

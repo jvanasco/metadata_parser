@@ -9,10 +9,10 @@ import urlparse
 
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
-    
+
 
 REGEX_doctype = re.compile("^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
-    
+
 
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
@@ -53,13 +53,21 @@ RE_IPV4_ADDRESS = re.compile(
 RE_ALL_NUMERIC = re.compile("^[\d\.]+$")
 
 
-def is_parsed_valid_url(parsed, require_public_netloc=True):
-    """returns bool"""
+def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
+    """returns bool
+        `http_only`
+            defaults True
+            requires http or https for the scheme
+    """
     assert isinstance(parsed, urlparse.ParseResult)
     log.debug("is_parsed_valid_url = %s", parsed)
     if not all((parsed.scheme, parsed.netloc)):
         log.debug(" FALSE - missing `scheme` or `netloc`")
         return False
+    if http_only:
+        if parsed.scheme not in ('http', 'https'):
+            log.debug(" FALSE - invalid `scheme`")
+            return False
     if require_public_netloc:
         log.debug(" validating netloc")
         if not RE_VALID_HOSTNAME.match(parsed.netloc):
@@ -217,7 +225,7 @@ class MetadataParser(object):
     metadata as possible.
 
     the 'keys' will be either the 'name' or 'property' attribute of the node.
-    
+
     we EXPECT/REQUIRE a `head` in the document.
 
     the attribute's prefix are removed when storing into it's bucket
@@ -320,7 +328,7 @@ class MetadataParser(object):
             `force_doctype`
                 default: False
                 if set to true, will replace a doctype with 'html'
-                why? some cms give a bad doctype (like nasa.gov) 
+                why? some cms give a bad doctype (like nasa.gov)
                 which can break lxml/bsd
         """
         self.metadata = {
