@@ -13,6 +13,8 @@ RE_bad_title = re.compile(
 
 REGEX_doctype = re.compile("^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
 
+RE_whitespace = re.compile("\s+")
+
 
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
@@ -661,3 +663,31 @@ class MetadataParser(object):
                 return i
 
         return self.absolute_url()
+
+    def get_metadata_link(self, field, strategy=None):
+        """sometimes links are bad; this tries to fix them.  most useful for meta images"""
+        # `_value` will be our raw value
+        _value = self.get_metadata(field, strategy=strategy)
+        if not _value:
+            return None
+        # `value` will be our clean value
+        # remove whitespace, because some bad blogging platforms add in whitespace by printing elements on multiple lines. d'oh!
+        value = RE_whitespace.sub('', _value)
+
+        # if the url is valid, RETURN IT
+        if is_url_valid(value, require_public_netloc=self.require_public_netloc):
+            return value
+
+        # fallback url is used to drop a domain
+        url_fallback = self.url_actual or self.url or None
+
+        # try making it absolute
+        value_fixed = url_to_absolute_url(
+            value,
+            url_fallback = url_fallback,
+            require_public_netloc = self.require_public_netloc
+        )
+        if is_url_valid(value_fixed, require_public_netloc=self.require_public_netloc):
+            return value_fixed
+
+        return None
