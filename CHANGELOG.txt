@@ -1,3 +1,6 @@
+0.6.11
+	- now correctly validating urls with ports. had to restructure a lot of the url validation
+
 0.6.10
 	- changed how some nodes are inspected. this should lead to fewer errors
 

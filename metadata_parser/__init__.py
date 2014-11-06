@@ -22,14 +22,28 @@ PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
 
 # based on DJANGO
 # https://github.com/django/django/blob/master/django/core/validators.py
+# not testing ipv6 right now, because rules are needed for ensuring they are correct
 RE_VALID_HOSTNAME = re.compile(
     r'(?:'
-        r'(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?)'  # domain...
+        r'(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ipv4
         r'|'
-        r'localhost'  # localhost...
+        #  r'(?P<ipv6>\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
+        #  r'|'
+        r'(?P<localhost>localhost)'  # localhost...
         r'|'
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'  # ...or ipv4
-    r'?)', re.IGNORECASE)
+        r'(?P<domain>([A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?))'  # domain...
+        r'(?P<port>:\d+)?'  # optional port
+    r')', re.IGNORECASE)
+
+
+RE_PORT = re.compile(
+    r'^'
+    r'(?P<main>.+)'
+    r':'
+    r'(?P<port>\d+)'
+    r'$', re.IGNORECASE
+)
+
 
 RE_DOMAIN_NAME = re.compile(
     r"""(^
@@ -73,27 +87,55 @@ def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
             return False
     if require_public_netloc:
         log.debug(" validating netloc")
-        if not RE_VALID_HOSTNAME.match(parsed.netloc):
+        _netloc_match = RE_VALID_HOSTNAME.match(parsed.netloc)
+        if not _netloc_match:
+            log.debug(" did not match regex")
             return False
-        octets = RE_IPV4_ADDRESS.match(parsed.netloc)
-        if octets:
-            log.debug(" validating against ipv4")
-            for g in octets.groups():
-                g = int(g)
-                if int(g) > 255:
-                    log.debug(" invalid ipv4; encountered an octect > 255")
-                    return False
-            log.debug(" valid ipv4")
-            return True
+
+        # we may assign these
+        _netloc_clean = parsed.netloc
+        _port = None
+
+        _netloc_ported = RE_PORT.match(parsed.netloc)
+        if _netloc_ported:
+            _netloc_ported_groudict = _netloc_ported.groupdict()
+            _netloc_clean = _netloc_ported_groudict['main']
+            _port = _netloc_ported_groudict['port']
+
+        _netloc_groudict = _netloc_match.groupdict()
+        if _netloc_groudict['ipv4'] is not None:
+            octets = RE_IPV4_ADDRESS.match(_netloc_clean)
+            if octets:
+                log.debug(" validating against ipv4")
+                for g in octets.groups():
+                    g = int(g)
+                    if int(g) > 255:
+                        log.debug(" invalid ipv4; encountered an octect > 255")
+                        return False
+                log.debug(" valid ipv4")
+                return True
+            log.debug(" invalid ipv4")
+            return False
         else:
-            if parsed.netloc == 'localhost':
+            if _netloc_clean == 'localhost':
                 log.debug(" localhost!")
                 return True
-            elif RE_ALL_NUMERIC.match(parsed.netloc):
+
+            if RE_ALL_NUMERIC.match(_netloc_clean):
                 log.debug(" This only has numeric characters. "
                           "this is probably a fake or typo ip address.")
                 return False
-            elif RE_DOMAIN_NAME.match(parsed.netloc):
+            if _port:
+                try:
+                    _port = int(_port)
+                    if parsed.port != _port:
+                        log.debug(" netloc.port does not match our regex _port")
+                        return False
+                except:
+                    raise
+                    log.debug(" _port is not an int")
+                    return False
+            if RE_DOMAIN_NAME.match(_netloc_clean):
                 log.debug(" valid public domain name format")
                 return True
         log.debug(" this appears to be invalid")
