@@ -1,3 +1,6 @@
+0.6.10
+	- changed how some nodes are inspected. this should lead to fewer errors
+
 0.6.9
 	- added a new method `get_metadata_link()`, which applies link transformations to a metadata in an attempt to ensure a valid link
 

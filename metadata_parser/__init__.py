@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 import urlparse
 
+
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
 
@@ -502,6 +503,9 @@ class MetadataParser(object):
                 self.metadata['og'][og['property'][3:]] = og['content'].strip()
             except (AttributeError, KeyError):
                 pass
+            except:
+                log.debug("Ran into a serious error parsing `og`")
+                pass
 
         twitters = doc.html.head.findAll(
             'meta',
@@ -525,33 +529,35 @@ class MetadataParser(object):
             pass
 
         # is there an image_src?
-        image = doc.findAll(
+        images = doc.findAll(
             'link',
             attrs={'rel': re.compile("^image_src$", re.I)}
         )
-        if image:
-            try:
-                img = image[0]['href'].strip()
-                self.metadata['page']['image'] = img
-            except KeyError:
-                img = image[0]['content'].strip()
-                self.metadata['page']['image'] = img
-            except:
+        if images:
+            image = images[0]
+            if 'href' in image:
+                img_url = image['href'].strip()
+                self.metadata['page']['image'] = img_url
+            elif 'content' in image:
+                img_url = image['content'].strip()
+                self.metadata['page']['image'] = img_url
+            else:
                 pass
 
         # figure out the canonical url
-        canonical = doc.findAll(
+        canonicals = doc.findAll(
             'link',
             attrs={'rel': re.compile("^canonical$", re.I)}
         )
-        if canonical:
-            try:
+        if canonicals:
+            canonical = canonicals[0]
+            if ['href'] in canonical:
                 link = canonical[0]['href'].strip()
                 self.metadata['page']['canonical'] = link
-            except KeyError:
+            elif ['content'] in canonical:
                 link = canonical[0]['content'].strip()
                 self.metadata['page']['canonical'] = link
-            except:
+            else:
                 pass
 
         # pull out all the metadata

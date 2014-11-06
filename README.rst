@@ -10,6 +10,15 @@ Installation
 
 pip install metadata_parser
 
+
+Installation Recommendation
+===========================
+
+I strongly suggest you use the `requests` library version 2.4.3 or newer
+
+This is not required, but it is better.  On earlier versions it is possible to have an uncaught DecodeError exception when there is an underlying redirect/404.  Recent fixes to `requests` improve redirect handling, urllib3 and urllib3 errors.
+
+
 Features
 =============
 
@@ -45,7 +54,7 @@ The MetadataParser object also wraps some convenience functions , which can be u
 For example, you may pull a page:
 
 	http://www.example.com/path/to/file.html
-	
+
 and that file indicates a canonical url which is simple "/file.html".
 
 This package will try to 'remount' the canonical url to the absolute url of "http://www.example.com/file.html" .  It will return None if the end result is not a valid url.
@@ -65,10 +74,10 @@ The differences:
 
 * If an entirely numeric ip address is encountered, it is assumed to be a dot-notation IPV4 and it is checked to have the right amount of valid octets.
 	The default behavior is to invalidate these hosts:
-		http://256.256.256.256 
+		http://256.256.256.256
 		http://999.999.999.999.999
 	According to RFCs those are valid hostnames that would fail as "IP Addresses" but pass as "Domain Names".  However in the real world, one would never encounter domain names like those.
-	
+
 * The only non-domain hostname that is allowed, is "localhost"
 	The default behavior is to invalidate  these hosts :
 		http://example
@@ -76,7 +85,7 @@ The differences:
 	Those are considered to be valid hosts, and might exist on a local network or custom hosts file.  However, they are not part of the public internet.
 
 Although this behavior breaks RFCs, it greatly reduces the number of "False Positives" generated when analyzing internet pages.  If you want to include bad data, you can submit a kwarg to `MetadataParser.__init__`
-	
+
 
 
 

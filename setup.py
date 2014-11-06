@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '0.6.9'
+version = '0.6.10'
 
 setup(name='metadata_parser',
       version=version,
