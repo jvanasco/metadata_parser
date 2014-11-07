@@ -460,7 +460,7 @@ class MetadataParser(object):
             r = requests.get(
                 url, params=url_data, headers=url_headers,
                 allow_redirects=True, verify=self.ssl_verify,
-                timeout=self.requests_timeout,
+                timeout=self.requests_timeout, stream=True,
             )
             content_type = None
             if 'content-type' in r.headers:

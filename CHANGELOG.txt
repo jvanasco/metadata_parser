@@ -1,3 +1,6 @@
+0.6.12
+	- now passing "stream=True" to requests.get.  this will fetch the headers first, before looping through the response.  we can avoid many issues with this approach
+
 0.6.11
 	- now correctly validating urls with ports. had to restructure a lot of the url validation
 
