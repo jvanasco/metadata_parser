@@ -9,6 +9,7 @@ setup(name='metadata_parser',
       classifiers=[
           'Development Status :: 3 - Alpha',
           'Intended Audience :: Developers',
+          'License :: OSI Approved :: MIT License',
           'Programming Language :: Python',
           'Topic :: Text Processing :: Markup :: HTML',
           'Topic :: Software Development :: Libraries :: Python Modules',
