@@ -6,7 +6,7 @@ import unittest
 if False:
     import logging
     l = logging.getLogger()
-    l2 = logging.getLogger('metdata_parser')
+    l2 = logging.getLogger('metadata_parser')
     l.setLevel(logging.DEBUG)
     l2.setLevel(logging.DEBUG)
 

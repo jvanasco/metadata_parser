@@ -8,6 +8,10 @@ from bs4 import BeautifulSoup
 import urlparse
 
 
+MAX_FILEIZE =  2**19  # bytes; this is .5MB
+MAX_CONNECTIONTIME = 20  # in seconds
+
+
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
 
@@ -481,6 +485,12 @@ class MetadataParser(object):
                 raise NotParsable("I don't know what type of file this is! "
                                   "content-type:'[%s]" % content_type)
 
+            # okay, now we need to read
+            ## TODO
+            ## TODO
+            ## TODO
+            ## TODO
+
             html = r.text
             self.response = r
 
@@ -577,10 +587,10 @@ class MetadataParser(object):
         )
         if images:
             image = images[0]
-            if 'href' in image:
+            if image.has_attr("href"):
                 img_url = image['href'].strip()
                 self.metadata['page']['image'] = img_url
-            elif 'content' in image:
+            elif image.has_attr("content"):
                 img_url = image['content'].strip()
                 self.metadata['page']['image'] = img_url
             else:
@@ -593,11 +603,11 @@ class MetadataParser(object):
         )
         if canonicals:
             canonical = canonicals[0]
-            if ['href'] in canonical:
-                link = canonical[0]['href'].strip()
+            if canonical.has_attr("href"):
+                link = canonical['href'].strip()
                 self.metadata['page']['canonical'] = link
-            elif ['content'] in canonical:
-                link = canonical[0]['content'].strip()
+            elif canonical.has_attr("content"):
+                link = canonical['content'].strip()
                 self.metadata['page']['canonical'] = link
             else:
                 pass

@@ -1,3 +1,9 @@
+0.6.14
+	- there was a typo and another bug that passed some tests on BeautifulSoup parsing.  they have been fixed.  todo- migrate tests to public repo
+
+0.6.13
+	- trying to integrate a "safe read"
+
 0.6.12
 	- now passing "stream=True" to requests.get.  this will fetch the headers first, before looping through the response.  we can avoid many issues with this approach
 
