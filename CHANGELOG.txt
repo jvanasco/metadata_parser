@@ -1,3 +1,6 @@
+0.6.15
+	- fixed README which used old api in the example
+
 0.6.14
 	- there was a typo and another bug that passed some tests on BeautifulSoup parsing.  they have been fixed.  todo- migrate tests to public repo
 
