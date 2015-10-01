@@ -1,3 +1,6 @@
+0.6.16
+	- incorporated pull8 (https://github.com/jvanasco/metadata_parser/pull/8) which fixes issue5 (https://github.com/jvanasco/metadata_parser/issues/5) with comments
+
 0.6.15
 	- fixed README which used old api in the example
 
