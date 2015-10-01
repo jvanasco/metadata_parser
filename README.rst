@@ -97,15 +97,15 @@ Usage
 >>> import metadata_parser
 >>> page = metadata_parser.MetadataParser(url="http://www.cnn.com")
 >>> print page.metadata
->>> print page.get_field('title')
->>> print page.get_field('title', strategy=['og',])
->>> print page.get_field('title', strategy=['page', 'og', 'dc',])
+>>> print page.get_metadata('title')
+>>> print page.get_metadata('title', strategy=['og',])
+>>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
 
 **From HTML**
 
 >>> HTML = """<here>"""
 >>> page = metadata_parser.MetadataParser(html=HTML)
 >>> print page.metadata
->>> print page.get_field('title')
->>> print page.get_field('title', strategy=['og',])
->>> print page.get_field('title', strategy=['page', 'og', 'dc',])
+>>> print page.get_metadata('title')
+>>> print page.get_metadata('title', strategy=['og',])
+>>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
