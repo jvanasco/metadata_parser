@@ -1,10 +1,18 @@
 import logging
 log = logging.getLogger(__name__)
 
-import re
-import requests
+# ------------------------------------------------------------------------------
 
+
+# stdlib
+import datetime
+import re
+
+# pypi
+import requests
 from bs4 import BeautifulSoup
+
+# python 2/3
 try:
     # Python 2 has a standard urlparse library
     from urlparse import urlparse, ParseResult
@@ -13,8 +21,12 @@ except:
     from urllib.parse import urlparse, ParseResult
 
 
+# ------------------------------------------------------------------------------
+
+
 MAX_FILEIZE =  2**19  # bytes; this is .5MB
 MAX_CONNECTIONTIME = 20  # in seconds
+DUMMY_URL = "http://example.com/index.html"
 
 
 RE_bad_title = re.compile(
@@ -273,6 +285,33 @@ class NotParsableFetchError(NotParsable):
     pass
 
 
+class DummyResponse(object):
+    """
+    A DummyResponse is used to ensure compatibility between url fetching
+    and html data
+    """
+
+    text = None
+    url = None
+    status_code = None
+    encoding = None
+    elapsed_seconds = None
+
+    def __init__(
+        self,
+        text='',
+        url=DUMMY_URL,
+        status_code=200,
+        encoding='utf-8',
+        elapsed_seconds=0,
+    ):
+        self.text = text
+        self.url = url
+        self.status_code = status_code
+        self.encoding = encoding
+        self.elapsed = datetime.timedelta(0, elapsed_seconds)
+
+
 class MetadataParser(object):
     """
     turns text or a URL into a dict of dicts, extracting as much relevant
@@ -414,10 +453,13 @@ class MetadataParser(object):
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
             html = self.fetch_url(
-                url_data=url_data, url_headers=url_headers,
+                url_data=url_data,
+                url_headers=url_headers,
                 force_parse=force_parse,
                 force_parse_invalid_content_type=force_parse_invalid_content_type
             )
+        else:
+            self.response = DummyResponse(text=html, url=url or DUMMY_URL)
         self.parser(html, force_parse=force_parse)
 
     def is_opengraph_minimum(self):
