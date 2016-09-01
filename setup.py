@@ -1,9 +1,17 @@
 from setuptools import setup, find_packages
 
-version = '0.6.17'
+# store version in the init.py
+with open(
+        os.path.join(
+            os.path.dirname(__file__),
+            'metadata_parser', '__init__.py')) as v_file:
+    VERSION = re.compile(
+        r".*__version__ = '(.*?)'",
+        re.S).match(v_file.read()).group(1)
 
+# go
 setup(name='metadata_parser',
-      version=version,
+      version=VERSION,
       description="A module to parse metadata out of documents",
       long_description=open("README.rst").read() + "\n",
       classifiers=[
