@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+import os, re
 
 # store version in the init.py
 with open(
@@ -6,7 +7,7 @@ with open(
             os.path.dirname(__file__),
             'metadata_parser', '__init__.py')) as v_file:
     VERSION = re.compile(
-        r".*__version__ = '(.*?)'",
+        r".*__VERSION__ = '(.*?)'",
         re.S).match(v_file.read()).group(1)
 
 # go
