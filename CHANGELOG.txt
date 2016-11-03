@@ -1,3 +1,7 @@
+0.7.0
+	- merged https://github.com/jvanasco/metadata_parser/pull/9 from xethorn
+	- nested all commands to `log` under `__debug__` to avoid calls on production when PYTHONOPTIMIZE is set
+
 0.6.18
 	- migrated version string into __init__.py
 

@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.6.18'
+__VERSION__ = '0.7.0'
 
 
 # ------------------------------------------------------------------------------
@@ -30,11 +30,16 @@ except:
 
 # ------------------------------------------------------------------------------
 
+# defaults
 
 MAX_FILEIZE =  2**19  # bytes; this is .5MB
 MAX_CONNECTIONTIME = 20  # in seconds
 DUMMY_URL = "http://example.com/index.html"
 
+
+# ------------------------------------------------------------------------------
+
+# regex library
 
 RE_bad_title = re.compile(
     """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I)
@@ -98,6 +103,9 @@ RE_IPV4_ADDRESS = re.compile(
 RE_ALL_NUMERIC = re.compile("^[\d\.]+$")
 
 
+# ------------------------------------------------------------------------------
+
+
 def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
     """returns bool
         `http_only`
@@ -105,19 +113,24 @@ def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
             requires http or https for the scheme
     """
     assert isinstance(parsed, ParseResult)
-    log.debug("is_parsed_valid_url = %s", parsed)
+    if __debug__:
+        log.debug("is_parsed_valid_url = %s", parsed)
     if not all((parsed.scheme, parsed.netloc)):
-        log.debug(" FALSE - missing `scheme` or `netloc`")
+        if __debug__:
+            log.debug(" FALSE - missing `scheme` or `netloc`")
         return False
     if http_only:
         if parsed.scheme not in ('http', 'https'):
-            log.debug(" FALSE - invalid `scheme`")
+            if __debug__:
+                log.debug(" FALSE - invalid `scheme`")
             return False
     if require_public_netloc:
-        log.debug(" validating netloc")
+        if __debug__:
+            log.debug(" validating netloc")
         _netloc_match = RE_VALID_HOSTNAME.match(parsed.netloc)
         if not _netloc_match:
-            log.debug(" did not match regex")
+            if __debug__:
+                log.debug(" did not match regex")
             return False
 
         # we may assign these
@@ -134,39 +147,47 @@ def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
         if _netloc_groudict['ipv4'] is not None:
             octets = RE_IPV4_ADDRESS.match(_netloc_clean)
             if octets:
-                log.debug(" validating against ipv4")
+                if __debug__:
+                    log.debug(" validating against ipv4")
                 for g in octets.groups():
                     g = int(g)
                     if int(g) > 255:
-                        log.debug(" invalid ipv4; encountered an octect > 255")
+                        if __debug__:
+                            log.debug(" invalid ipv4; encountered an octect > 255")
                         return False
-                log.debug(" valid ipv4")
+                if __debug__:
+                    log.debug(" valid ipv4")
                 return True
-            log.debug(" invalid ipv4")
+            if __debug__:
+                log.debug(" invalid ipv4")
             return False
         else:
             if _netloc_clean == 'localhost':
-                log.debug(" localhost!")
+                if __debug__:
+                    log.debug(" localhost!")
                 return True
-
             if RE_ALL_NUMERIC.match(_netloc_clean):
-                log.debug(" This only has numeric characters. "
-                          "this is probably a fake or typo ip address.")
+                if __debug__:
+                    log.debug(" This only has numeric characters. "
+                              "this is probably a fake or typo ip address.")
                 return False
             if _port:
                 try:
                     _port = int(_port)
                     if parsed.port != _port:
-                        log.debug(" netloc.port does not match our regex _port")
+                        if __debug__:
+                            log.debug(" netloc.port does not match our regex _port")
                         return False
                 except:
-                    raise
-                    log.debug(" _port is not an int")
+                    if __debug__:
+                        log.debug(" _port is not an int")
                     return False
             if RE_DOMAIN_NAME.match(_netloc_clean):
-                log.debug(" valid public domain name format")
+                if __debug__:
+                    log.debug(" valid public domain name format")
                 return True
-        log.debug(" this appears to be invalid")
+        if __debug__:
+            log.debug(" this appears to be invalid")
         return False
     return True
 
@@ -275,6 +296,9 @@ def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None)
             parsed_domain_source.scheme,
             parsed_domain_source.netloc, _path)
     return rval
+
+
+# ------------------------------------------------------------------------------
 
 
 class NotParsable(Exception):
@@ -610,7 +634,8 @@ class MetadataParser(object):
             except (AttributeError, KeyError):
                 pass
             except:
-                log.debug("Ran into a serious error parsing `og`")
+                if __debug__:
+                    log.debug("Ran into a serious error parsing `og`")
                 pass
 
         twitters = doc.html.head.findAll(

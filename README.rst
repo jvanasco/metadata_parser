@@ -25,6 +25,7 @@ Features
 * it pulls as much metadata out of a document as possible
 * you can set a 'strategy' for finding metadata ( ie, only accept opengraph or page attributes )
 * lightweight BUT FUNCTIONAL url validation
+* logging is verbose, but nested under `__debug__` statements, so it is compiled away when PYTHONOPTIMIZE is set
 
 Notes
 =============

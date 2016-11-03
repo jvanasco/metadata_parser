@@ -16,7 +16,6 @@ setup(name='metadata_parser',
       description="A module to parse metadata out of documents",
       long_description=open("README.rst").read() + "\n",
       classifiers=[
-          'Development Status :: 3 - Alpha',
           'Intended Audience :: Developers',
           'License :: OSI Approved :: MIT License',
           'Programming Language :: Python',
