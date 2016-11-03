@@ -589,7 +589,7 @@ class MetadataParser(object):
             try:
                 doc = BeautifulSoup(html, "lxml")
             except:
-                doc = BeautifulSoup(html)
+                doc = BeautifulSoup(html, "html.parser")
         else:
             doc = html
 
