@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.7.1'
+__VERSION__ = '0.7.2'
 
 
 # ------------------------------------------------------------------------------
@@ -665,10 +665,11 @@ class MetadataParser(object):
         # pull the text off the title
         try:
             _title_text = doc.html.head.title.text
+            if _title_text is not None:
+                _title_text = _title_text.strip()
             if len(_title_text) > self.LEN_MAX_TITLE:
                 _title_text = _title_text[:self.LEN_MAX_TITLE]
             self.metadata['page']['title'] = _title_text
-
         except AttributeError:
             pass
 

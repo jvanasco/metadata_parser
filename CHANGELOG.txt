@@ -1,3 +1,6 @@
+0.7.2
+	- applying a `strip()` to the "title".  bad authors/cms often have whitespace.
+
 0.7.1
 	- added kwargs to docstrings
 	- `get_metadata_link` behavior has been changed as follows:
