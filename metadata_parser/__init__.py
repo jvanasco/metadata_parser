@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.7.0'
+__VERSION__ = '0.7.1'
 
 
 # ------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ except:
 
 # defaults
 
-MAX_FILEIZE =  2**19  # bytes; this is .5MB
+MAX_FILEIZE = 2**19  # bytes; this is .5MB
 MAX_CONNECTIONTIME = 20  # in seconds
 DUMMY_URL = "http://example.com/index.html"
 
@@ -55,7 +55,8 @@ PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
 
 # based on DJANGO
 # https://github.com/django/django/blob/master/django/core/validators.py
-# not testing ipv6 right now, because rules are needed for ensuring they are correct
+# not testing ipv6 right now, because rules are needed for ensuring they
+# are correct
 RE_VALID_HOSTNAME = re.compile(
     r'(?:'
         r'(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ipv4
@@ -406,7 +407,7 @@ class MetadataParser(object):
 
     og_minimum_requirements = ['title', 'type', 'image', 'url']
     twitter_sections = ['card', 'title', 'site', 'description']
-    strategy = ['og', 'dc', 'meta', 'page']
+    strategy = ['og', 'dc', 'meta', 'page', 'twitter', ]
 
     def __init__(
         self,
@@ -508,6 +509,12 @@ class MetadataParser(object):
         """
         fetches the url and returns it.
         this was busted out so you could subclass.
+
+        kwargs:
+            url_data=None
+            url_headers=None
+            force_parse=False
+            force_parse_invalid_content_type=False
         """
         # should we even download/parse this?
         if not force_parse and self.only_parse_file_extensions is not None:
@@ -564,10 +571,6 @@ class MetadataParser(object):
                                   "content-type:'[%s]" % content_type)
 
             # okay, now we need to read
-            ## TODO
-            ## TODO
-            ## TODO
-            ## TODO
 
             html = r.text
             self.response = r
@@ -594,7 +597,10 @@ class MetadataParser(object):
 
     def absolute_url(self, link=None):
         """
-        makes the url absolute, as sometimes people use a relative url. sigh.
+        makes the url of a submitted `link` absolute,
+        as sometimes people use a relative url. sigh.
+        kwargs:
+            link=None
         """
         url_fallback = self.url_actual or self.url or None
         return url_to_absolute_url(
@@ -604,7 +610,14 @@ class MetadataParser(object):
         )
 
     def parser(self, html, force_parse=False):
-        """parses the html
+        """
+        parses submitted `html`
+
+        args:
+            html
+
+        kwargs:
+            force_parse=False
         """
         if not isinstance(html, BeautifulSoup):
             # clean the html?
@@ -718,9 +731,16 @@ class MetadataParser(object):
 
     def get_metadata(self, field, strategy=None):
         """
-            looks for the field in various stores.  defaults to the core
-            strategy, though you may specify a certain item.  if you search for
-            'all' it will return a dict of all values.
+        looks for the field in various stores.  defaults to the core
+        strategy, though you may specify a certain item.  if you search for
+        'all' it will return a dict of all values.
+
+        args:
+            field
+
+        kwargs:
+            strategy=None
+                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
         """
         if strategy:
             _strategy = strategy
@@ -742,10 +762,16 @@ class MetadataParser(object):
         self,
         og_first=True, canonical_first=False, allow_invalid=False
     ):
-        """convenience method.
-            if `allow_invalid` is True, it will return the raw data.
-            if `allow_invalid` is False (default), it will try to correct
-                the data (relative to absolute) or reset to None.
+        """
+        convenience method.
+        if `allow_invalid` is True, it will return the raw data.
+        if `allow_invalid` is False (default), it will try to correct
+            the data (relative to absolute) or reset to None.
+
+        kwargs:
+            og_first=True
+            canonical_first=False
+            allow_invalid=False
         """
         og = self.get_metadata('url', strategy=['og'])
         canonical = self.get_metadata('canonical', strategy=['page'])
@@ -801,15 +827,32 @@ class MetadataParser(object):
 
         return self.absolute_url()
 
-    def get_metadata_link(self, field, strategy=None):
-        """sometimes links are bad; this tries to fix them.  most useful for meta images"""
+    def get_metadata_link(self, field, strategy=None, allow_encoded_uri=False):
+        """sometimes links are bad; this tries to fix them.  most useful for meta images
+
+        args:
+            field
+
+        kwargs:
+            strategy=None
+                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
+            allow_encoded_uri
+        """
         # `_value` will be our raw value
         _value = self.get_metadata(field, strategy=strategy)
         if not _value:
             return None
+
         # `value` will be our clean value
         # remove whitespace, because some bad blogging platforms add in whitespace by printing elements on multiple lines. d'oh!
         value = RE_whitespace.sub('', _value)
+
+        # it's possible for an encoded URI to be an image
+        # if that is the case, don't return it (this is `get_metadata_LINK`)
+        if value.lower().startswith('data:image/'):
+            if allow_encoded_uri:
+                return value
+            return None
 
         # if the url is valid, RETURN IT
         if is_url_valid(value, require_public_netloc=self.require_public_netloc):
@@ -821,8 +864,8 @@ class MetadataParser(object):
         # try making it absolute
         value_fixed = url_to_absolute_url(
             value,
-            url_fallback = url_fallback,
-            require_public_netloc = self.require_public_netloc
+            url_fallback=url_fallback,
+            require_public_netloc=self.require_public_netloc
         )
         if is_url_valid(value_fixed, require_public_netloc=self.require_public_netloc):
             return value_fixed

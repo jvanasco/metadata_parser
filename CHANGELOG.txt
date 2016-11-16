@@ -1,3 +1,10 @@
+0.7.1
+	- added kwargs to docstrings
+	- `get_metadata_link` behavior has been changed as follows:
+	   * if an encoded uri is present (starts with `data:image/`)
+	   ** this will return None by default
+	   ** if a kwarg of `allow_encoded_uri=True` is submitted, will return the encoded url (without a url prefix)
+
 0.7.0
 	- merged https://github.com/jvanasco/metadata_parser/pull/9 from xethorn
 	- nested all commands to `log` under `__debug__` to avoid calls on production when PYTHONOPTIMIZE is set
