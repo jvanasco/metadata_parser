@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.7.3'
+__VERSION__ = '0.7.4'
 
 
 # ------------------------------------------------------------------------------
@@ -14,6 +14,8 @@ __VERSION__ = '0.7.3'
 # stdlib
 import datetime
 import re
+import socket  # see `_compatible_sockets`
+import _socket  # see `_compatible_sockets`
 
 # pypi
 import requests
@@ -36,6 +38,7 @@ MAX_FILEIZE = 2**19  # bytes; this is .5MB
 MAX_CONNECTIONTIME = 20  # in seconds
 DUMMY_URL = "http://example.com/index.html"
 
+_compatible_sockets = (socket._socketobject, _socket.socket)
 
 # ------------------------------------------------------------------------------
 
@@ -316,6 +319,9 @@ class NotParsable(Exception):
 class NotParsableFetchError(NotParsable):
     pass
 
+class AllowableError(Exception):
+    pass
+
 
 class DummyResponse(object):
     """
@@ -342,6 +348,45 @@ class DummyResponse(object):
         self.status_code = status_code
         self.encoding = encoding
         self.elapsed = datetime.timedelta(0, elapsed_seconds)
+
+
+# ------------------------------------------------------------------------------
+
+
+def get_response_peername(r):
+    if not isinstance(r, requests.models.Response):
+        # raise AllowableError("Not a HTTPResponse")
+        log.debug("Not a HTTPResponse | %s", r)
+        return None
+    def _get_socket():
+        i = 0
+        while True:
+            i+= 1
+            try:
+                if i == 1:
+                    sock = r.raw._connection.sock
+                elif i == 2:
+                    sock = r.raw._connection.sock.socket
+                elif i == 3:
+                    sock = r.raw._fp.fp._sock
+                elif i == 4:
+                    sock = r.raw._fp.fp._sock.socket
+                elif i == 5:
+                    sock = r.raw._fp.fp.raw._sock
+                else:
+                    break
+                if not isinstance(sock, _compatible_sockets):
+                    raise AllowableError()
+                return sock
+            except Exception as e:
+                pass
+        return None
+    sock = _get_socket()
+    if sock:
+        return sock.getpeername()
+    return None
+    
+# ------------------------------------------------------------------------------
 
 
 class MetadataParser(object):
@@ -547,18 +592,13 @@ class MetadataParser(object):
         r = None
         try:
             # requests gives us unicode and the correct encoding, yay
-            r = requests.get(
+            s = requests.Session()
+            r = s.get(
                 url, params=url_data, headers=url_headers,
                 allow_redirects=True, verify=self.ssl_verify,
                 timeout=self.requests_timeout, stream=True,
             )
-            try:
-                # cache the peername.
-                # for an ipv4 thisw will be a tuple of (ip, port)
-                peername = r.raw._connection.sock.getpeername()
-                self.peername = peername
-            except:
-                pass
+            self.peername = get_response_peername(r)
             content_type = None
             if 'content-type' in r.headers:
                 content_type = r.headers['content-type']
