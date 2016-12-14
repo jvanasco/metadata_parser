@@ -1,3 +1,6 @@
+0.7.3
+	- this will now try to cache the `peername` of the request (ie, the remote server) onto the peername attribute
+
 0.7.2
 	- applying a `strip()` to the "title".  bad authors/cms often have whitespace.
 

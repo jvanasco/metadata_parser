@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.7.2'
+__VERSION__ = '0.7.3'
 
 
 # ------------------------------------------------------------------------------
@@ -401,6 +401,7 @@ class MetadataParser(object):
     require_public_netloc = None
     force_doctype = None
     requests_timeout = None
+    peername = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -551,6 +552,13 @@ class MetadataParser(object):
                 allow_redirects=True, verify=self.ssl_verify,
                 timeout=self.requests_timeout, stream=True,
             )
+            try:
+                # cache the peername.
+                # for an ipv4 thisw will be a tuple of (ip, port)
+                peername = r.raw._connection.sock.getpeername()
+                self.peername = peername
+            except:
+                pass
             content_type = None
             if 'content-type' in r.headers:
                 content_type = r.headers['content-type']
