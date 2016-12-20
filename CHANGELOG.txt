@@ -2,7 +2,8 @@
 	this bump introduces 2 new arguments and some changed behavior:
 	
 	- `search_head_only=None`.  previously the meta/og/etc data was only searched in the document head (where expected as per HTML specs).
-	  after indexing millions of pages, many appeared to implement this incorrectly. (for example, Twitter.com).
+	  after indexing millions of pages, many appeared to implement this incorrectly of have html that is so off specification that 
+	  parsing libraries can't correctly read it (for example, Twitter.com).
 	  This is currently implemented to default from None to True, but future versions will default to `False`.
 	  This is marked for a future default of `search_head_only=False`
 
