@@ -1,3 +1,16 @@
+0.8.0
+	this bump introduces 2 new arguments and some changed behavior:
+	
+	- `search_head_only=None`.  previously the meta/og/etc data was only searched in the document head (where expected as per HTML specs).
+	  after indexing millions of pages, many appeared to implement this incorrectly. (for example, Twitter.com).
+	  This is currently implemented to default from None to True, but future versions will default to `False`.
+	  This is marked for a future default of `search_head_only=False`
+
+	- `raise_on_invalid`.  default False.  If True, this will raise a new exception: InvalidDocument if the response
+                does not look like a proper html document
+
+
+
 0.7.4
 	- more aggressive attempts to get the peername.
 

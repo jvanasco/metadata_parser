@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.7.4'
+__VERSION__ = '0.8.0'
 
 
 # ------------------------------------------------------------------------------
@@ -16,6 +16,7 @@ import datetime
 import re
 import socket  # see `_compatible_sockets`
 import _socket  # see `_compatible_sockets`
+import warnings
 
 # pypi
 import requests
@@ -28,6 +29,10 @@ try:
 except:
     # Python 3 has the same library hidden in urllib.parse
     from urllib.parse import urlparse, ParseResult
+
+
+def warn_future(message):
+    warnings.warn(message, FutureWarning, stacklevel=2)
 
 
 # ------------------------------------------------------------------------------
@@ -305,6 +310,15 @@ def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None)
 # ------------------------------------------------------------------------------
 
 
+class InvalidDocument(Exception):
+
+    def __init__(self, message=''):
+        self.message = message
+
+    def __str__(self):
+        return "InvalidDocument: %s" % (self.message)
+
+
 class NotParsable(Exception):
 
     def __init__(self, message='', raised=None, code=None):
@@ -313,7 +327,7 @@ class NotParsable(Exception):
         self.code = code
 
     def __str__(self):
-        return "ApiError: %s | %s | %s" % (self.message, self.code, self.raised)
+        return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
 
 
 class NotParsableFetchError(NotParsable):
@@ -460,7 +474,8 @@ class MetadataParser(object):
         url=None, html=None, strategy=None, url_data=None, url_headers=None,
         force_parse=False, ssl_verify=True, only_parse_file_extensions=None,
         force_parse_invalid_content_type=False, require_public_netloc=True,
-        force_doctype=False, requests_timeout=None,
+        force_doctype=False, requests_timeout=None, raise_on_invalid=False,
+        search_head_only=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -505,7 +520,16 @@ class MetadataParser(object):
             `requests_timeout`
                 default: None
                 if set, proxies the value into `requests.get` as `timeout`
-
+            `raise_on_invalid`
+                default: False
+                if True, will raise an InvalidDocument exception if the response
+                does not look like a proper html document
+            `search_head_only`
+                default: None
+                if `None` will default to True and emit a deprecation warning.
+                if `True`, will only search the document head for meta information.
+                `search_head_only=True` is the legacy behavior, but missed too many 
+                bad html implementations. This will be set to `False` in the future.
         """
         self.metadata = {
             'og': {},
@@ -527,6 +551,12 @@ class MetadataParser(object):
         self.response_headers = {}
         self.require_public_netloc = require_public_netloc
         self.requests_timeout = requests_timeout
+        if search_head_only is None:
+            warn_future("""`search_head_only` was not provided and defaulting to `True` """
+                        """Future versions will default to `False`.""")
+            search_head_only = True
+        self.search_head_only = search_head_only
+        self.raise_on_invalid = raise_on_invalid
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
@@ -619,7 +649,6 @@ class MetadataParser(object):
                                   "content-type:'[%s]" % content_type)
 
             # okay, now we need to read
-
             html = r.text
             self.response = r
 
@@ -627,7 +656,6 @@ class MetadataParser(object):
             self.response_headers = dict((k.lower(), v)
                                          for k, v in r.headers.items())
             self.url_actual = r.url
-
             if r.status_code != 200:
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
@@ -679,13 +707,25 @@ class MetadataParser(object):
             doc = html
 
         # let's ensure that we have a real document...
-        if not doc or not doc.html or not doc.html.head:
+        if not doc or not doc.html:
+            if self.raise_on_invalid:
+                raise InvalidDocument("missing `doc` or `doc.html`")
             return
+
+        # set the searchpath
+        doc_searchpath = doc.html
+
+        if self.search_head_only:
+            if not doc.html.head:
+                if self.raise_on_invalid:
+                    raise InvalidDocument("missing `doc.html.head`")
+                return
+            doc_searchpath = doc.html.head
 
         # stash the bs4 doc for further operations
         self.soup = doc
 
-        ogs = doc.html.head.findAll(
+        ogs = doc_searchpath.findAll(
             'meta',
             attrs={'property': re.compile(r'^og')}
         )
@@ -699,7 +739,7 @@ class MetadataParser(object):
                     log.debug("Ran into a serious error parsing `og`")
                 pass
 
-        twitters = doc.html.head.findAll(
+        twitters = doc_searchpath.findAll(
             'meta',
             attrs={'name': re.compile(r'^twitter')}
         )
@@ -712,7 +752,7 @@ class MetadataParser(object):
 
         # pull the text off the title
         try:
-            _title_text = doc.html.head.title.text
+            _title_text = doc_searchpath.title.text
             if _title_text is not None:
                 _title_text = _title_text.strip()
             if len(_title_text) > self.LEN_MAX_TITLE:
@@ -754,7 +794,7 @@ class MetadataParser(object):
                 pass
 
         # pull out all the metadata
-        meta = doc.html.head.findAll(name='meta')
+        meta = doc_searchpath.findAll(name='meta')
         for m in meta:
             try:
                 k = None
