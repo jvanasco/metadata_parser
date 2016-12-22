@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.8.0'
+__VERSION__ = '0.8.1'
 
 
 # ------------------------------------------------------------------------------
@@ -333,6 +333,7 @@ class NotParsable(Exception):
 class NotParsableFetchError(NotParsable):
     pass
 
+
 class AllowableError(Exception):
     pass
 
@@ -372,10 +373,11 @@ def get_response_peername(r):
         # raise AllowableError("Not a HTTPResponse")
         log.debug("Not a HTTPResponse | %s", r)
         return None
+
     def _get_socket():
         i = 0
         while True:
-            i+= 1
+            i += 1
             try:
                 if i == 1:
                     sock = r.raw._connection.sock
@@ -399,7 +401,8 @@ def get_response_peername(r):
     if sock:
         return sock.getpeername()
     return None
-    
+
+
 # ------------------------------------------------------------------------------
 
 
@@ -461,6 +464,8 @@ class MetadataParser(object):
     force_doctype = None
     requests_timeout = None
     peername = None
+    is_redirect = None
+    is_redirect_same_host = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -528,7 +533,7 @@ class MetadataParser(object):
                 default: None
                 if `None` will default to True and emit a deprecation warning.
                 if `True`, will only search the document head for meta information.
-                `search_head_only=True` is the legacy behavior, but missed too many 
+                `search_head_only=True` is the legacy behavior, but missed too many
                 bad html implementations. This will be set to `False` in the future.
         """
         self.metadata = {
@@ -629,6 +634,12 @@ class MetadataParser(object):
                 timeout=self.requests_timeout, stream=True,
             )
             self.peername = get_response_peername(r)
+            if r.history:
+                self.is_redirect = True
+                parsed_url_og = urlparse(url)
+                parsed_url_dest = urlparse(r.url)
+                self.is_redirect_same_host = True if (parsed_url_og.netloc == parsed_url_dest.netloc) else False
+
             content_type = None
             if 'content-type' in r.headers:
                 content_type = r.headers['content-type']

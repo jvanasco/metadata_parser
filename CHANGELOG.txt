@@ -1,3 +1,10 @@
+0.8.1
+	added 2 new properties to a computed MetadataParser object:
+	    is_redirect = None
+	    is_redirect_same_host = None
+	in the case of redirects, we only have the peername available for the final URL (not the source)
+	if a response is a redirect, it may not be for the same host -- and the peername would correspond to the destination URL -- not the origin
+
 0.8.0
 	this bump introduces 2 new arguments and some changed behavior:
 	
@@ -8,7 +15,7 @@
 	  This is marked for a future default of `search_head_only=False`
 
 	- `raise_on_invalid`.  default False.  If True, this will raise a new exception: InvalidDocument if the response
-                does not look like a proper html document
+       does not look like a proper html document
 
 
 
