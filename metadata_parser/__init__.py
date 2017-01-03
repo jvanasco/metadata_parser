@@ -43,7 +43,11 @@ MAX_FILEIZE = 2**19  # bytes; this is .5MB
 MAX_CONNECTIONTIME = 20  # in seconds
 DUMMY_URL = "http://example.com/index.html"
 
-_compatible_sockets = (socket._socketobject, _socket.socket)
+try:
+    _compatible_sockets = (socket._socketobject, _socket.socket)
+except AttributeError:
+    # Fallback because socket._socketobject is not supported on some platforms.
+    _compatible_sockets = _socket.socket
 
 # ------------------------------------------------------------------------------
 
