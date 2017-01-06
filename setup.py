@@ -13,7 +13,7 @@ with open(
 # go
 setup(name='metadata_parser',
       version=VERSION,
-      description="A module to parse metadata out of documents",
+      description="A module to parse metadata out of urls and html documents",
       long_description=open("README.rst").read() + "\n",
       classifiers=[
           'Intended Audience :: Developers',
@@ -27,9 +27,9 @@ setup(name='metadata_parser',
       author_email='jonathan@findmeon.com',
       url='https://github.com/jvanasco/metadata_parser',
       license='MIT',
-      packages=find_packages(exclude=['ez_setup', 'tests']),
       test_suite='tests',
       include_package_data=True,
+      packages=find_packages(exclude=['tests.private', 'tests.private.*']),
       zip_safe=False,
       install_requires=[
           'BeautifulSoup4',

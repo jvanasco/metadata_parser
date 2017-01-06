@@ -1,3 +1,6 @@
+0.8.3
+	- packaging fixes
+
 0.8.2
 	- incorporated fix in https://github.com/jvanasco/metadata_parser/pull/10 to handle windows support of socket objects
 	- cleaned up some tests
