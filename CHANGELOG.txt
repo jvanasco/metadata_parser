@@ -2,6 +2,7 @@
 	- incorporated fix in https://github.com/jvanasco/metadata_parser/pull/10 to handle windows support of socket objects
 	- cleaned up some tests
 	- added `encode_ascii` helper
+	- added git-ignored `tests/private` directory for non-public tests
 
 0.8.1
 	added 2 new properties to a computed MetadataParser object:
