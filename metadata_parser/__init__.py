@@ -14,8 +14,7 @@ __VERSION__ = '0.8.1'
 # stdlib
 import datetime
 import re
-import socket  # see `_compatible_sockets`
-import _socket  # see `_compatible_sockets`
+import unicodedata
 import warnings
 
 # pypi
@@ -29,6 +28,8 @@ try:
 except:
     # Python 3 has the same library hidden in urllib.parse
     from urllib.parse import urlparse, ParseResult
+import sys
+PY3 = sys.version_info[0] == 3
 
 
 def warn_future(message):
@@ -43,7 +44,15 @@ MAX_FILEIZE = 2**19  # bytes; this is .5MB
 MAX_CONNECTIONTIME = 20  # in seconds
 DUMMY_URL = "http://example.com/index.html"
 
-_compatible_sockets = (socket._socketobject, _socket.socket)
+# peername hacks
+# these are in the stdlib
+# will be eventually not be needed thanks to upstream changes in `requests`
+import _socket
+import socket
+try:
+    _compatible_sockets = (_socket.socket, socket._socketobject, )
+except AttributeError:
+    _compatible_sockets = (_socket.socket, )
 
 # ------------------------------------------------------------------------------
 
@@ -114,6 +123,22 @@ RE_ALL_NUMERIC = re.compile("^[\d\.]+$")
 
 # ------------------------------------------------------------------------------
 
+
+def encode_ascii(text):
+    """
+    helper function to force ascii; some edge-cases have unicode line breaks in titles/etc.
+    """
+    if not text:
+        text = ''
+    if not PY3:
+        text = unicode(text)
+    normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore')
+    if PY3:
+        normalized = normalized.decode("utf-8", "ignore")
+    return normalized
+
+
+# ------------------------------------------------------------------------------
 
 def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
     """returns bool
@@ -850,12 +875,14 @@ class MetadataParser(object):
             rval = {}
             for store in self.metadata:
                 if field in self.metadata[store]:
-                    rval[store] = self.metadata[store][field]
+                    val = self.metadata[store][field]
+                    rval[store] = val
             return rval
         for store in _strategy:
             if store in self.metadata:
                 if field in self.metadata[store]:
-                    return self.metadata[store][field]
+                    val = self.metadata[store][field]
+                    return val
         return None
 
     def get_discrete_url(

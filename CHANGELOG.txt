@@ -1,3 +1,8 @@
+0.8.2
+	- incorporated fix in https://github.com/jvanasco/metadata_parser/pull/10 to handle windows support of socket objects
+	- cleaned up some tests
+	- added `encode_ascii` helper
+
 0.8.1
 	added 2 new properties to a computed MetadataParser object:
 	    is_redirect = None

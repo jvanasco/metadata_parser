@@ -1,5 +1,9 @@
 import metadata_parser
-import urlparse
+try:
+    from urllib.parse import urlparse, urlencode
+except ImportError:
+    from urlparse import urlparse
+    from urllib import urlencode
 
 import unittest
 
@@ -15,7 +19,7 @@ if False:
     l2.addHandler(ch)
 
 
-URLS_GOOD = [
+URLS_VALID = [
     'http://example.com',
     'http://example.com/',
     'http://example.com/one',
@@ -36,7 +40,7 @@ URLS_GOOD = [
     'http://example.com:80/one/two.html',
 ]
 
-URLS_BAD = [
+URLS_INVALID = [
     'http://example_com',
     'http://example_com/',
     'http://example_com/one',
@@ -46,16 +50,18 @@ URLS_BAD = [
 ]
 
 
-class TestUrls(unittest.TestCase):
+class TestUrlParsing(unittest.TestCase):
     """
-        python -m unittest tests.url_parsing.TestUrls
+    python -m unittest tests.url_parsing.TestUrls
+    
+    Ensures URLs are parsed correctly as valid/invalid
     """
-    def test_urls_good(self):
-        for i in URLS_GOOD:
-            parsed = urlparse.urlparse(i)
+    def test_urls_valid(self):
+        for i in URLS_VALID:
+            parsed = urlparse(i)
             self.assertTrue(metadata_parser.is_parsed_valid_url(parsed))
 
-    def test_urls_bad(self):
-        for i in URLS_BAD:
-            parsed = urlparse.urlparse(i)
+    def test_urls_invald(self):
+        for i in URLS_INVALID:
+            parsed = urlparse(i)
             self.assertFalse(metadata_parser.is_parsed_valid_url(parsed))
