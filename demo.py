@@ -1,4 +1,6 @@
 from metadata_parser import MetadataParser
+import pdb
+import pprint
 
 # hey use lxml >= 2.3.5 ; use 3.x though!
 # otherwise this site will break ! http://www.nasa.gov/externalflash/discovery/index.html
@@ -45,14 +47,22 @@ if 0:
 
 
 if 0:
+    a = MetadataParser(url='http://www.2xlp.com/index.html')
+    print(a.__dict__)
+    print len(a.response.content)
+    pdb.set_trace()
+
+if 0:
     a = MetadataParser(url='http://www.ted.com/talks/drew_curtis_how_i_beat_a_patent_troll.html')
     print(a.__dict__)
+    pdb.set_trace()
 
 if 0:
     broken_html = open('broken.html', 'r').read()
     # a= MetadataParser(url="http://brewskeeball.com/rosenblog")
     a = MetadataParser(html=broken_html)
     print(a.get_metadata('title'))
+    pdb.set_trace()
 
 
 if 0:
@@ -71,3 +81,25 @@ if 0:
     url = 'http://soundcloud.com/electricyouthmusic'
     a = MetadataParser(url=url)
     print(a.__dict__)
+
+if 0:
+    url = 'http://agrrrdog.blogspot.in/2016/06/remote-detection-of-users-av-via-flash.html'
+    a = MetadataParser(url=url)
+    pprint.pprint(a.metadata)
+    print a.get_metadata_link('image', strategy=['og'])
+    print a.get_metadata_link('image', strategy=['og'])
+    print a.peername
+    
+if 0:
+    url = 'https://twitter.com/gaussian36/status/810919575172825088'
+    a = MetadataParser(url=url, search_head_only=False)
+    pprint.pprint(a.metadata)
+    print a.peername
+
+if 1:
+    url = 'http://nyp.st/2ikSU6N'
+    a = MetadataParser(url=url, search_head_only=False)
+    pprint.pprint(a.metadata)
+    print a.peername
+
+

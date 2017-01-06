@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.8.1'
+__VERSION__ = '0.8.2'
 
 
 # ------------------------------------------------------------------------------
@@ -590,12 +590,16 @@ class MetadataParser(object):
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
-            html = self.fetch_url(
-                url_data=url_data,
-                url_headers=url_headers,
-                force_parse=force_parse,
-                force_parse_invalid_content_type=force_parse_invalid_content_type
-            )
+            # we may not have a url for tests or other api usage
+            if url:
+                html = self.fetch_url(
+                    url_data=url_data,
+                    url_headers=url_headers,
+                    force_parse=force_parse,
+                    force_parse_invalid_content_type=force_parse_invalid_content_type
+                )
+            else:
+                html = ''
         else:
             self.response = DummyResponse(text=html, url=url or DUMMY_URL)
         self.parser(html, force_parse=force_parse)
@@ -854,7 +858,7 @@ class MetadataParser(object):
             except AttributeError:
                 pass
 
-    def get_metadata(self, field, strategy=None):
+    def get_metadata(self, field, strategy=None, encoder=None):
         """
         looks for the field in various stores.  defaults to the core
         strategy, though you may specify a certain item.  if you search for
@@ -866,6 +870,9 @@ class MetadataParser(object):
         kwargs:
             strategy=None
                 ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
+            encoder=None
+                a function, such as `encode_ascii`, to encode values.
+                a valid `encoder` accepts one(1) arg. 
         """
         if strategy:
             _strategy = strategy
@@ -876,12 +883,16 @@ class MetadataParser(object):
             for store in self.metadata:
                 if field in self.metadata[store]:
                     val = self.metadata[store][field]
+                    if encoder:
+                        val = encoder(val)
                     rval[store] = val
             return rval
         for store in _strategy:
             if store in self.metadata:
                 if field in self.metadata[store]:
                     val = self.metadata[store][field]
+                    if encoder:
+                        val = encoder(val)
                     return val
         return None
 

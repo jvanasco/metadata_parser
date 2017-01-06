@@ -155,3 +155,38 @@ class TestHtmlDocument(unittest.TestCase):
                             )
         if errors:
             raise ValueError(errors)
+
+
+class TestFakedPayloads(unittest.TestCase):
+    """
+    python -m unittest tests.html_documents.TestFakedPayloads
+    """
+    
+    _data_a = {"raw": u"""Example line with\xa0unicode whitespace.""",
+               "ascii": """Example line with unicode whitespace.""",
+               }
+    _data_b = {"raw": u"""Example line with\xc2\xa0unicode chars.""",
+               "ascii": """Example line withA unicode chars.""",
+               }
+    
+    def _make_a(self):
+        parsed = metadata_parser.MetadataParser()
+        parsed.metadata['meta']['title'] = self._data_a['raw']
+        return parsed
+
+    def _make_b(self):
+        parsed = metadata_parser.MetadataParser()
+        parsed.metadata['meta']['title'] = self._data_b['raw']
+        return parsed
+
+    def test_a(self):
+        parsed = self._make_a()
+        title_raw = parsed.get_metadata('title')
+        title_ascii = parsed.get_metadata('title', encoder=metadata_parser.encode_ascii)
+        self.assertEqual(title_ascii, self._data_a['ascii'])
+        
+    def test_b(self):
+        parsed = self._make_b()
+        title_raw = parsed.get_metadata('title')
+        title_ascii = parsed.get_metadata('title', encoder=metadata_parser.encode_ascii)
+        self.assertEqual(title_ascii, self._data_b['ascii'])
