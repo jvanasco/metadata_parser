@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.8.3'
+__VERSION__ = '0.9.0-dev'
 
 
 # ------------------------------------------------------------------------------
@@ -87,6 +87,13 @@ RE_VALID_HOSTNAME = re.compile(
     r')', re.IGNORECASE)
 
 
+# these aren't on the public internet
+PRIVATE_NETLOCS = ('localhost',
+                   '127.0.0.1',
+                   '0.0.0.0',
+                   )
+
+
 RE_PORT = re.compile(
     r'^'
     r'(?P<main>.+)'
@@ -140,7 +147,12 @@ def encode_ascii(text):
 
 # ------------------------------------------------------------------------------
 
-def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
+def is_parsed_valid_url(
+    parsed,
+    require_public_netloc=True,
+    allow_localhosts=True,
+    http_only=True
+):
     """returns bool
         `http_only`
             defaults True
@@ -170,12 +182,23 @@ def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
         # we may assign these
         _netloc_clean = parsed.netloc
         _port = None
-
+        
         _netloc_ported = RE_PORT.match(parsed.netloc)
         if _netloc_ported:
             _netloc_ported_groudict = _netloc_ported.groupdict()
             _netloc_clean = _netloc_ported_groudict['main']
             _port = _netloc_ported_groudict['port']
+
+        # this can be a fast check..
+        # note this is done AFTER we clean up a potential port grouping
+        if __debug__:
+            log.debug(" validating against PRIVATE_NETLOCS")
+        if _netloc_clean.lower() in PRIVATE_NETLOCS:
+            if __debug__:
+                log.debug(" matched PRIVATE_NETLOCS")
+            if allow_localhosts:
+                return True
+            return False
 
         _netloc_groudict = _netloc_match.groupdict()
         if _netloc_groudict['ipv4'] is not None:
@@ -199,7 +222,7 @@ def is_parsed_valid_url(parsed, require_public_netloc=True, http_only=True):
             if _netloc_clean == 'localhost':
                 if __debug__:
                     log.debug(" localhost!")
-                return True
+                return False
             if RE_ALL_NUMERIC.match(_netloc_clean):
                 if __debug__:
                     log.debug(" This only has numeric characters. "
@@ -249,7 +272,11 @@ def parsed_to_relative(parsed):
     return _path
 
 
-def is_url_valid(url, require_public_netloc=None):
+def is_url_valid(
+    url,
+    require_public_netloc=None,
+    allow_localhosts=None,
+):
     """
     tries to parse a url. if valid returns `ParseResult`
     (boolean eval is True); if invalid returns `False`
@@ -257,30 +284,40 @@ def is_url_valid(url, require_public_netloc=None):
     if url is None:
         return False
     parsed = urlparse(url)
-    if is_parsed_valid_url(parsed, require_public_netloc=require_public_netloc):
+    if is_parsed_valid_url(
+        parsed,
+        require_public_netloc=require_public_netloc,
+        allow_localhosts=allow_localhosts,
+    ):
         return parsed
     return False
 
 
-def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None):
+def url_to_absolute_url(
+    url_test,
+    url_fallback=None,
+    require_public_netloc=None,
+    allow_localhosts=None,
+):
     """
-        returns an "absolute url" if we have one.
-        if we don't, it tries to fix the current url based on the fallback
+    returns an "absolute url" if we have one.
+    if we don't, it tries to fix the current url based on the fallback
 
-        this shouldn't be needed, but it is.
+    this shouldn't be needed, but it is.
 
-        called by:
+    called by:
 
-            MetadataParser.absolute_url()
-            MetadataParser.get_discrete_url()
+        MetadataParser.absolute_url()
+        MetadataParser.get_discrete_url()
 
-        args:
-            `url_test` - the url to return/fix
-            `url_fallback` - a fallback url.  this is returned in VERY bad
-                errors. in "not so bad" errors, this is parsed and used as the
-                base to construct a new url.
-            `require_public_netloc` - requires the hostname/netloc to be a
-                valid IPV4 or public dns domain name
+    args:
+        `url_test` - the url to return/fix
+        `url_fallback` - a fallback url.  this is returned in VERY bad
+            errors. in "not so bad" errors, this is parsed and used as the
+            base to construct a new url.
+        `require_public_netloc` - requires the hostname/netloc to be a
+            valid IPV4 or public dns domain name
+        `allow_localhosts` - filters localhost values
     """
     if url_test is None and url_fallback is not None:
         return url_fallback
@@ -313,7 +350,11 @@ def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None)
     parsed_domain_source = None
 
     # if we have a valid URL (OMFG, PLEASE)...
-    if is_parsed_valid_url(parsed, require_public_netloc=require_public_netloc):
+    if is_parsed_valid_url(
+        parsed,
+        require_public_netloc=require_public_netloc,
+        allow_localhosts=allow_localhosts,
+    ):
         parsed_domain_source = parsed
     else:
         # ok, the URL isn't valid
@@ -322,7 +363,8 @@ def url_to_absolute_url(url_test, url_fallback=None, require_public_netloc=None)
             parsed_fallback = urlparse(url_fallback)
             if is_parsed_valid_url(
                 parsed_fallback,
-                require_public_netloc=require_public_netloc
+                require_public_netloc=require_public_netloc,
+                allow_localhosts=allow_localhosts,
             ):
                 parsed_domain_source = parsed_fallback
     if parsed_domain_source:
@@ -485,6 +527,7 @@ class MetadataParser(object):
     metadata = None
     LEN_MAX_TITLE = 255
     only_parse_file_extensions = None
+    allow_localhosts = None
     require_public_netloc = None
     force_doctype = None
     requests_timeout = None
@@ -504,8 +547,8 @@ class MetadataParser(object):
         url=None, html=None, strategy=None, url_data=None, url_headers=None,
         force_parse=False, ssl_verify=True, only_parse_file_extensions=None,
         force_parse_invalid_content_type=False, require_public_netloc=True,
-        force_doctype=False, requests_timeout=None, raise_on_invalid=False,
-        search_head_only=None,
+        allow_localhosts=None, force_doctype=False, requests_timeout=None,
+        raise_on_invalid=False, search_head_only=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -542,6 +585,10 @@ class MetadataParser(object):
                 require a valid `netloc` for the host.  if `True`, valid hosts
                 must be a properly formatted public domain name, IPV4 address
                 or "localhost"
+            `allow_localhosts`
+                default: True
+                If True, `localhost`, '127.0.0.1`, and `0.0.0.0` values will be
+                valid.
             `force_doctype`
                 default: False
                 if set to true, will replace a doctype with 'html'
@@ -580,6 +627,7 @@ class MetadataParser(object):
         self.response = None
         self.response_headers = {}
         self.require_public_netloc = require_public_netloc
+        self.allow_localhosts = allow_localhosts
         self.requests_timeout = requests_timeout
         if search_head_only is None:
             warn_future("""`search_head_only` was not provided and defaulting to `True` """
@@ -722,7 +770,8 @@ class MetadataParser(object):
         return url_to_absolute_url(
             link,
             url_fallback=url_fallback,
-            require_public_netloc=self.require_public_netloc
+            require_public_netloc=self.require_public_netloc,
+            allow_localhosts=self.allow_localhosts,
         )
 
     def parser(self, html, force_parse=False):
@@ -896,59 +945,90 @@ class MetadataParser(object):
                     return val
         return None
 
+    def get_fallback_url(
+        self,
+        require_public_netloc=True,
+        allow_localhosts=True,
+    ):
+        for _fallback_candndiate in (self.url_actual, self.url):
+            if not _fallback_candndiate:
+                continue
+            if require_public_netloc or allow_localhosts:
+                _parsed = is_url_valid(_fallback_candndiate,
+                                       require_public_netloc=require_public_netloc,
+                                       allow_localhosts=allow_localhosts,
+                                       )
+                if not _parsed:
+                    continue
+            # okay this works
+            return _fallback_candndiate
+        return None
+
     def get_discrete_url(
         self,
-        og_first=True, canonical_first=False, allow_invalid=False
+        og_first=True,
+        canonical_first=False,
+        require_public_global=True,
     ):
         """
         convenience method.
-        if `allow_invalid` is True, it will return the raw data.
-        if `allow_invalid` is False (default), it will try to correct
-            the data (relative to absolute) or reset to None.
+        if `require_public_global` is True, it will try to correct
+            the data (relative to absolute) or reset to None.  This option will
+            also require the fallback url to be on the public internet and not
+            be a localhost value.
 
         kwargs:
             og_first=True
             canonical_first=False
-            allow_invalid=False
+            require_public_global=True
         """
+        # cache these for possible edits based on `allow_` directives...
         og = self.get_metadata('url', strategy=['og'])
         canonical = self.get_metadata('canonical', strategy=['page'])
 
-        if not allow_invalid:
+        if require_public_global:
 
-            # fallback url is used to drop a domain
-            url_fallback = self.url_actual or self.url or None
+            # derive a fallback url, and ensure it is valid
+            url_fallback = self.get_fallback_url(require_public_netloc=True,
+                                                 allow_localhosts=False,
+                                                 )
 
             if og and not is_url_valid(
                 og,
-                require_public_netloc=self.require_public_netloc
+                require_public_netloc=True,
+                allow_localhosts=False,
             ):
                 # try making it absolute
                 og = url_to_absolute_url(
                     og,
                     url_fallback=url_fallback,
-                    require_public_netloc=self.require_public_netloc
+                    require_public_netloc=True,
+                    allow_localhosts=False,
                 )
                 if not is_url_valid(
                     og,
-                    require_public_netloc=self.require_public_netloc
+                    require_public_netloc=True,
+                    allow_localhosts=False,
                 ):
                     # set to NONE if invalid
                     og = None
 
             if canonical and not is_url_valid(
                 canonical,
-                require_public_netloc=self.require_public_netloc
+                require_public_netloc=True,
+                allow_localhosts=False,
             ):
                 # try making it absolute
                 canonical = url_to_absolute_url(
                     canonical,
                     url_fallback=url_fallback,
-                    require_public_netloc=self.require_public_netloc
+                    require_public_netloc=True,
+                    allow_localhosts=False,
                 )
                 if not is_url_valid(
                     canonical,
-                    require_public_netloc=self.require_public_netloc
+                    require_public_netloc=True,
+                    allow_localhosts=False,
                 ):
                     # set to NONE if invalid
                     canonical = None
@@ -965,7 +1045,13 @@ class MetadataParser(object):
 
         return self.absolute_url()
 
-    def get_metadata_link(self, field, strategy=None, allow_encoded_uri=False):
+    def get_metadata_link(
+        self,
+        field,
+        strategy=None,
+        allow_encoded_uri=False, 
+        require_public_global=True,
+    ):
         """sometimes links are bad; this tries to fix them.  most useful for meta images
 
         args:
@@ -974,7 +1060,13 @@ class MetadataParser(object):
         kwargs:
             strategy=None
                 ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
-            allow_encoded_uri
+            allow_encoded_uri=False
+            require_public_global=True
+
+        if `require_public_global` is True, this will try to correct
+            the data (relative to absolute) or reset to None.  This option will
+            also require the fallback url to be on the public internet and not a
+            localhost value.
         """
         # `_value` will be our raw value
         _value = self.get_metadata(field, strategy=strategy)
@@ -991,21 +1083,38 @@ class MetadataParser(object):
             if allow_encoded_uri:
                 return value
             return None
+        
+        if require_public_global:
+            _require_public_netloc = True
+            _allow_localhosts = False
+        else:
+            _require_public_netloc = False
+            _allow_localhosts = True
 
         # if the url is valid, RETURN IT
-        if is_url_valid(value, require_public_netloc=self.require_public_netloc):
+        if is_url_valid(
+            value,
+            require_public_netloc=_require_public_netloc,
+            allow_localhosts=_allow_localhosts,
+        ):
             return value
 
-        # fallback url is used to drop a domain
-        url_fallback = self.url_actual or self.url or None
+        # fallback url is used to drop to the domain
+        url_fallback = self.get_fallback_url(require_public_netloc=_require_public_netloc,
+                                             allow_localhosts=_allow_localhosts,
+                                             )
 
         # try making it absolute
-        value_fixed = url_to_absolute_url(
-            value,
-            url_fallback=url_fallback,
-            require_public_netloc=self.require_public_netloc
-        )
-        if is_url_valid(value_fixed, require_public_netloc=self.require_public_netloc):
+        value_fixed = url_to_absolute_url(value,
+                                          url_fallback=url_fallback,
+                                          require_public_netloc=_require_public_netloc,
+                                          allow_localhosts=_allow_localhosts,
+                                          )
+        if is_url_valid(
+            value_fixed,
+            require_public_netloc=_require_public_netloc,
+            allow_localhosts=_allow_localhosts,
+        ):
             return value_fixed
 
         return None

@@ -88,6 +88,94 @@ The differences:
 Although this behavior breaks RFCs, it greatly reduces the number of "False Positives" generated when analyzing internet pages.  If you want to include bad data, you can submit a kwarg to `MetadataParser.__init__`
 
 
+Handling Bad URLs and Encoded URIs
+==================================
+
+This library tries to safeguard against a few common situations.
+
+# Encoded URIs and relative urls
+
+Most website publishers will define an image as a URL
+
+	<meta property="og:image" content="http://example.com/image.jpg" />
+
+Some will define an image as an encoded URI
+
+	<meta property="og:image" content="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNM+Q8AAc0BZX6f84gAAAAASUVORK5CYII=" />
+
+By default, the `get_metadata_link()` method can be used to ensure a valid link is extracted from the metadata payload
+
+	>>> import metadata_parser
+	>>> page = metadata_parser.MetadataParser(url="http://www.example.com")
+	>>> print page.get_metadata_link('image')
+
+This method accepts a kwarg `allow_encoded_uri` (default False) which will return the image without further processing:
+
+	>>> print page.get_metadata_link('image', allow_encoded_uri=True)
+	
+Similarly, if a url is local...
+
+	<meta property="og:image" content="/image.jpg" />
+
+
+The `get_metadata_link` method will automatically upgrade it onto the domain:
+
+	>>> print page.get_metadata_link('image')
+	http://example.com/image.jpg
+
+
+
+# Poorly Constructed Canonical URLs
+
+Many website publishers implement canonical URLs incorrectly.  This package tries to fix that.
+
+By default `MetadataParser` is constructed with `require_public_netloc=True` and `allow_localhosts=True`.
+
+This will require somewhat valid 'public' network locations in the url.  
+
+For example, these will all be valid URLs:
+
+	http://example.com
+	http://1.2.3.4
+	http://localhost
+	http://127.0.0.1
+	http://0.0.0.0
+
+If these known 'localhost' urls are not wanted, they can be filtered out with `allow_localhosts=False`
+
+	http://localhost
+	http://127.0.0.1
+	http://0.0.0.0
+
+There are two convenience methods that can be used to get a canonical url or calculate the effective url:
+
+* MetadataParser.get_discrete_url
+* MetadataParser.get_metadata_link
+
+These both accept an argument `require_public_global`, which defaults to `True`.
+
+Assuming we have the following content on the url `http://example.com/path/to/foo`
+
+	<link rel="canonical" href="http://localhost:8000/alt-path/to/foo">
+
+By default, versions 0.9.0 and later will detect 'localhost:8000' as an improper canonical url, and remount the local part "/alt-path/to/foo" onto the domain that served the file.  The vast majority of times this 'behavior' has been encountered, this is the intended canonical.
+
+	print page.get_discrete_url()
+	>>> http://example.com/alt-path/to/foo
+
+In contrast, versions 0.8.3 and earlier will not catch this situation.
+
+	print page.get_discrete_url()
+	>>> http://localhost:8000/alt-path/to/foo
+
+In order to preserve the earlier behavior, just submit `require_public_global=False`
+
+	print page.get_discrete_url(require_public_global=False)
+	>>> http://localhost:8000/alt-path/to/foo
+	
+
+
+
 
 
 Usage
@@ -95,18 +183,18 @@ Usage
 
 **From an URL**
 
->>> import metadata_parser
->>> page = metadata_parser.MetadataParser(url="http://www.cnn.com")
->>> print page.metadata
->>> print page.get_metadata('title')
->>> print page.get_metadata('title', strategy=['og',])
->>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
+	>>> import metadata_parser
+	>>> page = metadata_parser.MetadataParser(url="http://www.example.com")
+	>>> print page.metadata
+	>>> print page.get_metadata('title')
+	>>> print page.get_metadata('title', strategy=['og',])
+	>>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
 
 **From HTML**
 
->>> HTML = """<here>"""
->>> page = metadata_parser.MetadataParser(html=HTML)
->>> print page.metadata
->>> print page.get_metadata('title')
->>> print page.get_metadata('title', strategy=['og',])
->>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
+	>>> HTML = """<here>"""
+	>>> page = metadata_parser.MetadataParser(html=HTML)
+	>>> print page.metadata
+	>>> print page.get_metadata('title')
+	>>> print page.get_metadata('title', strategy=['og',])
+	>>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
