@@ -10,6 +10,7 @@
 		* MetadataParser.get_discrete_url
 		* MetadataParser.get_metadata_link
 	- new method `get_fallback_url`
+	- `url_to_absolute_url` will return `None` if not supplied with a fallback and test url. Previously an error in parsing would occur
 
 0.8.3
 	- packaging fixes

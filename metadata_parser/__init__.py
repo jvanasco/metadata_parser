@@ -182,7 +182,7 @@ def is_parsed_valid_url(
         # we may assign these
         _netloc_clean = parsed.netloc
         _port = None
-        
+
         _netloc_ported = RE_PORT.match(parsed.netloc)
         if _netloc_ported:
             _netloc_ported_groudict = _netloc_ported.groupdict()
@@ -319,30 +319,46 @@ def url_to_absolute_url(
             valid IPV4 or public dns domain name
         `allow_localhosts` - filters localhost values
     """
+    # quickly correct for some dumb mistakes
+    if isinstance(url_test, str):
+        if url_test.lower() in ("http://", "https://"):
+            url_test = None
+
+    # if we don't have a test url or fallback, we can't generate an absolute
+    if not url_test and not url_fallback:
+        return None
+
     if url_test is None and url_fallback is not None:
         return url_fallback
 
     parsed = urlparse(url_test)
+    parsed_fallback = urlparse(url_fallback)
 
     _path = parsed.path
     if _path:
         # sanity check
         # some stock plugins create invalid urls/files like '/...' in meta-data
+        known_invalid_plugins_paths = ['/...', ]
         if _path[0] != "/":
             # prepend a slash
             _path = "/%s" % _path
-        known_invalid_plugins = ['/...', ]
-        if _path in known_invalid_plugins:
+        if _path in known_invalid_plugins_paths:
             return url_fallback
+
+    ## this was a testing concept to remount the path
+    #if _path != parsed.path:
+    #    parsed = ParseResult(parsed.scheme, parsed.netloc, _path, parsed.params, parsed.query, parsed.fragment)
 
     # finally, fix the path
     # this isn't nested, because we could have kwargs
     _path = parsed_to_relative(parsed)
-
     if not _path:
-        # so if our _path is BLANK, fuck it.
+        # so if our _path is BLANK, we may want to say "fuck this"
         # this can happen if someone puts in "" for the canonical
-        return url_fallback
+        # but this can also happen if we have different domains...
+        if url_fallback:
+            if (parsed_fallback.scheme == parsed.scheme) or (parsed_fallback.netloc == parsed.netloc):
+                return url_fallback
 
     rval = None
 
@@ -367,6 +383,8 @@ def url_to_absolute_url(
                 allow_localhosts=allow_localhosts,
             ):
                 parsed_domain_source = parsed_fallback
+
+
     if parsed_domain_source:
         rval = "%s://%s%s" % (
             parsed_domain_source.scheme,
@@ -921,7 +939,7 @@ class MetadataParser(object):
                 ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
             encoder=None
                 a function, such as `encode_ascii`, to encode values.
-                a valid `encoder` accepts one(1) arg. 
+                a valid `encoder` accepts one(1) arg.
         """
         if strategy:
             _strategy = strategy
@@ -1049,7 +1067,7 @@ class MetadataParser(object):
         self,
         field,
         strategy=None,
-        allow_encoded_uri=False, 
+        allow_encoded_uri=False,
         require_public_global=True,
     ):
         """sometimes links are bad; this tries to fix them.  most useful for meta images
@@ -1083,7 +1101,7 @@ class MetadataParser(object):
             if allow_encoded_uri:
                 return value
             return None
-        
+
         if require_public_global:
             _require_public_netloc = True
             _allow_localhosts = False

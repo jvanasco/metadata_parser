@@ -1,6 +1,18 @@
 import metadata_parser
 
 import unittest
+import os
+
+
+# this bit lets us run the tests directly during development
+_tests_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),".."))
+if _tests_dir.endswith('metadata_parser'):
+    _tests_dir = os.path.join(_tests_dir, 'tests')
+_examples_dir = os.path.join(_tests_dir, 'html_scaffolds')
+
+# cache these lazily
+CACHED_FILESYSTEM_DOCUMENTS = {}
+
 
 doc_base = """<html><head>%(head)s</head><body></body></html>"""
 
@@ -190,3 +202,47 @@ class TestFakedPayloads(unittest.TestCase):
         title_raw = parsed.get_metadata('title')
         title_ascii = parsed.get_metadata('title', encoder=metadata_parser.encode_ascii)
         self.assertEqual(title_ascii, self._data_b['ascii'])
+
+
+
+
+class TestDocumentParsing(unittest.TestCase):
+    """
+    python -m unittest tests.html_documents.TestDocumentParsing
+    """
+    def _MakeOne(self, filename):
+        """lazy cache of files as needed"""
+        global CACHED_FILESYSTEM_DOCUMENTS
+        if filename not in CACHED_FILESYSTEM_DOCUMENTS:
+            CACHED_FILESYSTEM_DOCUMENTS[filename] = open(os.path.join(_examples_dir, filename)).read()
+        return CACHED_FILESYSTEM_DOCUMENTS[filename]
+    
+    
+    def test_simple_html(self):
+        """this tests simple.html to have certain fields"""
+        html = self._MakeOne('simple.html')
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+        self.assertEquals(parsed.metadata['meta']['article:publisher'], 'https://www.example.com/meta/property=article:publisher')
+        self.assertEquals(parsed.metadata['meta']['author'], 'meta.author')
+        self.assertEquals(parsed.metadata['meta']['description'], 'meta.description')
+        self.assertEquals(parsed.metadata['meta']['keywords'], 'meta.keywords')
+        self.assertEquals(parsed.metadata['meta']['og:description'], 'meta.property=og:description')
+        self.assertEquals(parsed.metadata['meta']['og:image'], 'https://www.example.com/meta/property=og:image')
+        self.assertEquals(parsed.metadata['meta']['og:site_name'], 'meta.property=og:site_name')
+        self.assertEquals(parsed.metadata['meta']['og:title'], 'meta.property=og:title')
+        self.assertEquals(parsed.metadata['meta']['og:type'], 'meta.property=og:type')
+        self.assertEquals(parsed.metadata['meta']['og:url'], 'https://www.example.com/meta/property=og:url')
+        self.assertEquals(parsed.metadata['meta']['twitter:card'], 'meta.name=twitter:card')
+        self.assertEquals(parsed.metadata['meta']['twitter:description'], 'meta.name=twitter:description')
+        self.assertEquals(parsed.metadata['meta']['twitter:image:src'], 'https://example.com/meta/name=twitter:image:src')
+        self.assertEquals(parsed.metadata['meta']['twitter:site'], 'meta.name=twitter:site')
+        self.assertEquals(parsed.metadata['meta']['twitter:title'], 'meta.name=twitter:title')
+        self.assertEquals(parsed.metadata['meta']['twitter:url'], 'https://example.com/meta/name=twitter:url')
+        self.assertEquals(parsed.metadata['og']['description'], 'meta.property=og:description')
+        self.assertEquals(parsed.metadata['og']['image'], 'https://www.example.com/meta/property=og:image')
+        self.assertEquals(parsed.metadata['og']['site_name'], 'meta.property=og:site_name')
+        self.assertEquals(parsed.metadata['og']['title'], 'meta.property=og:title')
+        self.assertEquals(parsed.metadata['og']['type'], 'meta.property=og:type')
+        self.assertEquals(parsed.metadata['og']['url'], 'https://www.example.com/meta/property=og:url')
+        self.assertEquals(parsed.metadata['page']['canonical'], 'http://example.com/meta/rel=canonical')
+        self.assertEquals(parsed.metadata['page']['title'], 'title')
