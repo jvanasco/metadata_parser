@@ -1,4 +1,4 @@
-0.9.0-dev
+0.9.0
 	- This has a default behavior change regarding `get_discrete_url()` .
 	- `is_parsed_valid_url()` did not correctly handle `require_public_netloc=True`, and would allow for `localhost` values to pass
 	- new kwarg `allow_localhosts` added to 
@@ -11,6 +11,7 @@
 		* MetadataParser.get_metadata_link
 	- new method `get_fallback_url`
 	- `url_to_absolute_url` will return `None` if not supplied with a fallback and test url. Previously an error in parsing would occur
+	- `url_to_absolute_url` tries to do a better job at determining the intended url when given a malformed url.
 
 0.8.3
 	- packaging fixes

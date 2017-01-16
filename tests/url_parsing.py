@@ -235,3 +235,25 @@ class TestDocumentCanonicals(unittest.TestCase):
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
         self.assertEquals(parsed_url, rel_expected)
+
+    def test_readme_scenario(self):
+        """
+        you had one job...
+        if someone lists the canonical as an invalid domain, remount the right domain
+
+        python -m unittest tests.url_parsing.TestDocumentCanonicals.test_readme_scenario
+        """
+        url = 'https://example.com/a'
+        rel_canonical = 'http://localhost:8000/alt-path/to/foo'
+        rel_expected = 'https://example.com/alt-path/to/foo'
+        rel_expected_legacy = rel_canonical
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+
+        # ensure we replace the bad domain with the right one
+        parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)
+
+        # ensure support for the legacy behavior...
+        parsed_url = parsed.get_discrete_url(require_public_global=False)
+        self.assertEquals(parsed_url, rel_expected_legacy)
