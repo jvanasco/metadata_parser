@@ -1,9 +1,10 @@
 import metadata_parser
 try:
-    from urllib.parse import urlparse, urlencode
+    from urllib.parse import urlparse
+    # from urllib.parse import urlencode
 except ImportError:
     from urlparse import urlparse
-    from urllib import urlencode
+    # from urllib import urlencode
 
 import unittest
 
@@ -118,7 +119,7 @@ URLS_INVALID = [
 class TestUrlParsing(unittest.TestCase):
     """
     python -m unittest tests.url_parsing.TestUrls
-    
+
     Ensures URLs are parsed correctly as valid/invalid
     """
     def test_urls_valid(self):
@@ -141,7 +142,7 @@ class TestUrlParsing(unittest.TestCase):
 class TestAbsoluteUpgrades(unittest.TestCase):
     """
     python -m unittest tests.url_parsing.TestAbsoluteUpgrades
-    
+
     Ensures URLs are parsed correctly as valid/invalid
     """
 
@@ -160,13 +161,13 @@ class TestAbsoluteUpgrades(unittest.TestCase):
     def test_fallback(self):
         absolute = metadata_parser.url_to_absolute_url(None, url_fallback='http://example.com')
         self.assertEquals(absolute, 'http://example.com')
-        
+
 
 class TestDocumentCanonicals(unittest.TestCase):
     """
     python -m unittest tests.url_parsing.TestDocumentCanonicals
     """
-    
+
     def _MakeOne(self, url):
         """generates a canonical document"""
         doc_base = """<html><head>%(head)s</head><body></body></html>"""

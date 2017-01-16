@@ -5,7 +5,7 @@ import os
 
 
 # this bit lets us run the tests directly during development
-_tests_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),".."))
+_tests_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _tests_dir.endswith('metadata_parser'):
     _tests_dir = os.path.join(_tests_dir, 'tests')
 _examples_dir = os.path.join(_tests_dir, 'html_scaffolds')
@@ -173,14 +173,14 @@ class TestFakedPayloads(unittest.TestCase):
     """
     python -m unittest tests.html_documents.TestFakedPayloads
     """
-    
+
     _data_a = {"raw": u"""Example line with\xa0unicode whitespace.""",
                "ascii": """Example line with unicode whitespace.""",
                }
     _data_b = {"raw": u"""Example line with\xc2\xa0unicode chars.""",
                "ascii": """Example line withA unicode chars.""",
                }
-    
+
     def _make_a(self):
         parsed = metadata_parser.MetadataParser()
         parsed.metadata['meta']['title'] = self._data_a['raw']
@@ -193,31 +193,29 @@ class TestFakedPayloads(unittest.TestCase):
 
     def test_a(self):
         parsed = self._make_a()
-        title_raw = parsed.get_metadata('title')
+        # title_raw = parsed.get_metadata('title')
         title_ascii = parsed.get_metadata('title', encoder=metadata_parser.encode_ascii)
         self.assertEqual(title_ascii, self._data_a['ascii'])
-        
+
     def test_b(self):
         parsed = self._make_b()
-        title_raw = parsed.get_metadata('title')
+        # title_raw = parsed.get_metadata('title')
         title_ascii = parsed.get_metadata('title', encoder=metadata_parser.encode_ascii)
         self.assertEqual(title_ascii, self._data_b['ascii'])
-
-
 
 
 class TestDocumentParsing(unittest.TestCase):
     """
     python -m unittest tests.html_documents.TestDocumentParsing
     """
+
     def _MakeOne(self, filename):
         """lazy cache of files as needed"""
         global CACHED_FILESYSTEM_DOCUMENTS
         if filename not in CACHED_FILESYSTEM_DOCUMENTS:
             CACHED_FILESYSTEM_DOCUMENTS[filename] = open(os.path.join(_examples_dir, filename)).read()
         return CACHED_FILESYSTEM_DOCUMENTS[filename]
-    
-    
+
     def test_simple_html(self):
         """this tests simple.html to have certain fields"""
         html = self._MakeOne('simple.html')

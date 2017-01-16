@@ -345,9 +345,12 @@ def url_to_absolute_url(
         if _path in known_invalid_plugins_paths:
             return url_fallback
 
-    ## this was a testing concept to remount the path
-    #if _path != parsed.path:
-    #    parsed = ParseResult(parsed.scheme, parsed.netloc, _path, parsed.params, parsed.query, parsed.fragment)
+    """
+    # this was a testing concept to remount the path
+    # not needed currently
+    if _path != parsed.path:
+        parsed = ParseResult(parsed.scheme, parsed.netloc, _path, parsed.params, parsed.query, parsed.fragment)
+    """
 
     # finally, fix the path
     # this isn't nested, because we could have kwargs
@@ -383,7 +386,6 @@ def url_to_absolute_url(
                 allow_localhosts=allow_localhosts,
             ):
                 parsed_domain_source = parsed_fallback
-
 
     if parsed_domain_source:
         rval = "%s://%s%s" % (
@@ -479,7 +481,7 @@ def get_response_peername(r):
                 if not isinstance(sock, _compatible_sockets):
                     raise AllowableError()
                 return sock
-            except Exception as e:
+            except Exception as e:  # noqa
                 pass
         return None
     sock = _get_socket()
