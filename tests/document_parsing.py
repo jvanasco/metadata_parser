@@ -141,9 +141,9 @@ def _docs_test(test_names):
 
 class TestHtmlDocument(unittest.TestCase):
     """
-        python -m unittest tests.html_documents.TestHtmlDocument.test_get_discrete_url__good_relative
-        python -m unittest tests.html_documents.TestHtmlDocument.test_get_discrete_url__good_absolute
-        python -m unittest tests.html_documents.TestHtmlDocument.test_get_discrete_url__bad
+        python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_relative
+        python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_absolute
+        python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__bad
     """
 
     def test_get_discrete_url__good_relative(self):
@@ -171,7 +171,7 @@ class TestHtmlDocument(unittest.TestCase):
 
 class TestFakedPayloads(unittest.TestCase):
     """
-    python -m unittest tests.html_documents.TestFakedPayloads
+    python -m unittest tests.document_parsing.TestFakedPayloads
     """
 
     _data_a = {"raw": u"""Example line with\xa0unicode whitespace.""",
@@ -206,7 +206,7 @@ class TestFakedPayloads(unittest.TestCase):
 
 class TestDocumentParsing(unittest.TestCase):
     """
-    python -m unittest tests.html_documents.TestDocumentParsing
+    python -m unittest tests.document_parsing.TestDocumentParsing
     """
 
     def _MakeOne(self, filename):
@@ -243,4 +243,11 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEquals(parsed.metadata['og']['type'], 'meta.property=og:type')
         self.assertEquals(parsed.metadata['og']['url'], 'https://www.example.com/meta/property=og:url')
         self.assertEquals(parsed.metadata['page']['canonical'], 'http://example.com/meta/rel=canonical')
+        self.assertEquals(parsed.metadata['page']['shortlink'], 'http://example.com/meta/rel=shortlink')
         self.assertEquals(parsed.metadata['page']['title'], 'title')
+        self.assertEquals(parsed.metadata['twitter']['card'], 'meta.name=twitter:card')
+        self.assertEquals(parsed.metadata['twitter']['description'], 'meta.name=twitter:description')
+        self.assertEquals(parsed.metadata['twitter']['image:src'], 'https://example.com/meta/name=twitter:image:src')
+        self.assertEquals(parsed.metadata['twitter']['site'], 'meta.name=twitter:site')
+        self.assertEquals(parsed.metadata['twitter']['title'], 'meta.name=twitter:title')
+        self.assertEquals(parsed.metadata['twitter']['url'], 'https://example.com/meta/name=twitter:url')

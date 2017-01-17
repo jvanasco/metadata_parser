@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.0'
+__VERSION__ = '0.9.1'
 
 
 # ------------------------------------------------------------------------------
@@ -633,14 +633,15 @@ class MetadataParser(object):
             'meta': {},
             'dc': {},
             'page': {},
-            'twitter': {}
+            'twitter': {},
+            '_internal': {},
         }
         if strategy:
             self.strategy = strategy
         if url is not None:
             url = url.strip()
-        self.url = url
-        self.url_actual = url
+        self.url = self.metadata['_internal']['url'] = url
+        self.url_actual = self.metadata['_internal']['url_actual'] = url
         self.ssl_verify = ssl_verify
         self.soup = None
         self.force_doctype = force_doctype
@@ -763,7 +764,8 @@ class MetadataParser(object):
             # lowercase all of the HTTP headers for comparisons per RFC 2616
             self.response_headers = dict((k.lower(), v)
                                          for k, v in r.headers.items())
-            self.url_actual = r.url
+            # stash this into the url actual too
+            self.url_actual = self.metadata['_internal']['url_actual'] = r.url
             if r.status_code != 200:
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
@@ -855,8 +857,8 @@ class MetadataParser(object):
         for twitter in twitters:
             try:
                 self.metadata['twitter'][
-                    twitter['name'][8:]] = twitter['value'].strip()
-            except (AttributeError, KeyError):
+                    twitter['name'][8:]] = twitter['content'].strip()
+            except (AttributeError, KeyError) as e:
                 pass
 
         # pull the text off the title
@@ -899,6 +901,22 @@ class MetadataParser(object):
             elif canonical.has_attr("content"):
                 link = canonical['content'].strip()
                 self.metadata['page']['canonical'] = link
+            else:
+                pass
+
+        # is there a shortlink?
+        shortlinks = doc.findAll(
+            'link',
+            attrs={'rel': re.compile("^shortlink$", re.I)}
+        )
+        if shortlinks:
+            shortlink = shortlinks[0]
+            if shortlink.has_attr("href"):
+                link = shortlink['href'].strip()
+                self.metadata['page']['shortlink'] = link
+            elif shortlink.has_attr("content"):
+                link = shortlink['content'].strip()
+                self.metadata['page']['shortlink'] = link
             else:
                 pass
 

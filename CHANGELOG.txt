@@ -1,3 +1,9 @@
+0.9.1
+	* added a new `_internal` storage namespace to the `MetadataParser.metadata` payload.
+	  this simply stashes the `MetadataParser.url` and `MetadataParser.url_actual` attributes to makes objects easier to encode for debugging
+	* the twitter parsing was incorrectly looking for 'value' not 'content' as in the current spec
+	* tracking the shortlink on a page
+
 0.9.0
 	- This has a default behavior change regarding `get_discrete_url()` .
 	- `is_parsed_valid_url()` did not correctly handle `require_public_netloc=True`, and would allow for `localhost` values to pass
