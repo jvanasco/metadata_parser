@@ -1,3 +1,6 @@
+0.9.3
+	* fixed packaging error. removed debug "print" statements
+
 0.9.2
 	* upgrade nested local canonical rels correctly
 

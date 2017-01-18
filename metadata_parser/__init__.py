@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.2'
+__VERSION__ = '0.9.3'
 
 
 # ------------------------------------------------------------------------------
@@ -372,12 +372,6 @@ def url_to_absolute_url(
         if url_fallback:
             if (parsed_fallback.scheme == parsed.scheme) or (parsed_fallback.netloc == parsed.netloc):
                 return url_fallback
-
-    print "*" * 80
-    print url_test
-    print url_fallback
-    print _path
-    print "*" * 80
 
     rval = None
 
