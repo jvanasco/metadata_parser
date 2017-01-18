@@ -311,3 +311,56 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
         self.assertEquals(parsed_url, rel_expected)
+
+
+class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
+    """
+    python -m unittest tests.url_parsing.TestArgsExceptions
+    """
+
+    def test_no_args__good(self):
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/B.html'
+        rel_expected = 'https://example.com/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url()
+
+    def test_og_first__good(self):
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/B.html'
+        rel_expected = 'https://example.com/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url(og_first=True)
+
+    def test_og_first_canonical_first__bad(self):
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/B.html'
+        rel_expected = 'https://example.com/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        self.assertRaises(ValueError,
+                          parsed.get_discrete_url,
+                          og_first=True,
+                          canonical_first=True,
+                          )
+
+    def test_canonical_first__bad(self):
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/B.html'
+        rel_expected = 'https://example.com/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        self.assertRaises(ValueError,
+                          parsed.get_discrete_url,
+                          canonical_first=True,
+                          )
+
+    def test_canonical_first__good(self):
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/B.html'
+        rel_expected = 'https://example.com/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url(og_first=False, canonical_first=True)

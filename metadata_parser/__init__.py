@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.3'
+__VERSION__ = '0.9.4'
 
 
 # ------------------------------------------------------------------------------
@@ -1011,55 +1011,23 @@ class MetadataParser(object):
             return _fallback_candndiate
         return None
 
-    def get_discrete_url(
+    # --------------------------------------------------------------------------
+
+    def get_url_canonical(
         self,
-        og_first=True,
-        canonical_first=False,
         require_public_global=True,
+        url_fallback = None,
     ):
-        """
-        convenience method.
-        if `require_public_global` is True, it will try to correct
-            the data (relative to absolute) or reset to None.  This option will
-            also require the fallback url to be on the public internet and not
-            be a localhost value.
-
-        kwargs:
-            og_first=True
-            canonical_first=False
-            require_public_global=True
-        """
-        # cache these for possible edits based on `allow_` directives...
-        og = self.get_metadata('url', strategy=['og'])
+        """this was originally part of `get_discrete_url`"""
         canonical = self.get_metadata('canonical', strategy=['page'])
-
+        if not canonical:
+            return None
         if require_public_global:
-
-            # derive a fallback url, and ensure it is valid
-            url_fallback = self.get_fallback_url(require_public_netloc=True,
-                                                 allow_localhosts=False,
-                                                 )
-
-            if og and not is_url_valid(
-                og,
-                require_public_netloc=True,
-                allow_localhosts=False,
-            ):
-                # try making it absolute
-                og = url_to_absolute_url(
-                    og,
-                    url_fallback=url_fallback,
-                    require_public_netloc=True,
-                    allow_localhosts=False,
-                )
-                if not is_url_valid(
-                    og,
-                    require_public_netloc=True,
-                    allow_localhosts=False,
-                ):
-                    # set to NONE if invalid
-                    og = None
-
+            if url_fallback is None:
+                # derive a fallback url, and ensure it is valid
+                url_fallback = self.get_fallback_url(require_public_netloc=True,
+                                                     allow_localhosts=False,
+                                                     )
             if canonical and not is_url_valid(
                 canonical,
                 require_public_netloc=True,
@@ -1079,18 +1047,97 @@ class MetadataParser(object):
                 ):
                     # set to NONE if invalid
                     canonical = None
+        return canonical
 
-        rval = []
+
+    def get_url_opengraph(
+        self,
+        require_public_global=True,
+        url_fallback = None,
+    ):
+        """this was originally part of `get_discrete_url`"""
+        og = self.get_metadata('url', strategy=['og'])
+        if not og:
+            return None
+        if require_public_global:
+            if url_fallback is None:
+                # derive a fallback url, and ensure it is valid
+                url_fallback = self.get_fallback_url(require_public_netloc=True,
+                                                     allow_localhosts=False,
+                                                     )
+            if og and not is_url_valid(
+                og,
+                require_public_netloc=True,
+                allow_localhosts=False,
+            ):
+                # try making it absolute
+                og = url_to_absolute_url(
+                    og,
+                    url_fallback=url_fallback,
+                    require_public_netloc=True,
+                    allow_localhosts=False,
+                )
+                if not is_url_valid(
+                    og,
+                    require_public_netloc=True,
+                    allow_localhosts=False,
+                ):
+                    # set to NONE if invalid
+                    og = None
+        return og
+
+
+    # --------------------------------------------------------------------------
+
+    def get_discrete_url(
+        self,
+        og_first=True,
+        canonical_first=False,
+        require_public_global=True,
+    ):
+        """
+        convenience method.
+        if `require_public_global` is True, it will try to correct
+            the data (relative to absolute) or reset to None.  This option will
+            also require the fallback url to be on the public internet and not
+            be a localhost value.
+
+        kwargs:
+            og_first=True
+            canonical_first=False
+            require_public_global=True
+        """
+        _ts = (og_first, canonical_first)
+        if not any(_ts) or all(_ts):
+            raise ValueError("submit one and only one of (og_first, canonical_first")
+        
+        url_fallback = None
+        if require_public_global:
+            url_fallback = self.get_fallback_url(require_public_netloc=True,
+                                                 allow_localhosts=False,
+                                                 )
+
         if og_first:
-            rval = (og, canonical)
+            ordering = ('og', 'canonical')
         elif canonical_first:
-            rval = (canonical, og)
+            ordering = ('canonical', 'og')
 
-        for i in rval:
-            if i:
-                return i
+        for source in ordering:
+            url = None
+            if source == 'og':
+                url = self.get_url_opengraph(require_public_global=require_public_global,
+                                             url_fallback=url_fallback,
+                                             )
+            elif source == 'canonical':
+                url = self.get_url_canonical(require_public_global=require_public_global,
+                                             url_fallback=url_fallback,
+                                             )
+            if url:
+                return url
 
         return self.absolute_url()
+
+    # --------------------------------------------------------------------------
 
     def get_metadata_link(
         self,

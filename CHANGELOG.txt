@@ -1,3 +1,8 @@
+0.9.4
+	* created `MetadataParser.get_url_canonical`
+	* created `MetadataParser.get_url_opengraph`
+	* `MetadataParser.get_discrete_url` now calls `get_url_canonical` and `get_url_opengraph`
+
 0.9.3
 	* fixed packaging error. removed debug "print" statements
 

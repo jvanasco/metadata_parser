@@ -207,6 +207,8 @@ class TestFakedPayloads(unittest.TestCase):
 class TestDocumentParsing(unittest.TestCase):
     """
     python -m unittest tests.document_parsing.TestDocumentParsing
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_simple_html
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_html_urls
     """
 
     def _MakeOne(self, filename):
@@ -251,3 +253,14 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEquals(parsed.metadata['twitter']['site'], 'meta.name=twitter:site')
         self.assertEquals(parsed.metadata['twitter']['title'], 'meta.name=twitter:title')
         self.assertEquals(parsed.metadata['twitter']['url'], 'https://example.com/meta/name=twitter:url')
+
+    def test_html_urls(self):
+        """this tests simple.html to have certain fields"""
+        html = self._MakeOne('simple.html')
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+        # by default we do og_first
+        self.assertEquals(parsed.get_discrete_url(), 'https://www.example.com/meta/property=og:url')
+        self.assertEquals(parsed.get_discrete_url(canonical_first=True, og_first=False), 'http://example.com/meta/rel=canonical')
+        self.assertEquals(parsed.get_url_opengraph(), 'https://www.example.com/meta/property=og:url')
+        self.assertEquals(parsed.get_url_canonical(), 'http://example.com/meta/rel=canonical')
+
