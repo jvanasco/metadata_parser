@@ -163,11 +163,7 @@ class TestAbsoluteUpgrades(unittest.TestCase):
         self.assertEquals(absolute, 'http://example.com')
 
 
-class TestDocumentCanonicals(unittest.TestCase):
-    """
-    python -m unittest tests.url_parsing.TestDocumentCanonicals
-    """
-
+class _DocumentCanonicalsMixin(object):
     def _MakeOne(self, url):
         """generates a canonical document"""
         doc_base = """<html><head>%(head)s</head><body></body></html>"""
@@ -175,6 +171,12 @@ class TestDocumentCanonicals(unittest.TestCase):
         _canonical_html = canonical_base % {'canonical': url, }
         _doc_html = doc_base % {'head': _canonical_html, }
         return _doc_html
+
+
+class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
+    """
+    python -m unittest tests.url_parsing.TestDocumentCanonicals
+    """
 
     def test_canonical_simple(self):
         """someone did their job"""
@@ -257,3 +259,55 @@ class TestDocumentCanonicals(unittest.TestCase):
         # ensure support for the legacy behavior...
         parsed_url = parsed.get_discrete_url(require_public_global=False)
         self.assertEquals(parsed_url, rel_expected_legacy)
+
+
+class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin):
+    """
+    python -m unittest tests.url_parsing.TestDocumentCanonicalsRelative
+    python -m unittest tests.url_parsing.TestDocumentCanonicalsRelative.test_upgrade_local_a
+    python -m unittest tests.url_parsing.TestDocumentCanonicalsRelative.test_upgrade_local_b
+    """
+
+    def test_upgrade_local_a(self):
+        """
+        """
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/nested/B.html'
+        rel_expected = 'https://example.com/nested/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)
+
+    def test_upgrade_local_b(self):
+        """
+        """
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = 'B.html'
+        rel_expected = 'https://example.com/nested/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)
+
+    def test_upgrade_local_bb(self):
+        """
+        """
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = 'path/to/B.html'
+        rel_expected = 'https://example.com/nested/path/to/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)
+
+    def test_upgrade_local_c(self):
+        """
+        """
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = '/B.html'
+        rel_expected = 'https://example.com/B.html'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+        parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)

@@ -1,3 +1,6 @@
+0.9.2
+	* upgrade nested local canonical rels correctly
+
 0.9.1
 	* added a new `_internal` storage namespace to the `MetadataParser.metadata` payload.
 	  this simply stashes the `MetadataParser.url` and `MetadataParser.url_actual` attributes to makes objects easier to encode for debugging

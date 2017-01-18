@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.1'
+__VERSION__ = '0.9.2'
 
 
 # ------------------------------------------------------------------------------
@@ -257,14 +257,24 @@ def is_parsed_valid_relative(parsed):
     return False
 
 
-def parsed_to_relative(parsed):
-    """turns a parsed url into a full relative url"""
+def parsed_to_relative(parsed, parsed_fallback=None):
+    """turns a parsed url into a full relative path"""
     assert isinstance(parsed, ParseResult)
     _path = parsed.path
     # cleanup, might be unnecessary now
     if _path and _path[0] != "/":
-        # prepend a slash
-        _path = "/%s" % _path
+        if parsed_fallback:
+            assert isinstance(parsed_fallback, ParseResult)
+            _path_fallback = parsed_fallback.path
+            if _path_fallback and _path_fallback[0] != '/':
+                # there's not much we can do here... pretend there's no fallback
+                _path = "/%s" % _path
+            else:
+                _path_fallback_dir = '/'.join(_path_fallback.split('/')[:-1])
+                _path = "%s/%s" % (_path_fallback_dir, _path)
+        else:
+            # prepend a slash
+            _path = "/%s" % _path
     if parsed.query:
         _path += "?" + parsed.query
     if parsed.fragment:
@@ -354,7 +364,7 @@ def url_to_absolute_url(
 
     # finally, fix the path
     # this isn't nested, because we could have kwargs
-    _path = parsed_to_relative(parsed)
+    _path = parsed_to_relative(parsed, parsed_fallback=parsed_fallback)
     if not _path:
         # so if our _path is BLANK, we may want to say "fuck this"
         # this can happen if someone puts in "" for the canonical
@@ -362,6 +372,12 @@ def url_to_absolute_url(
         if url_fallback:
             if (parsed_fallback.scheme == parsed.scheme) or (parsed_fallback.netloc == parsed.netloc):
                 return url_fallback
+
+    print "*" * 80
+    print url_test
+    print url_fallback
+    print _path
+    print "*" * 80
 
     rval = None
 
@@ -379,7 +395,6 @@ def url_to_absolute_url(
         # ok, the URL isn't valid
         # can we re-assemble it
         if url_fallback:
-            parsed_fallback = urlparse(url_fallback)
             if is_parsed_valid_url(
                 parsed_fallback,
                 require_public_netloc=require_public_netloc,
