@@ -1,3 +1,6 @@
+0.9.5
+	failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable
+	
 0.9.4
 	* created `MetadataParser.get_url_canonical`
 	* created `MetadataParser.get_url_opengraph`

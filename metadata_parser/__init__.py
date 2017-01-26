@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.4'
+__VERSION__ = '0.9.5'
 
 
 # ------------------------------------------------------------------------------
@@ -820,9 +820,12 @@ class MetadataParser(object):
             if self.force_doctype:
                 html = REGEX_doctype.sub("<!DOCTYPE html>", html)
             try:
-                doc = BeautifulSoup(html, "lxml")
+                try:
+                    doc = BeautifulSoup(html, "lxml")
+                except:
+                    doc = BeautifulSoup(html, "html.parser")
             except:
-                doc = BeautifulSoup(html, "html.parser")
+                raise NotParsable("could not parse into BeautifulSoup")
         else:
             doc = html
 
