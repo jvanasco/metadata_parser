@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.5'
+__VERSION__ = '0.9.6-dev'
 
 
 # ------------------------------------------------------------------------------
@@ -426,12 +426,38 @@ class NotParsable(Exception):
         return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
 
 
+class NotParsableRedirect(NotParsable):
+    """Raised if a redirect is detected, but there is no Location header."""
+    def __str__(self):
+        return "NotParsableRedirect: %s | %s | %s" % (self.message, self.code, self.raised)
+
+
 class NotParsableFetchError(NotParsable):
-    pass
+    def __str__(self):
+        return "NotParsableFetchError: %s | %s | %s" % (self.message, self.code, self.raised)
 
 
 class AllowableError(Exception):
     pass
+
+
+class RedirectDetected(Exception):
+    """
+    Raised if a redirect is detected
+    Instance properties:
+    
+    ``location``: redirect location
+    ``code``: status code of the response
+    ``response``: actual response object
+    """
+    def __init__(self, location='', code=None, response=None):
+        self.location = location
+        self.code = code
+        self.response = response
+    pass
+
+
+# ------------------------------------------------------------------------------
 
 
 class DummyResponse(object):
@@ -564,6 +590,9 @@ class MetadataParser(object):
     is_redirect = None
     is_redirect_same_host = None
 
+    _force_parse = None
+    _force_parse_invalid_content_type = None
+
     # allow for the beautiful_soup to be saved
     soup = None
 
@@ -577,7 +606,7 @@ class MetadataParser(object):
         force_parse=False, ssl_verify=True, only_parse_file_extensions=None,
         force_parse_invalid_content_type=False, require_public_netloc=True,
         allow_localhosts=None, force_doctype=False, requests_timeout=None,
-        raise_on_invalid=False, search_head_only=None,
+        raise_on_invalid=False, search_head_only=None, allow_redirects=True,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -598,6 +627,12 @@ class MetadataParser(object):
             `force_parse`
                 default: False
                 force parsing invalid content
+                sets ._force_parse
+            `force_parse_invalid_content_type`
+                default: False
+                force parsing invalid content types
+                by default this will only parse text/html content
+                sets ._force_parse_invalid_content_type
             `ssl_verify`
                 default: True
                 disable ssl verification, sometimes needed in development
@@ -605,10 +640,6 @@ class MetadataParser(object):
                 default: None
                 set a list of valid file extensions.
                 see `metadata_parser.PARSE_SAFE_FILES` for an example list
-            `force_parse_invalid_content_type`
-                default: False
-                force parsing invalid content types
-                by default this will only parse text/html content
             `require_public_netloc`
                 default: True
                 require a valid `netloc` for the host.  if `True`, valid hosts
@@ -636,6 +667,9 @@ class MetadataParser(object):
                 if `True`, will only search the document head for meta information.
                 `search_head_only=True` is the legacy behavior, but missed too many
                 bad html implementations. This will be set to `False` in the future.
+            `allow_redirects`
+                default: True
+                passed onto `fetch_url`, which will pass it onto requests.get
         """
         self.metadata = {
             'og': {},
@@ -659,6 +693,9 @@ class MetadataParser(object):
         self.require_public_netloc = require_public_netloc
         self.allow_localhosts = allow_localhosts
         self.requests_timeout = requests_timeout
+        self.allow_redirects = allow_redirects
+        self._force_parse = force_parse
+        self._force_parse_invalid_content_type = force_parse_invalid_content_type
         if search_head_only is None:
             warn_future("""`search_head_only` was not provided and defaulting to `True` """
                         """Future versions will default to `False`.""")
@@ -673,14 +710,12 @@ class MetadataParser(object):
                 html = self.fetch_url(
                     url_data=url_data,
                     url_headers=url_headers,
-                    force_parse=force_parse,
-                    force_parse_invalid_content_type=force_parse_invalid_content_type
                 )
             else:
                 html = ''
         else:
             self.response = DummyResponse(text=html, url=url or DUMMY_URL)
-        self.parser(html, force_parse=force_parse)
+        self.parser(html)
 
     def is_opengraph_minimum(self):
         """
@@ -691,8 +726,9 @@ class MetadataParser(object):
 
     def fetch_url(
         self,
-        url_data=None, url_headers=None, force_parse=False,
-        force_parse_invalid_content_type=False
+        url_data=None, url_headers=None, force_parse=None,
+        force_parse_invalid_content_type=None, allow_redirects=None,
+        ssl_verify=None, requests_timeout=None
     ):
         """
         fetches the url and returns it.
@@ -701,10 +737,23 @@ class MetadataParser(object):
         kwargs:
             url_data=None
             url_headers=None
-            force_parse=False
-            force_parse_invalid_content_type=False
+            force_parse=None
+                defaults to self._force_parse if None
+            force_parse_invalid_content_type=None
+                defaults to self._force_parse if None
+            ssl_verify = None
+                defaults to self.ssl_verify if None
+                passed onto `requests.get`
+            allow_redirects=None
+                defaults to self.allow_redirects if None
+                passed onto `requests.get`
+            requests_timeout=None
+                defaults to self.requests_timeout if None
+                passed onto `requests.get`
         """
         # should we even download/parse this?
+        force_parse = force_parse if force_parse is not None else self._force_parse
+        force_parse_invalid_content_type = force_parse_invalid_content_type if force_parse_invalid_content_type is not None else self._force_parse_invalid_content_type
         if not force_parse and self.only_parse_file_extensions is not None:
             parsed = urlparse(self.url)
             path = parsed.path
@@ -733,12 +782,15 @@ class MetadataParser(object):
 
         r = None
         try:
+            allow_redirects = allow_redirects if allow_redirects is not None else self.allow_redirects
+            requests_timeout = requests_timeout if requests_timeout is not None else self.requests_timeout
+            ssl_verify = ssl_verify if ssl_verify is not None else self.ssl_verify
             # requests gives us unicode and the correct encoding, yay
             s = requests.Session()
             r = s.get(
                 url, params=url_data, headers=url_headers,
-                allow_redirects=True, verify=self.ssl_verify,
-                timeout=self.requests_timeout, stream=True,
+                allow_redirects=allow_redirects, verify=ssl_verify,
+                timeout=requests_timeout, stream=True,
             )
             self.peername = get_response_peername(r)
             if r.history:
@@ -775,6 +827,20 @@ class MetadataParser(object):
                                          for k, v in r.headers.items())
             # stash this into the url actual too
             self.url_actual = self.metadata['_internal']['url_actual'] = r.url
+
+            # if we're not following redirects, there could be an error here!
+            if not allow_redirects:
+                if r.status_code in (301, 302, 307, 308):
+                    header_location = r.headers.get('location')
+                    if header_location:
+                        raise RedirectDetected(location=header_location,
+                                               code=r.status_code,
+                                               response=r,
+                                               )
+                    raise NotParsableRedirect(
+                        message="Status Code is redirect, but missing header",
+                        code=r.status_code
+                    )
             if r.status_code != 200:
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
@@ -805,15 +871,12 @@ class MetadataParser(object):
             allow_localhosts=self.allow_localhosts,
         )
 
-    def parser(self, html, force_parse=False):
+    def parser(self, html):
         """
         parses submitted `html`
 
         args:
             html
-
-        kwargs:
-            force_parse=False
         """
         if not isinstance(html, BeautifulSoup):
             # clean the html?

@@ -1,5 +1,15 @@
+0.9.6-dev
+	* made the following arguments to `MetadataParser.fetch_url()` default to None - which will then default to the class setting. they are all passed-through to `requests.get`
+	** `ssl_verify`
+	** `allow_redirects`
+	** `requests_timeout`
+	* removed `force_parse` kwarg from `MetadataParser.parser`
+	* added 'metadata_parser.RedirectDetected' class. if allow_redirects is False, a detected redirect will raise this.
+	* added 'metadata_parser.NotParsableRedirect' class. if allow_redirects is False, a detected redirect will raise this if missing a Location.
+
+
 0.9.5
-	failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable
+	* failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable
 	
 0.9.4
 	* created `MetadataParser.get_url_canonical`
