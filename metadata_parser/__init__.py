@@ -417,13 +417,21 @@ class InvalidDocument(Exception):
 
 class NotParsable(Exception):
 
-    def __init__(self, message='', raised=None, code=None):
+    def __init__(self, message='', raised=None, code=None, metadata_parser=None):
         self.message = message
         self.raised = raised
         self.code = code
+        self.metadata_parser = metadata_parser
+        
 
     def __str__(self):
         return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
+
+
+class NotParsableJson(NotParsable):
+
+    def __str__(self):
+        return "NotParsableJson: %s | %s | %s" % (self.message, self.code, self.raised)
 
 
 class NotParsableRedirect(NotParsable):
@@ -450,11 +458,11 @@ class RedirectDetected(Exception):
     ``code``: status code of the response
     ``response``: actual response object
     """
-    def __init__(self, location='', code=None, response=None):
+    def __init__(self, location='', code=None, response=None, metadata_parser=None):
         self.location = location
         self.code = code
         self.response = response
-    pass
+        self.metadata_parser = metadata_parser
 
 
 # ------------------------------------------------------------------------------
@@ -590,8 +598,10 @@ class MetadataParser(object):
     is_redirect = None
     is_redirect_same_host = None
 
-    _force_parse = None
-    _force_parse_invalid_content_type = None
+    force_parse = None
+    force_parse_invalid_content_type = None
+    only_parse_http_ok = None
+    requests_session = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -607,6 +617,7 @@ class MetadataParser(object):
         force_parse_invalid_content_type=False, require_public_netloc=True,
         allow_localhosts=None, force_doctype=False, requests_timeout=None,
         raise_on_invalid=False, search_head_only=None, allow_redirects=True,
+        requests_session=None, only_parse_http_ok=True,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -627,12 +638,12 @@ class MetadataParser(object):
             `force_parse`
                 default: False
                 force parsing invalid content
-                sets ._force_parse
+                sets .force_parse
             `force_parse_invalid_content_type`
                 default: False
                 force parsing invalid content types
                 by default this will only parse text/html content
-                sets ._force_parse_invalid_content_type
+                sets .force_parse_invalid_content_type
             `ssl_verify`
                 default: True
                 disable ssl verification, sometimes needed in development
@@ -670,6 +681,12 @@ class MetadataParser(object):
             `allow_redirects`
                 default: True
                 passed onto `fetch_url`, which will pass it onto requests.get
+            `requests_session`
+                default: None
+                passed onto `fetch_url`, which will utilize it
+            `only_parse_http_ok`
+                default: True
+                used by `fetch_url`                
         """
         self.metadata = {
             'og': {},
@@ -694,14 +711,16 @@ class MetadataParser(object):
         self.allow_localhosts = allow_localhosts
         self.requests_timeout = requests_timeout
         self.allow_redirects = allow_redirects
-        self._force_parse = force_parse
-        self._force_parse_invalid_content_type = force_parse_invalid_content_type
+        self.force_parse = force_parse
+        self.force_parse_invalid_content_type = force_parse_invalid_content_type
+        self.only_parse_http_ok = only_parse_http_ok
         if search_head_only is None:
             warn_future("""`search_head_only` was not provided and defaulting to `True` """
                         """Future versions will default to `False`.""")
             search_head_only = True
         self.search_head_only = search_head_only
         self.raise_on_invalid = raise_on_invalid
+        self.requests_session = requests_session
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
@@ -728,7 +747,8 @@ class MetadataParser(object):
         self,
         url_data=None, url_headers=None, force_parse=None,
         force_parse_invalid_content_type=None, allow_redirects=None,
-        ssl_verify=None, requests_timeout=None
+        ssl_verify=None, requests_timeout=None, requests_session=None,
+        only_parse_http_ok=None,
     ):
         """
         fetches the url and returns it.
@@ -738,9 +758,11 @@ class MetadataParser(object):
             url_data=None
             url_headers=None
             force_parse=None
-                defaults to self._force_parse if None
+                defaults to self.force_parse if None
             force_parse_invalid_content_type=None
-                defaults to self._force_parse if None
+                defaults to self.force_parse if None
+            only_parse_http_ok=None
+                defaults to self.only_parse_http_ok if None
             ssl_verify = None
                 defaults to self.ssl_verify if None
                 passed onto `requests.get`
@@ -750,10 +772,15 @@ class MetadataParser(object):
             requests_timeout=None
                 defaults to self.requests_timeout if None
                 passed onto `requests.get`
+            requests_session=None
+                defaults to self.requests_session if None
+                an instance of `requests.Session` or a subclass
+                if `None`, will create a new Session.
         """
         # should we even download/parse this?
-        force_parse = force_parse if force_parse is not None else self._force_parse
-        force_parse_invalid_content_type = force_parse_invalid_content_type if force_parse_invalid_content_type is not None else self._force_parse_invalid_content_type
+        force_parse = force_parse if force_parse is not None else self.force_parse
+        force_parse_invalid_content_type = force_parse_invalid_content_type if force_parse_invalid_content_type is not None else self.force_parse_invalid_content_type
+        only_parse_http_ok = only_parse_http_ok if only_parse_http_ok is not None else self.only_parse_http_ok
         if not force_parse and self.only_parse_file_extensions is not None:
             parsed = urlparse(self.url)
             path = parsed.path
@@ -768,7 +795,7 @@ class MetadataParser(object):
                     if url_fext in self.only_parse_file_extensions:
                         pass
                     else:
-                        raise NotParsable("I don't know what this file is")
+                        raise NotParsable("I don't know what this file is", metadata_parser=self)
 
         # borrowing some ideas from
         # http://code.google.com/p/feedparser/source/browse/trunk/feedparser/feedparser.py#3701
@@ -782,45 +809,25 @@ class MetadataParser(object):
 
         r = None
         try:
+            # requests gives us unicode and the correct encoding, yay
             allow_redirects = allow_redirects if allow_redirects is not None else self.allow_redirects
             requests_timeout = requests_timeout if requests_timeout is not None else self.requests_timeout
             ssl_verify = ssl_verify if ssl_verify is not None else self.ssl_verify
-            # requests gives us unicode and the correct encoding, yay
-            s = requests.Session()
-            r = s.get(
+            requests_session = requests_session if requests_session is not None else self.requests_session
+            if requests_session is None:
+                requests_session = requests.Session()
+            r = requests_session.get(
                 url, params=url_data, headers=url_headers,
                 allow_redirects=allow_redirects, verify=ssl_verify,
                 timeout=requests_timeout, stream=True,
             )
+            self.response = r
             self.peername = get_response_peername(r)
             if r.history:
                 self.is_redirect = True
                 parsed_url_og = urlparse(url)
                 parsed_url_dest = urlparse(r.url)
                 self.is_redirect_same_host = True if (parsed_url_og.netloc == parsed_url_dest.netloc) else False
-
-            content_type = None
-            if 'content-type' in r.headers:
-                content_type = r.headers['content-type']
-                # content type can have a character encoding in it...
-                content_type = [i.strip() for i in content_type.split(';')]
-                content_type = content_type[0].lower()
-
-            if (
-                (
-                    (content_type is None)
-                    or
-                    (content_type != 'text/html')
-                )
-                and
-                (not force_parse_invalid_content_type)
-            ):
-                raise NotParsable("I don't know what type of file this is! "
-                                  "content-type:'[%s]" % content_type)
-
-            # okay, now we need to read
-            html = r.text
-            self.response = r
 
             # lowercase all of the HTTP headers for comparisons per RFC 2616
             self.response_headers = dict((k.lower(), v)
@@ -836,22 +843,47 @@ class MetadataParser(object):
                         raise RedirectDetected(location=header_location,
                                                code=r.status_code,
                                                response=r,
+                                               metadata_parser=self,
                                                )
                     raise NotParsableRedirect(
                         message="Status Code is redirect, but missing header",
-                        code=r.status_code
+                        code=r.status_code,
+                        metadata_parser=self,
                     )
-            if r.status_code != 200:
+
+            if only_parse_http_ok and r.status_code != 200:
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
-                    code=r.status_code
+                    code=r.status_code,
+                    metadata_parser=self,
                 )
+
+            content_type = None
+            if 'content-type' in r.headers:
+                content_type = r.headers['content-type']
+                # content type can have a character encoding in it...
+                content_type = [i.strip() for i in content_type.split(';')]
+                content_type = content_type[0].lower()
+                if content_type == 'application/json':
+                    raise NotParsableJson("JSON header detected",
+                                          metadata_parser=self)
+            if (((content_type is None) or (content_type != 'text/html'))
+                and
+                (not force_parse_invalid_content_type)
+            ):
+                raise NotParsable("I don't know what type of file this is! "
+                                  "content-type:'[%s]" % content_type,
+                                  metadata_parser=self)
+
+            # okay, now we're safe to consume the request content
+            html = r.text
 
         except requests.exceptions.RequestException as error:
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                         " attribute of this error.",
-                raised=error
+                raised=error,
+                metadata_parser=self,
             )
 
         return html
@@ -888,7 +920,8 @@ class MetadataParser(object):
                 except:
                     doc = BeautifulSoup(html, "html.parser")
             except:
-                raise NotParsable("could not parse into BeautifulSoup")
+                raise NotParsable("could not parse into BeautifulSoup",
+                                  metadata_parser=self)
         else:
             doc = html
 

@@ -33,7 +33,10 @@ setup(name='metadata_parser',
       zip_safe=False,
       install_requires=[
           'BeautifulSoup4',
-          'requests>=1.2'
+          'requests>=1.2',
+      ],
+      tests_require=[
+        'pytest-httpbin',
       ],
       entry_points="""
       # -*- Entry points: -*-
