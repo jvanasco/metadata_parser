@@ -10,6 +10,8 @@ class SessionRedirect(requests.Session):
     num_checked = None
 
     def get_redirect_target(self, resp):
+        # cache this for later use
+        cached_peername = metadata_parser.get_response_peername(resp)
         if self.num_checked is None:
             self.num_checked = 0
         self.num_checked += 1
@@ -61,5 +63,11 @@ class TestSessionsHttpBin(unittest.TestCase):
         self.assertEqual(page.response.url, self.httpbin_server.url + '/get')
         # the session should have checked the following responses: redirects + final
         self.assertEqual(num_redirects + 1, s.num_checked)
+        self.assertEqual(num_redirects, len(page.response.history))
+        
+        # make sure that we tracked the peername.  httpbin will encode
+        self.assertTrue(metadata_parser.get_response_peername(page.response))
+        for h in page.response.history:
+            self.assertTrue(metadata_parser.get_response_peername(h))
             
     

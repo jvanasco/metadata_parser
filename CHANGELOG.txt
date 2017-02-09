@@ -13,6 +13,7 @@
 	* added `only_parse_http_ok` which defaults to True (legacy).  submitting False will allow non-http200 responses to be parsed.
 	* shuffled `fetch_url` logic around. it will now process more data before a potential error.
 	* working on support for custom request sessions that can better handle redirects (requires patch or future version of requests)
+	* caching the peername onto the response object as `_mp_peername` [ _m(etadata)p(arser)_peername ].  this will allow it to be calculated in a redirect session hook. (see tests/sessions.py)
 	
 0.9.5
 	* failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable

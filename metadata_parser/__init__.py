@@ -504,6 +504,9 @@ def get_response_peername(r):
         log.debug("Not a HTTPResponse | %s", r)
         return None
 
+    if hasattr(r, '_mp_peername'):
+        return r._mp_peername
+
     def _get_socket():
         i = 0
         while True:
@@ -528,9 +531,9 @@ def get_response_peername(r):
                 pass
         return None
     sock = _get_socket()
-    if sock:
-        return sock.getpeername()
-    return None
+    
+    r._mp_peername = sock.getpeername() if sock else None
+    return r._mp_peername
 
 
 # ------------------------------------------------------------------------------
