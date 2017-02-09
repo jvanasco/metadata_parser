@@ -683,7 +683,8 @@ class MetadataParser(object):
                 passed onto `fetch_url`, which will pass it onto requests.get
             `requests_session`
                 default: None
-                passed onto `fetch_url`, which will utilize it
+                passed onto `fetch_url`, which will utilize it.
+                an instance of `requests.Session` or a subclass
             `only_parse_http_ok`
                 default: True
                 used by `fetch_url`                
