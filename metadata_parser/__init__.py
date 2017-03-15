@@ -620,7 +620,7 @@ class MetadataParser(object):
         force_parse_invalid_content_type=False, require_public_netloc=True,
         allow_localhosts=None, force_doctype=False, requests_timeout=None,
         raise_on_invalid=False, search_head_only=None, allow_redirects=True,
-        requests_session=None, only_parse_http_ok=True,
+        requests_session=None, only_parse_http_ok=True, defer_fetch=False,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -690,7 +690,10 @@ class MetadataParser(object):
                 an instance of `requests.Session` or a subclass
             `only_parse_http_ok`
                 default: True
-                used by `fetch_url`                
+                used by `fetch_url`
+            `defer_fetch`:
+                default: False
+                if True, will not fetch the url.
         """
         self.metadata = {
             'og': {},
@@ -730,15 +733,29 @@ class MetadataParser(object):
         if html is None:
             # we may not have a url for tests or other api usage
             if url:
-                html = self.fetch_url(
-                    url_data=url_data,
-                    url_headers=url_headers,
-                )
+                if defer_fetch:
+                    def deferred_fetch():
+                        html = self.fetch_url(url_data=url_data,
+                                              url_headers=url_headers,
+                                              )
+                        self.parser(html)
+                        return
+                    self.deferred_fetch = deferred_fetch
+                    return
+                html = self.fetch_url(url_data=url_data,
+                                      url_headers=url_headers,
+                                      )
             else:
                 html = ''
         else:
             self.response = DummyResponse(text=html, url=url or DUMMY_URL)
-        self.parser(html)
+        if html:
+            self.parser(html)
+
+    def deferred_fetch(self):
+        # allows for a deferrable fetch; override in __init__
+        raise ValueError("no `deferred_fetch` set")
+        
 
     def is_opengraph_minimum(self):
         """

@@ -1,4 +1,8 @@
+1.0
+	1.0 will be a complete api overhaul
+
 0.9.6-dev
+	this is being held for an update to the `requests` library
 	* made the following arguments to `MetadataParser.fetch_url()` default to None - which will then default to the class setting. they are all passed-through to `requests.get`
 	** `ssl_verify`
 	** `allow_redirects`
@@ -14,6 +18,7 @@
 	* shuffled `fetch_url` logic around. it will now process more data before a potential error.
 	* working on support for custom request sessions that can better handle redirects (requires patch or future version of requests)
 	* caching the peername onto the response object as `_mp_peername` [ _m(etadata)p(arser)_peername ].  this will allow it to be calculated in a redirect session hook. (see tests/sessions.py)
+	* added `defer_fetch` argument to `MetadataParser.__init__`, default ``False``.  If ``True``, this will overwrite the instance's `deferred_fetch` method to actually fetch the url.  this strategy allows for the `page` to be defined and response history caught.  Under this situation, a 301 redirecting to a 500 can be observed; in the previous versions only the 500 would be caught.
 	
 0.9.5
 	* failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable

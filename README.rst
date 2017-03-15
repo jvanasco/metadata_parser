@@ -176,7 +176,11 @@ In order to preserve the earlier behavior, just submit `require_public_global=Fa
 
     print page.get_discrete_url(require_public_global=False)
     >>> http://localhost:8000/alt-path/to/foo
-    
+
+WARNING
+=============
+
+1.0 will be a complete API overhaul.  pin your releases to avoid sadness.
 
 
 Usage
