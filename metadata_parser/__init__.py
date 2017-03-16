@@ -417,12 +417,11 @@ class InvalidDocument(Exception):
 
 class NotParsable(Exception):
 
-    def __init__(self, message='', raised=None, code=None, metadata_parser=None):
+    def __init__(self, message='', raised=None, code=None, metadataParser=None):
         self.message = message
         self.raised = raised
         self.code = code
-        self.metadata_parser = metadata_parser
-        
+        self.metadataParser = metadataParser
 
     def __str__(self):
         return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
@@ -458,11 +457,11 @@ class RedirectDetected(Exception):
     ``code``: status code of the response
     ``response``: actual response object
     """
-    def __init__(self, location='', code=None, response=None, metadata_parser=None):
+    def __init__(self, location='', code=None, response=None, metadataParser=None):
         self.location = location
         self.code = code
         self.response = response
-        self.metadata_parser = metadata_parser
+        self.metadataParser = metadataParser
 
 
 # ------------------------------------------------------------------------------
@@ -816,7 +815,7 @@ class MetadataParser(object):
                     if url_fext in self.only_parse_file_extensions:
                         pass
                     else:
-                        raise NotParsable("I don't know what this file is", metadata_parser=self)
+                        raise NotParsable("I don't know what this file is", metadataParser=self)
 
         # borrowing some ideas from
         # http://code.google.com/p/feedparser/source/browse/trunk/feedparser/feedparser.py#3701
@@ -864,19 +863,19 @@ class MetadataParser(object):
                         raise RedirectDetected(location=header_location,
                                                code=r.status_code,
                                                response=r,
-                                               metadata_parser=self,
+                                               metadataParser=self,
                                                )
                     raise NotParsableRedirect(
                         message="Status Code is redirect, but missing header",
                         code=r.status_code,
-                        metadata_parser=self,
+                        metadataParser=self,
                     )
 
             if only_parse_http_ok and r.status_code != 200:
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
                     code=r.status_code,
-                    metadata_parser=self,
+                    metadataParser=self,
                 )
 
             content_type = None
@@ -887,14 +886,14 @@ class MetadataParser(object):
                 content_type = content_type[0].lower()
                 if content_type == 'application/json':
                     raise NotParsableJson("JSON header detected",
-                                          metadata_parser=self)
+                                          metadataParser=self)
             if (((content_type is None) or (content_type != 'text/html'))
                 and
                 (not force_parse_invalid_content_type)
             ):
                 raise NotParsable("I don't know what type of file this is! "
                                   "content-type:'[%s]" % content_type,
-                                  metadata_parser=self)
+                                  metadataParser=self)
 
             # okay, now we're safe to consume the request content
             html = r.text
@@ -904,7 +903,7 @@ class MetadataParser(object):
                 message="Error with `requests` library.  Inspect the `raised`"
                         " attribute of this error.",
                 raised=error,
-                metadata_parser=self,
+                metadataParser=self,
             )
 
         return html
@@ -942,7 +941,7 @@ class MetadataParser(object):
                     doc = BeautifulSoup(html, "html.parser")
             except:
                 raise NotParsable("could not parse into BeautifulSoup",
-                                  metadata_parser=self)
+                                  metadataParser=self)
         else:
             doc = html
 

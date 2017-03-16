@@ -58,7 +58,7 @@ class TestSessionsHttpBin(unittest.TestCase):
         try:
             page = metadata_parser.MetadataParser(url=url, requests_session=s)
         except metadata_parser.NotParsableJson as e:
-            page = e.metadata_parser
+            page = e.metadataParser
         # we end on get
         self.assertEqual(page.response.url, self.httpbin_server.url + '/get')
         # the session should have checked the following responses: redirects + final

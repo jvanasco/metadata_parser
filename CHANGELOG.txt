@@ -13,7 +13,7 @@
 	* added `requests_session` argument to `MetadataParser`
 	* starting to use httpbin for some tests
 	* detecting JSON documents 
-	* extended NotParseable exceptions with the metadata_parser instance
+	* extended NotParseable exceptions with the MetadataParser instance as `metadataParser`
 	* added `only_parse_http_ok` which defaults to True (legacy).  submitting False will allow non-http200 responses to be parsed.
 	* shuffled `fetch_url` logic around. it will now process more data before a potential error.
 	* working on support for custom request sessions that can better handle redirects (requires patch or future version of requests)
