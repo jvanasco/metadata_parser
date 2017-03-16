@@ -253,6 +253,8 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEquals(parsed.metadata['twitter']['site'], 'meta.name=twitter:site')
         self.assertEquals(parsed.metadata['twitter']['title'], 'meta.name=twitter:title')
         self.assertEquals(parsed.metadata['twitter']['url'], 'https://example.com/meta/name=twitter:url')
+        self.assertEquals(parsed.is_opengraph_minimum(), True)
+
 
     def test_html_urls(self):
         """this tests simple.html to have certain fields"""

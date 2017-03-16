@@ -1,3 +1,4 @@
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -69,6 +70,12 @@ RE_whitespace = re.compile("\s+")
 
 PARSE_SAFE_FILES = ('html', 'txt', 'json', 'htm', 'xml',
                     'php', 'asp', 'aspx', 'ece', 'xhtml', 'cfm', 'cgi')
+
+RE_prefix_opengraph = re.compile(r'^og')
+RE_prefix_twitter = re.compile(r'^twitter')
+RE_prefix_rel_img_src = re.compile("^image_src$", re.I)
+RE_canonical = re.compile("^canonical$", re.I)
+RE_shortlink = re.compile("^shortlink$", re.I)
 
 # based on DJANGO
 # https://github.com/django/django/blob/master/django/core/validators.py
@@ -498,6 +505,10 @@ class DummyResponse(object):
 
 
 def get_response_peername(r):
+    """
+    used to get the peername (ip+port) data from the request
+    if a socket is found, caches this onto the request object
+    """
     if not isinstance(r, requests.models.Response):
         # raise AllowableError("Not a HTTPResponse")
         log.debug("Not a HTTPResponse | %s", r)
@@ -529,14 +540,83 @@ def get_response_peername(r):
             except Exception as e:  # noqa
                 pass
         return None
+
     sock = _get_socket()
-    
-    r._mp_peername = sock.getpeername() if sock else None
-    return r._mp_peername
+    if sock:
+        # only cache if we have a sock
+        # we may want/need to call again
+        r._mp_peername = sock.getpeername()
+        return r._mp_peername
+    return None
 
 
 # ------------------------------------------------------------------------------
 
+
+class ParsedResult(object):
+    metadata = None
+    soup = None
+
+    og_minimum_requirements = ['title', 'type', 'image', 'url']
+    twitter_sections = ['card', 'title', 'site', 'description']
+    strategy = ['og', 'dc', 'meta', 'page', 'twitter', ]
+
+    def __init__(self):
+        self.metadata = {
+            'og': {},
+            'meta': {},
+            'dc': {},
+            'page': {},
+            'twitter': {},
+            '_internal': {},
+        }
+
+    def get_metadata(self, field, strategy=None, encoder=None):
+        """
+        looks for the field in various stores.  defaults to the core
+        strategy, though you may specify a certain item.  if you search for
+        'all' it will return a dict of all values.
+
+        args:
+            field
+
+        kwargs:
+            strategy=None
+                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
+            encoder=None
+                a function, such as `encode_ascii`, to encode values.
+                a valid `encoder` accepts one(1) arg.
+        """
+        if strategy:
+            _strategy = strategy
+        else:
+            _strategy = self.strategy
+        if _strategy == 'all':
+            rval = {}
+            for store in self.metadata:
+                if field in self.metadata[store]:
+                    val = self.metadata[store][field]
+                    if encoder:
+                        val = encoder(val)
+                    rval[store] = val
+            return rval
+        for store in _strategy:
+            if store in self.metadata:
+                if field in self.metadata[store]:
+                    val = self.metadata[store][field]
+                    if encoder:
+                        val = encoder(val)
+                    return val
+        return None
+        
+    def is_opengraph_minimum(self):
+        """
+        returns true/false if the page has the minimum amount of opengraph tags
+        """
+        return all([self.metadata['og'].get(attr, None) for attr in self.og_minimum_requirements])
+
+
+# ------------------------------------------------------------------------------
 
 class MetadataParser(object):
     """
@@ -589,7 +669,6 @@ class MetadataParser(object):
     url = None
     url_actual = None
     strategy = None
-    metadata = None
     LEN_MAX_TITLE = 255
     only_parse_file_extensions = None
     allow_localhosts = None
@@ -607,10 +686,6 @@ class MetadataParser(object):
 
     # allow for the beautiful_soup to be saved
     soup = None
-
-    og_minimum_requirements = ['title', 'type', 'image', 'url']
-    twitter_sections = ['card', 'title', 'site', 'description']
-    strategy = ['og', 'dc', 'meta', 'page', 'twitter', ]
 
     def __init__(
         self,
@@ -694,22 +769,14 @@ class MetadataParser(object):
                 default: False
                 if True, will not fetch the url.
         """
-        self.metadata = {
-            'og': {},
-            'meta': {},
-            'dc': {},
-            'page': {},
-            'twitter': {},
-            '_internal': {},
-        }
-        if strategy:
-            self.strategy = strategy
         if url is not None:
             url = url.strip()
-        self.url = self.metadata['_internal']['url'] = url
-        self.url_actual = self.metadata['_internal']['url_actual'] = url
+        self.parsed_result = ParsedResult()
+        if strategy:
+            self.parsed_result.strategy = strategy
+        self.url = self.parsed_result.metadata['_internal']['url'] = url
+        self.url_actual = self.parsed_result.metadata['_internal']['url_actual'] = url
         self.ssl_verify = ssl_verify
-        self.soup = None
         self.force_doctype = force_doctype
         self.response = None
         self.response_headers = {}
@@ -737,7 +804,7 @@ class MetadataParser(object):
                         html = self.fetch_url(url_data=url_data,
                                               url_headers=url_headers,
                                               )
-                        self.parser(html)
+                        self.parse(html)
                         return
                     self.deferred_fetch = deferred_fetch
                     return
@@ -749,19 +816,35 @@ class MetadataParser(object):
         else:
             self.response = DummyResponse(text=html, url=url or DUMMY_URL)
         if html:
-            self.parser(html)
+            self.parse(html)
+    
+    # --------------------------------------------------------------------------
+
+    @property
+    def metadata(self):
+        # deprecating in 1.0
+        return self.parsed_result.metadata    
+
+    @property
+    def soup(self):
+        # deprecating in 1.0
+        return self.parsed_result.soup    
+
+    def get_metadata(self, field, strategy=None, encoder=None):
+        # deprecating in 1.0
+        return self.parsed_result.get_metadata(field, strategy=strategy, encoder=encoder)
+
+    def is_opengraph_minimum(self):
+        # deprecating in 1.0
+        return self.parsed_result.is_opengraph_minimum()    
+
+    # --------------------------------------------------------------------------
 
     def deferred_fetch(self):
         # allows for a deferrable fetch; override in __init__
         raise ValueError("no `deferred_fetch` set")
-        
 
-    def is_opengraph_minimum(self):
-        """
-        returns true/false if the page has the minimum amount of opengraph tags
-        """
-        return all([hasattr(self, attr)
-                   for attr in self.og_minimum_requirements])
+    # --------------------------------------------------------------------------
 
     def fetch_url(
         self,
@@ -853,7 +936,7 @@ class MetadataParser(object):
             self.response_headers = dict((k.lower(), v)
                                          for k, v in r.headers.items())
             # stash this into the url actual too
-            self.url_actual = self.metadata['_internal']['url_actual'] = r.url
+            self.url_actual = self.parsed_result.metadata['_internal']['url_actual'] = r.url
 
             # if we're not following redirects, there could be an error here!
             if not allow_redirects:
@@ -923,7 +1006,7 @@ class MetadataParser(object):
             allow_localhosts=self.allow_localhosts,
         )
 
-    def parser(self, html):
+    def parse(self, html):
         """
         parses submitted `html`
 
@@ -962,15 +1045,14 @@ class MetadataParser(object):
             doc_searchpath = doc.html.head
 
         # stash the bs4 doc for further operations
-        self.soup = doc
+        self.parsed_result.soup = doc
 
-        ogs = doc_searchpath.findAll(
-            'meta',
-            attrs={'property': re.compile(r'^og')}
-        )
+        ogs = doc_searchpath.findAll('meta',
+                                     attrs={'property': RE_prefix_opengraph, }
+                                     )
         for og in ogs:
             try:
-                self.metadata['og'][og['property'][3:]] = og['content'].strip()
+                self.parsed_result.metadata['og'][og['property'][3:]] = og['content'].strip()
             except (AttributeError, KeyError):
                 pass
             except:
@@ -978,13 +1060,12 @@ class MetadataParser(object):
                     log.debug("Ran into a serious error parsing `og`")
                 pass
 
-        twitters = doc_searchpath.findAll(
-            'meta',
-            attrs={'name': re.compile(r'^twitter')}
-        )
+        twitters = doc_searchpath.findAll('meta',
+                                          attrs={'name': RE_prefix_twitter, }
+                                          )
         for twitter in twitters:
             try:
-                self.metadata['twitter'][
+                self.parsed_result.metadata['twitter'][
                     twitter['name'][8:]] = twitter['content'].strip()
             except (AttributeError, KeyError) as e:
                 pass
@@ -996,55 +1077,52 @@ class MetadataParser(object):
                 _title_text = _title_text.strip()
             if len(_title_text) > self.LEN_MAX_TITLE:
                 _title_text = _title_text[:self.LEN_MAX_TITLE]
-            self.metadata['page']['title'] = _title_text
+            self.parsed_result.metadata['page']['title'] = _title_text
         except AttributeError:
             pass
 
         # is there an image_src?
-        images = doc.findAll(
-            'link',
-            attrs={'rel': re.compile("^image_src$", re.I)}
-        )
+        images = doc.findAll('link',
+                             attrs={'rel': RE_prefix_rel_img_src, }
+                             )
         if images:
             image = images[0]
             if image.has_attr("href"):
                 img_url = image['href'].strip()
-                self.metadata['page']['image'] = img_url
+                self.parsed_result.metadata['page']['image'] = img_url
             elif image.has_attr("content"):
                 img_url = image['content'].strip()
-                self.metadata['page']['image'] = img_url
+                self.parsed_result.metadata['page']['image'] = img_url
             else:
                 pass
 
         # figure out the canonical url
-        canonicals = doc.findAll(
-            'link',
-            attrs={'rel': re.compile("^canonical$", re.I)}
-        )
+        canonicals = doc.findAll('link',
+                                 attrs={'rel': RE_canonical, }
+                                 )
         if canonicals:
             canonical = canonicals[0]
             if canonical.has_attr("href"):
                 link = canonical['href'].strip()
-                self.metadata['page']['canonical'] = link
+                self.parsed_result.metadata['page']['canonical'] = link
             elif canonical.has_attr("content"):
                 link = canonical['content'].strip()
-                self.metadata['page']['canonical'] = link
+                self.parsed_result.metadata['page']['canonical'] = link
             else:
                 pass
 
         # is there a shortlink?
-        shortlinks = doc.findAll(
-            'link',
-            attrs={'rel': re.compile("^shortlink$", re.I)}
-        )
+        shortlinks = doc.findAll('link',
+                                 attrs={'rel': RE_shortlink}
+                                 )
         if shortlinks:
             shortlink = shortlinks[0]
             if shortlink.has_attr("href"):
                 link = shortlink['href'].strip()
-                self.metadata['page']['shortlink'] = link
+                self.parsed_result.metadata['page']['shortlink'] = link
             elif shortlink.has_attr("content"):
                 link = shortlink['content'].strip()
-                self.metadata['page']['shortlink'] = link
+                self.parsed_result.metadata['page']['shortlink'] = link
             else:
                 pass
 
@@ -1067,49 +1145,11 @@ class MetadataParser(object):
                     if 'content' in attrs:
                         v = attrs['content'].strip()
                     if (len(k) > 3) and (k[:3] == 'dc:'):
-                        self.metadata['dc'][k[3:]] = v
+                        self.parsed_result.metadata['dc'][k[3:]] = v
                     else:
-                        self.metadata['meta'][k] = v
+                        self.parsed_result.metadata['meta'][k] = v
             except AttributeError:
                 pass
-
-    def get_metadata(self, field, strategy=None, encoder=None):
-        """
-        looks for the field in various stores.  defaults to the core
-        strategy, though you may specify a certain item.  if you search for
-        'all' it will return a dict of all values.
-
-        args:
-            field
-
-        kwargs:
-            strategy=None
-                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
-            encoder=None
-                a function, such as `encode_ascii`, to encode values.
-                a valid `encoder` accepts one(1) arg.
-        """
-        if strategy:
-            _strategy = strategy
-        else:
-            _strategy = self.strategy
-        if _strategy == 'all':
-            rval = {}
-            for store in self.metadata:
-                if field in self.metadata[store]:
-                    val = self.metadata[store][field]
-                    if encoder:
-                        val = encoder(val)
-                    rval[store] = val
-            return rval
-        for store in _strategy:
-            if store in self.metadata:
-                if field in self.metadata[store]:
-                    val = self.metadata[store][field]
-                    if encoder:
-                        val = encoder(val)
-                    return val
-        return None
 
     def get_fallback_url(
         self,

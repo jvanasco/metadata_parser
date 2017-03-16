@@ -36,6 +36,7 @@ setup(name='metadata_parser',
           'requests>=1.2',
       ],
       tests_require=[
+        'pytest',
         'pytest-httpbin',
       ],
       entry_points="""
