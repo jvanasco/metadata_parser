@@ -21,6 +21,8 @@
 	* added `defer_fetch` argument to `MetadataParser.__init__`, default ``False``.  If ``True``, this will overwrite the instance's `deferred_fetch` method to actually fetch the url.  this strategy allows for the `page` to be defined and response history caught.  Under this situation, a 301 redirecting to a 500 can be observed; in the previous versions only the 500 would be caught.
 	* starting to encapsulate everything into a "parsed result" class
 	* fixed opengraph minimum check
+	* added `MetadataParser.is_redirect_unique`
+	* added `DummyResponse.history`
 	
 0.9.5
 	* failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable

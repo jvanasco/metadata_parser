@@ -485,6 +485,7 @@ class DummyResponse(object):
     status_code = None
     encoding = None
     elapsed_seconds = None
+    history = None
 
     def __init__(
         self,
@@ -677,6 +678,7 @@ class MetadataParser(object):
     requests_timeout = None
     peername = None
     is_redirect = None
+    is_redirect_unique = None
     is_redirect_same_host = None
 
     force_parse = None
@@ -928,9 +930,14 @@ class MetadataParser(object):
             self.peername = get_response_peername(r)
             if r.history:
                 self.is_redirect = True
+                # sometimes we encounter a circular redirect for auth
+                self.is_redirect_unique = False if r.url == r.history[0].url else True
                 parsed_url_og = urlparse(url)
                 parsed_url_dest = urlparse(r.url)
                 self.is_redirect_same_host = True if (parsed_url_og.netloc == parsed_url_dest.netloc) else False
+            else:
+                self.is_redirect = False
+                self.is_redirect_unique = False
 
             # lowercase all of the HTTP headers for comparisons per RFC 2616
             self.response_headers = dict((k.lower(), v)
