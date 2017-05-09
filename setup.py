@@ -33,7 +33,7 @@ setup(name='metadata_parser',
       zip_safe=False,
       install_requires=[
           'BeautifulSoup4',
-          'requests>=1.2',
+          'requests>=2.14.0',
       ],
       tests_require=[
         'pytest',

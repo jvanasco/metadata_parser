@@ -1,7 +1,7 @@
 1.0
 	1.0 will be a complete api overhaul
 
-0.9.6-dev
+0.9.6
 	this is being held for an update to the `requests` library
 	* made the following arguments to `MetadataParser.fetch_url()` default to None - which will then default to the class setting. they are all passed-through to `requests.get`
 	** `ssl_verify`

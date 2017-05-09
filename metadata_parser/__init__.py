@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.6-dev'
+__VERSION__ = '0.9.6'
 
 
 # ------------------------------------------------------------------------------
@@ -459,7 +459,7 @@ class RedirectDetected(Exception):
     """
     Raised if a redirect is detected
     Instance properties:
-    
+
     ``location``: redirect location
     ``code``: status code of the response
     ``response``: actual response object
@@ -609,7 +609,7 @@ class ParsedResult(object):
                         val = encoder(val)
                     return val
         return None
-        
+
     def is_opengraph_minimum(self):
         """
         returns true/false if the page has the minimum amount of opengraph tags
@@ -819,18 +819,18 @@ class MetadataParser(object):
             self.response = DummyResponse(text=html, url=url or DUMMY_URL)
         if html:
             self.parse(html)
-    
+
     # --------------------------------------------------------------------------
 
     @property
     def metadata(self):
         # deprecating in 1.0
-        return self.parsed_result.metadata    
+        return self.parsed_result.metadata
 
     @property
     def soup(self):
         # deprecating in 1.0
-        return self.parsed_result.soup    
+        return self.parsed_result.soup
 
     def get_metadata(self, field, strategy=None, encoder=None):
         # deprecating in 1.0
@@ -838,7 +838,7 @@ class MetadataParser(object):
 
     def is_opengraph_minimum(self):
         # deprecating in 1.0
-        return self.parsed_result.is_opengraph_minimum()    
+        return self.parsed_result.is_opengraph_minimum()
 
     # --------------------------------------------------------------------------
 
@@ -1074,7 +1074,7 @@ class MetadataParser(object):
             try:
                 self.parsed_result.metadata['twitter'][
                     twitter['name'][8:]] = twitter['content'].strip()
-            except (AttributeError, KeyError) as e:
+            except (AttributeError, KeyError):
                 pass
 
         # pull the text off the title
@@ -1182,7 +1182,7 @@ class MetadataParser(object):
     def get_url_canonical(
         self,
         require_public_global=True,
-        url_fallback = None,
+        url_fallback=None,
     ):
         """this was originally part of `get_discrete_url`"""
         canonical = self.get_metadata('canonical', strategy=['page'])
@@ -1215,11 +1215,10 @@ class MetadataParser(object):
                     canonical = None
         return canonical
 
-
     def get_url_opengraph(
         self,
         require_public_global=True,
-        url_fallback = None,
+        url_fallback=None,
     ):
         """this was originally part of `get_discrete_url`"""
         og = self.get_metadata('url', strategy=['og'])
@@ -1252,7 +1251,6 @@ class MetadataParser(object):
                     og = None
         return og
 
-
     # --------------------------------------------------------------------------
 
     def get_discrete_url(
@@ -1276,7 +1274,7 @@ class MetadataParser(object):
         _ts = (og_first, canonical_first)
         if not any(_ts) or all(_ts):
             raise ValueError("submit one and only one of (og_first, canonical_first")
-        
+
         url_fallback = None
         if require_public_global:
             url_fallback = self.get_fallback_url(require_public_netloc=True,
