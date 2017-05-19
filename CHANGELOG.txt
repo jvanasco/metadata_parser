@@ -1,6 +1,14 @@
 1.0
 	1.0 will be a complete api overhaul
 
+0.9.7
+	updated the following functions to test for RFC valid characters in the url string
+	some websites, even BIG PROFESSIONAL ONES, will put html in here.
+	idiots? amateurs? lazy? doesn't matter, they're now our problem.  well, not anymore.
+		* get_url_canonical
+		* get_url_opengraph
+		* get_metadata_link
+
 0.9.6
 	this is being held for an update to the `requests` library
 	* made the following arguments to `MetadataParser.fetch_url()` default to None - which will then default to the class setting. they are all passed-through to `requests.get`

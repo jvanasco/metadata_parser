@@ -1,4 +1,3 @@
-
 import logging
 log = logging.getLogger(__name__)
 
@@ -6,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.6'
+__VERSION__ = '0.9.7'
 
 
 # ------------------------------------------------------------------------------
@@ -134,6 +133,26 @@ RE_IPV4_ADDRESS = re.compile(
 
 RE_ALL_NUMERIC = re.compile("^[\d\.]+$")
 
+# we may need to test general validity of url components
+RE_rfc3986_valid_characters = re.compile("""^[a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%]+$""", re.I)
+"""
+What is valid in the RFC?
+    # don't need escaping
+    rfc3986_unreserved__noescape = ['a-z', '0-9', ]  
+    
+    # do need escaping
+    rfc3986_unreserved__escape = ['-', '.', '_', '~', ]
+    rfc3986_gen_delims__escape = [":", "/", "?", "#", "[", "]", "@", ]
+    rfc3986_sub_delims__escape = ["!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=", ]
+    rfc3986_pct_encoded__escape = ["%", ]
+    rfc3986__escape = rfc3986_unreserved__escape  + rfc3986_gen_delims__escape + rfc3986_sub_delims__escape + rfc3986_pct_encoded__escape
+    rfc3986__escaped = re.escape(''.join(rfc3986__escape))
+    rfc3986_chars = ''.join(rfc3986_unreserved__noescape) + rfc3986__escaped
+    print rfc3986_chars
+
+    a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%
+"""
+    
 
 # ------------------------------------------------------------------------------
 
@@ -1188,6 +1207,12 @@ class MetadataParser(object):
         canonical = self.get_metadata('canonical', strategy=['page'])
         if not canonical:
             return None
+        # does the canonical have valid characters?
+        # some websites, even BIG PROFESSIONAL ONES, will put html in here.
+        # amateurs.
+        canonical_valid_chars = RE_rfc3986_valid_characters.match(canonical)
+        if not canonical_valid_chars:
+            return None
         if require_public_global:
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
@@ -1200,6 +1225,8 @@ class MetadataParser(object):
                 allow_localhosts=False,
             ):
                 # try making it absolute
+                
+                
                 canonical = url_to_absolute_url(
                     canonical,
                     url_fallback=url_fallback,
@@ -1223,6 +1250,12 @@ class MetadataParser(object):
         """this was originally part of `get_discrete_url`"""
         og = self.get_metadata('url', strategy=['og'])
         if not og:
+            return None
+        # does the og have valid characters?
+        # some websites, even BIG PROFESSIONAL ONES, will put html in here.
+        # idiots.
+        og_valid_chars = RE_rfc3986_valid_characters.match(og)
+        if not og_valid_chars:
             return None
         if require_public_global:
             if url_fallback is None:
@@ -1333,13 +1366,20 @@ class MetadataParser(object):
 
         # `value` will be our clean value
         # remove whitespace, because some bad blogging platforms add in whitespace by printing elements on multiple lines. d'oh!
+        # this also up data:image and normal links
         value = RE_whitespace.sub('', _value)
 
         # it's possible for an encoded URI to be an image
         # if that is the case, don't return it (this is `get_metadata_LINK`)
-        if value.lower().startswith('data:image/'):
+        if value[:11].lower().startswith('data:image/'):
             if allow_encoded_uri:
                 return value
+            return None
+
+        # it is possible for a declared url to not have rfc valid characters
+        # sometimes you'll find HTML documents in here. serious!
+        is_valid_chars = RE_rfc3986_valid_characters.match(value)
+        if not is_valid_chars:
             return None
 
         if require_public_global:

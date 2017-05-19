@@ -116,6 +116,31 @@ URLS_INVALID = [
 ]
 
 
+RFC_REGEX_VALID = ["""http://user:password@one.example.com/foo/bar;one=two&three=four?foo=bar&biz=bash#foo""",
+                   ]
+
+RFC_REGEX_INVALID = ["""</p><br /><p>Then l""",
+                     """ccurl" style="display:none;" """,
+                   ]
+
+
+class TestUrlRfcValid(unittest.TestCase):
+    """
+    python -m unittest tests.url_parsing.TestUrlRfcValid
+
+    Ensures URLs contain rfc valid components
+    """
+    def test_urls_valid(self):
+        for i in RFC_REGEX_VALID:
+            matched = metadata_parser.RE_rfc3986_valid_characters.match(i)
+            self.assertTrue(matched)
+
+    def test_urls_invalid(self):
+        for i in RFC_REGEX_INVALID:
+            matched = metadata_parser.RE_rfc3986_valid_characters.match(i)
+            self.assertTrue(matched is None)
+
+
 class TestUrlParsing(unittest.TestCase):
     """
     python -m unittest tests.url_parsing.TestUrls
