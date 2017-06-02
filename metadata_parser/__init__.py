@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.7'
+__VERSION__ = '0.9.8'
 
 
 # ------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ RE_shortlink = re.compile("^shortlink$", re.I)
 # https://github.com/django/django/blob/master/django/core/validators.py
 # not testing ipv6 right now, because rules are needed for ensuring they
 # are correct
-RE_VALID_HOSTNAME = re.compile(
+RE_VALID_NETLOC = re.compile(
     r'(?:'
         r'(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ipv4
         r'|'
@@ -94,10 +94,10 @@ RE_VALID_HOSTNAME = re.compile(
 
 
 # these aren't on the public internet
-PRIVATE_NETLOCS = ('localhost',
-                   '127.0.0.1',
-                   '0.0.0.0',
-                   )
+PRIVATE_HOSTNAMES = ('localhost',
+                     '127.0.0.1',
+                     '0.0.0.0',
+                     )
 
 
 RE_PORT = re.compile(
@@ -199,36 +199,36 @@ def is_parsed_valid_url(
     if require_public_netloc:
         if __debug__:
             log.debug(" validating netloc")
-        _netloc_match = RE_VALID_HOSTNAME.match(parsed.netloc)
+        _netloc_match = RE_VALID_NETLOC.match(parsed.netloc)
         if not _netloc_match:
             if __debug__:
                 log.debug(" did not match regex")
             return False
 
         # we may assign these
-        _netloc_clean = parsed.netloc
+        _hostname = parsed.netloc
         _port = None
 
         _netloc_ported = RE_PORT.match(parsed.netloc)
         if _netloc_ported:
             _netloc_ported_groudict = _netloc_ported.groupdict()
-            _netloc_clean = _netloc_ported_groudict['main']
+            _hostname = _netloc_ported_groudict['main']
             _port = _netloc_ported_groudict['port']
 
         # this can be a fast check..
         # note this is done AFTER we clean up a potential port grouping
         if __debug__:
-            log.debug(" validating against PRIVATE_NETLOCS")
-        if _netloc_clean.lower() in PRIVATE_NETLOCS:
+            log.debug(" validating against PRIVATE_HOSTNAMES")
+        if _hostname.lower() in PRIVATE_HOSTNAMES:
             if __debug__:
-                log.debug(" matched PRIVATE_NETLOCS")
+                log.debug(" matched PRIVATE_HOSTNAMES")
             if allow_localhosts:
                 return True
             return False
 
         _netloc_groudict = _netloc_match.groupdict()
         if _netloc_groudict['ipv4'] is not None:
-            octets = RE_IPV4_ADDRESS.match(_netloc_clean)
+            octets = RE_IPV4_ADDRESS.match(_hostname)
             if octets:
                 if __debug__:
                     log.debug(" validating against ipv4")
@@ -245,11 +245,11 @@ def is_parsed_valid_url(
                 log.debug(" invalid ipv4")
             return False
         else:
-            if _netloc_clean == 'localhost':
+            if _hostname == 'localhost':
                 if __debug__:
                     log.debug(" localhost!")
                 return False
-            if RE_ALL_NUMERIC.match(_netloc_clean):
+            if RE_ALL_NUMERIC.match(_hostname):
                 if __debug__:
                     log.debug(" This only has numeric characters. "
                               "this is probably a fake or typo ip address.")
@@ -265,7 +265,7 @@ def is_parsed_valid_url(
                     if __debug__:
                         log.debug(" _port is not an int")
                     return False
-            if RE_DOMAIN_NAME.match(_netloc_clean):
+            if RE_DOMAIN_NAME.match(_hostname):
                 if __debug__:
                     log.debug(" valid public domain name format")
                 return True
