@@ -1,6 +1,9 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.10
+    * slight reorder internally of TLD extract support
+
 0.9.9
     * inspecting `requests` errors for a response and using it if possible
     * this will now try to validate urls if the `tldextract` library is present.

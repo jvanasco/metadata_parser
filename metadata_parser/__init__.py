@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.9'
+__VERSION__ = '0.9.10'
 
 
 # ------------------------------------------------------------------------------
@@ -271,13 +271,14 @@ def is_parsed_valid_url(
                     if __debug__:
                         log.debug(" _port is not an int")
                     return False
+            if USE_TLDEXTRACT:
+                _extracted = tldextract.extract(_hostname)
+                if not _extracted.registered_domain:
+                    return False
+                return True
             if RE_DOMAIN_NAME.match(_hostname):
                 if __debug__:
                     log.debug(" valid public domain name format")
-                if USE_TLDEXTRACT:
-                    _extracted = tldextract.extract(_hostname)
-                    if not _extracted.registered_domain:
-                        return False
                 return True
         if __debug__:
             log.debug(" this appears to be invalid")
