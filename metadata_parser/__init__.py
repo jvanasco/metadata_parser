@@ -21,6 +21,12 @@ import warnings
 import requests
 from bs4 import BeautifulSoup
 
+try:
+    import tldextract
+    USE_TLDEXTRACT = True
+except:
+    USE_TLDEXTRACT = False
+
 # python 2/3
 try:
     # Python 2 has a standard urlparse library
@@ -268,6 +274,10 @@ def is_parsed_valid_url(
             if RE_DOMAIN_NAME.match(_hostname):
                 if __debug__:
                     log.debug(" valid public domain name format")
+                if USE_TLDEXTRACT:
+                    _extracted = tldextract.extract(_hostname)
+                    if not _extracted.registered_domain:
+                        return False
                 return True
         if __debug__:
             log.debug(" this appears to be invalid")
@@ -1008,6 +1018,14 @@ class MetadataParser(object):
             html = r.text
 
         except requests.exceptions.RequestException as error:
+            if hasattr(error, 'response') and (error.response is not None):
+                self.response = error.response
+                try:
+                    self.peername = get_response_peername(self.response)
+                    if self.response.history:
+                        self.is_redirect = True
+                except:
+                    pass
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                         " attribute of this error.",

@@ -1,275 +1,283 @@
 1.0
-	1.0 will be a complete api overhaul
+    1.0 will be a complete api overhaul
+
+0.9.8
+    * inspecting `requests` errors for a response and using it if possible
+    * this will now try to validate urls if the `tldextract` library is present.
+      this feature can be disabled with a global toggle
+        
+            import metadata_parser
+            metadata_parser.USE_TLDEXTRACT = False
 
 0.9.7
-	* changed some internal variable names to better clarify difference between a hostname and netloc
+    * changed some internal variable names to better clarify difference between a hostname and netloc
 
 0.9.7
-	updated the following functions to test for RFC valid characters in the url string
-	some websites, even BIG PROFESSIONAL ONES, will put html in here.
-	idiots? amateurs? lazy? doesn't matter, they're now our problem.  well, not anymore.
-		* get_url_canonical
-		* get_url_opengraph
-		* get_metadata_link
+    updated the following functions to test for RFC valid characters in the url string
+    some websites, even BIG PROFESSIONAL ONES, will put html in here.
+    idiots? amateurs? lazy? doesn't matter, they're now our problem.  well, not anymore.
+        * get_url_canonical
+        * get_url_opengraph
+        * get_metadata_link
 
 0.9.6
-	this is being held for an update to the `requests` library
-	* made the following arguments to `MetadataParser.fetch_url()` default to None - which will then default to the class setting. they are all passed-through to `requests.get`
-	** `ssl_verify`
-	** `allow_redirects`
-	** `requests_timeout`
-	* removed `force_parse` kwarg from `MetadataParser.parser`
-	* added 'metadata_parser.RedirectDetected' class. if allow_redirects is False, a detected redirect will raise this.
-	* added 'metadata_parser.NotParsableRedirect' class. if allow_redirects is False, a detected redirect will raise this if missing a Location.
-	* added `requests_session` argument to `MetadataParser`
-	* starting to use httpbin for some tests
-	* detecting JSON documents 
-	* extended NotParseable exceptions with the MetadataParser instance as `metadataParser`
-	* added `only_parse_http_ok` which defaults to True (legacy).  submitting False will allow non-http200 responses to be parsed.
-	* shuffled `fetch_url` logic around. it will now process more data before a potential error.
-	* working on support for custom request sessions that can better handle redirects (requires patch or future version of requests)
-	* caching the peername onto the response object as `_mp_peername` [ _m(etadata)p(arser)_peername ].  this will allow it to be calculated in a redirect session hook. (see tests/sessions.py)
-	* added `defer_fetch` argument to `MetadataParser.__init__`, default ``False``.  If ``True``, this will overwrite the instance's `deferred_fetch` method to actually fetch the url.  this strategy allows for the `page` to be defined and response history caught.  Under this situation, a 301 redirecting to a 500 can be observed; in the previous versions only the 500 would be caught.
-	* starting to encapsulate everything into a "parsed result" class
-	* fixed opengraph minimum check
-	* added `MetadataParser.is_redirect_unique`
-	* added `DummyResponse.history`
-	
+    this is being held for an update to the `requests` library
+    * made the following arguments to `MetadataParser.fetch_url()` default to None - which will then default to the class setting. they are all passed-through to `requests.get`
+    ** `ssl_verify`
+    ** `allow_redirects`
+    ** `requests_timeout`
+    * removed `force_parse` kwarg from `MetadataParser.parser`
+    * added 'metadata_parser.RedirectDetected' class. if allow_redirects is False, a detected redirect will raise this.
+    * added 'metadata_parser.NotParsableRedirect' class. if allow_redirects is False, a detected redirect will raise this if missing a Location.
+    * added `requests_session` argument to `MetadataParser`
+    * starting to use httpbin for some tests
+    * detecting JSON documents 
+    * extended NotParseable exceptions with the MetadataParser instance as `metadataParser`
+    * added `only_parse_http_ok` which defaults to True (legacy).  submitting False will allow non-http200 responses to be parsed.
+    * shuffled `fetch_url` logic around. it will now process more data before a potential error.
+    * working on support for custom request sessions that can better handle redirects (requires patch or future version of requests)
+    * caching the peername onto the response object as `_mp_peername` [ _m(etadata)p(arser)_peername ].  this will allow it to be calculated in a redirect session hook. (see tests/sessions.py)
+    * added `defer_fetch` argument to `MetadataParser.__init__`, default ``False``.  If ``True``, this will overwrite the instance's `deferred_fetch` method to actually fetch the url.  this strategy allows for the `page` to be defined and response history caught.  Under this situation, a 301 redirecting to a 500 can be observed; in the previous versions only the 500 would be caught.
+    * starting to encapsulate everything into a "parsed result" class
+    * fixed opengraph minimum check
+    * added `MetadataParser.is_redirect_unique`
+    * added `DummyResponse.history`
+    
 0.9.5
-	* failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable
-	
+    * failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable
+    
 0.9.4
-	* created `MetadataParser.get_url_canonical`
-	* created `MetadataParser.get_url_opengraph`
-	* `MetadataParser.get_discrete_url` now calls `get_url_canonical` and `get_url_opengraph`
+    * created `MetadataParser.get_url_canonical`
+    * created `MetadataParser.get_url_opengraph`
+    * `MetadataParser.get_discrete_url` now calls `get_url_canonical` and `get_url_opengraph`
 
 0.9.3
-	* fixed packaging error. removed debug "print" statements
+    * fixed packaging error. removed debug "print" statements
 
 0.9.2
-	* upgrade nested local canonical rels correctly
+    * upgrade nested local canonical rels correctly
 
 0.9.1
-	* added a new `_internal` storage namespace to the `MetadataParser.metadata` payload.
-	  this simply stashes the `MetadataParser.url` and `MetadataParser.url_actual` attributes to makes objects easier to encode for debugging
-	* the twitter parsing was incorrectly looking for 'value' not 'content' as in the current spec
-	* tracking the shortlink on a page
+    * added a new `_internal` storage namespace to the `MetadataParser.metadata` payload.
+      this simply stashes the `MetadataParser.url` and `MetadataParser.url_actual` attributes to makes objects easier to encode for debugging
+    * the twitter parsing was incorrectly looking for 'value' not 'content' as in the current spec
+    * tracking the shortlink on a page
 
 0.9.0
-	- This has a default behavior change regarding `get_discrete_url()` .
-	- `is_parsed_valid_url()` did not correctly handle `require_public_netloc=True`, and would allow for `localhost` values to pass
-	- new kwarg `allow_localhosts` added to 
-		* is_parsed_valid_url
-		* is_url_valid
-		* url_to_absolute_url
-		* MetadataParser.__init__
-		* MetadataParser.absolute_url
-		* MetadataParser.get_discrete_url
-		* MetadataParser.get_metadata_link
-	- new method `get_fallback_url`
-	- `url_to_absolute_url` will return `None` if not supplied with a fallback and test url. Previously an error in parsing would occur
-	- `url_to_absolute_url` tries to do a better job at determining the intended url when given a malformed url.
+    - This has a default behavior change regarding `get_discrete_url()` .
+    - `is_parsed_valid_url()` did not correctly handle `require_public_netloc=True`, and would allow for `localhost` values to pass
+    - new kwarg `allow_localhosts` added to 
+        * is_parsed_valid_url
+        * is_url_valid
+        * url_to_absolute_url
+        * MetadataParser.__init__
+        * MetadataParser.absolute_url
+        * MetadataParser.get_discrete_url
+        * MetadataParser.get_metadata_link
+    - new method `get_fallback_url`
+    - `url_to_absolute_url` will return `None` if not supplied with a fallback and test url. Previously an error in parsing would occur
+    - `url_to_absolute_url` tries to do a better job at determining the intended url when given a malformed url.
 
 0.8.3
-	- packaging fixes
+    - packaging fixes
 
 0.8.2
-	- incorporated fix in https://github.com/jvanasco/metadata_parser/pull/10 to handle windows support of socket objects
-	- cleaned up some tests
-	- added `encode_ascii` helper
-	- added git-ignored `tests/private` directory for non-public tests
-	- added an `encoder` argument to `get_metadata` for encoding values
+    - incorporated fix in https://github.com/jvanasco/metadata_parser/pull/10 to handle windows support of socket objects
+    - cleaned up some tests
+    - added `encode_ascii` helper
+    - added git-ignored `tests/private` directory for non-public tests
+    - added an `encoder` argument to `get_metadata` for encoding values
 
 0.8.1
-	added 2 new properties to a computed MetadataParser object:
-	    is_redirect = None
-	    is_redirect_same_host = None
-	in the case of redirects, we only have the peername available for the final URL (not the source)
-	if a response is a redirect, it may not be for the same host -- and the peername would correspond to the destination URL -- not the origin
+    added 2 new properties to a computed MetadataParser object:
+        is_redirect = None
+        is_redirect_same_host = None
+    in the case of redirects, we only have the peername available for the final URL (not the source)
+    if a response is a redirect, it may not be for the same host -- and the peername would correspond to the destination URL -- not the origin
 
 0.8.0
-	this bump introduces 2 new arguments and some changed behavior:
-	
-	- `search_head_only=None`.  previously the meta/og/etc data was only searched in the document head (where expected as per HTML specs).
-	  after indexing millions of pages, many appeared to implement this incorrectly of have html that is so off specification that 
-	  parsing libraries can't correctly read it (for example, Twitter.com).
-	  This is currently implemented to default from None to True, but future versions will default to `False`.
-	  This is marked for a future default of `search_head_only=False`
+    this bump introduces 2 new arguments and some changed behavior:
+    
+    - `search_head_only=None`.  previously the meta/og/etc data was only searched in the document head (where expected as per HTML specs).
+      after indexing millions of pages, many appeared to implement this incorrectly of have html that is so off specification that 
+      parsing libraries can't correctly read it (for example, Twitter.com).
+      This is currently implemented to default from None to True, but future versions will default to `False`.
+      This is marked for a future default of `search_head_only=False`
 
-	- `raise_on_invalid`.  default False.  If True, this will raise a new exception: InvalidDocument if the response
+    - `raise_on_invalid`.  default False.  If True, this will raise a new exception: InvalidDocument if the response
        does not look like a proper html document
 
 
 
 0.7.4
-	- more aggressive attempts to get the peername.
+    - more aggressive attempts to get the peername.
 
 0.7.3
-	- this will now try to cache the `peername` of the request (ie, the remote server) onto the peername attribute
+    - this will now try to cache the `peername` of the request (ie, the remote server) onto the peername attribute
 
 0.7.2
-	- applying a `strip()` to the "title".  bad authors/cms often have whitespace.
+    - applying a `strip()` to the "title".  bad authors/cms often have whitespace.
 
 0.7.1
-	- added kwargs to docstrings
-	- `get_metadata_link` behavior has been changed as follows:
-	   * if an encoded uri is present (starts with `data:image/`)
-	   ** this will return None by default
-	   ** if a kwarg of `allow_encoded_uri=True` is submitted, will return the encoded url (without a url prefix)
+    - added kwargs to docstrings
+    - `get_metadata_link` behavior has been changed as follows:
+       * if an encoded uri is present (starts with `data:image/`)
+       ** this will return None by default
+       ** if a kwarg of `allow_encoded_uri=True` is submitted, will return the encoded url (without a url prefix)
 
 0.7.0
-	- merged https://github.com/jvanasco/metadata_parser/pull/9 from xethorn
-	- nested all commands to `log` under `__debug__` to avoid calls on production when PYTHONOPTIMIZE is set
+    - merged https://github.com/jvanasco/metadata_parser/pull/9 from xethorn
+    - nested all commands to `log` under `__debug__` to avoid calls on production when PYTHONOPTIMIZE is set
 
 0.6.18
-	- migrated version string into __init__.py
+    - migrated version string into __init__.py
 
 0.6.17
-	- added a new `DummyResponse` class to mimic popular attributes of a `requests.response` object when parsing from HTML files
+    - added a new `DummyResponse` class to mimic popular attributes of a `requests.response` object when parsing from HTML files
 
 0.6.16
-	- incorporated pull8 (https://github.com/jvanasco/metadata_parser/pull/8) which fixes issue5 (https://github.com/jvanasco/metadata_parser/issues/5) with comments
+    - incorporated pull8 (https://github.com/jvanasco/metadata_parser/pull/8) which fixes issue5 (https://github.com/jvanasco/metadata_parser/issues/5) with comments
 
 0.6.15
-	- fixed README which used old api in the example
+    - fixed README which used old api in the example
 
 0.6.14
-	- there was a typo and another bug that passed some tests on BeautifulSoup parsing.  they have been fixed.  todo- migrate tests to public repo
+    - there was a typo and another bug that passed some tests on BeautifulSoup parsing.  they have been fixed.  todo- migrate tests to public repo
 
 0.6.13
-	- trying to integrate a "safe read"
+    - trying to integrate a "safe read"
 
 0.6.12
-	- now passing "stream=True" to requests.get.  this will fetch the headers first, before looping through the response.  we can avoid many issues with this approach
+    - now passing "stream=True" to requests.get.  this will fetch the headers first, before looping through the response.  we can avoid many issues with this approach
 
 0.6.11
-	- now correctly validating urls with ports. had to restructure a lot of the url validation
+    - now correctly validating urls with ports. had to restructure a lot of the url validation
 
 0.6.10
-	- changed how some nodes are inspected. this should lead to fewer errors
+    - changed how some nodes are inspected. this should lead to fewer errors
 
 0.6.9
-	- added a new method `get_metadata_link()`, which applies link transformations to a metadata in an attempt to ensure a valid link
+    - added a new method `get_metadata_link()`, which applies link transformations to a metadata in an attempt to ensure a valid link
 
 0.6.8
-	- added a kwarg `requests_timeout` to proxy a timeout value to `requests.get()`
+    - added a kwarg `requests_timeout` to proxy a timeout value to `requests.get()`
 
 0.6.7
-	- added a lockdown to `is_parsed_valid_url` titled `http_only` -- requires http/https for the scheme
+    - added a lockdown to `is_parsed_valid_url` titled `http_only` -- requires http/https for the scheme
 
 0.6.6
-	- protecting against bad doctypes, like nasa.gov
-	-- added `force_doctype` to __init__.  defaults to False. this will change the doctype to get around to bs4/lxml issues
-	-- this is defaulted to False.
+    - protecting against bad doctypes, like nasa.gov
+    -- added `force_doctype` to __init__.  defaults to False. this will change the doctype to get around to bs4/lxml issues
+    -- this is defaulted to False.
 
 0.6.5
-	- keeping the parsed BS4 document; a user may wish to perform further operations on it.
-	-- `MetadataParser.soup` attribute holds BS4 document
+    - keeping the parsed BS4 document; a user may wish to perform further operations on it.
+    -- `MetadataParser.soup` attribute holds BS4 document
 
 0.6.4
-	- flake8 fixes. purely cosmetic.
+    - flake8 fixes. purely cosmetic.
 
 0.6.3
-	- no changes.  `sdist upload` was picking up a reference file that wasn't in github; that file killed the distribution install
+    - no changes.  `sdist upload` was picking up a reference file that wasn't in github; that file killed the distribution install
 
 0.6.2
-	- formatting fixes via flake8
+    - formatting fixes via flake8
 
 0.6.1
-	- Lightweight, but functional, url validation
-	-- new 'init' argument (defaults to True) : `require_public_netloc`
-	-- this will ensure a url's hostname/netloc is either an IPV4 or "public DNS" name
-	-- if the url is entirely numeric, requires it to be IPV4
-	-- if the url is alphanumeric, requires a TLD + Domain ( exception is "localhost" )
-	-- this is NOT RFC compliant, but designed for "Real Life" use cases.
+    - Lightweight, but functional, url validation
+    -- new 'init' argument (defaults to True) : `require_public_netloc`
+    -- this will ensure a url's hostname/netloc is either an IPV4 or "public DNS" name
+    -- if the url is entirely numeric, requires it to be IPV4
+    -- if the url is alphanumeric, requires a TLD + Domain ( exception is "localhost" )
+    -- this is NOT RFC compliant, but designed for "Real Life" use cases.
 
 0.6.0
-	- Several fixes to improve support of canonical and absolute urls
-	-- replaced REGEX parsing of urls with `urlparse` parsing and inspection; too many edge cases got in
-	-- refactored `MediaParser.absolute_url` , now proxies a call to new function `url_to_absolute_url`
-	-- refactored `MediaParser.get_discrete_url` , now cleaner and leaner.
-	-- refactored how some tests run, so there is cleaner output
+    - Several fixes to improve support of canonical and absolute urls
+    -- replaced REGEX parsing of urls with `urlparse` parsing and inspection; too many edge cases got in
+    -- refactored `MediaParser.absolute_url` , now proxies a call to new function `url_to_absolute_url`
+    -- refactored `MediaParser.get_discrete_url` , now cleaner and leaner.
+    -- refactored how some tests run, so there is cleaner output
 
 
 0.5.8
-	- trying to fix some issues with distribution
+    - trying to fix some issues with distribution
 
 0.5.7
-	- trying to parse unparsable pages was creating an error
-	-- `MetadataParser.init` now accepts `only_parse_file_extensions` -- list of the only file extensions to parse
-	-- `MetadataParser.init` now accepts `force_parse_invalid_content_type` -- forces to parse invalid content
-	-- `MetadataParser.fetch_url` will only parse "text/html" content by default
+    - trying to parse unparsable pages was creating an error
+    -- `MetadataParser.init` now accepts `only_parse_file_extensions` -- list of the only file extensions to parse
+    -- `MetadataParser.init` now accepts `force_parse_invalid_content_type` -- forces to parse invalid content
+    -- `MetadataParser.fetch_url` will only parse "text/html" content by default
 
 0.5.6
-	- trying to ensure we return a valid url in get_discrete_url()
-	- adding in some proper unit tests; migrating from the private demo's slowly ( the private demo's hit a lot of internal files and public urls ; wouldn't be proper to make these public )
-	- setting `self.url_actual = url` on __init__. this will get overridden on a `fetch`, but allows for a fallback on html docs passed through
+    - trying to ensure we return a valid url in get_discrete_url()
+    - adding in some proper unit tests; migrating from the private demo's slowly ( the private demo's hit a lot of internal files and public urls ; wouldn't be proper to make these public )
+    - setting `self.url_actual = url` on __init__. this will get overridden on a `fetch`, but allows for a fallback on html docs passed through
 
 
 0.5.5
-	- Dropped BS3 support
-	- test Python3 support ( support added by Paul Bonser [ https://github.com/pib ] )
+    - Dropped BS3 support
+    - test Python3 support ( support added by Paul Bonser [ https://github.com/pib ] )
 
 
 0.5.4
-	- Pull Request - https://github.com/jvanasco/metadata_parser/pull/1
-		Credit to Paul Bonser [ https://github.com/pib ]
+    - Pull Request - https://github.com/jvanasco/metadata_parser/pull/1
+        Credit to Paul Bonser [ https://github.com/pib ]
 
 0.5.3
-	- added a few `.strip()` calls to clean up metadata values
+    - added a few `.strip()` calls to clean up metadata values
 
 0.5.2
-	- fixed an issue on html title parsing.  the old method incorrectly regexed on a BS4 tag, not tag contents, creating character encoding issues.
+    - fixed an issue on html title parsing.  the old method incorrectly regexed on a BS4 tag, not tag contents, creating character encoding issues.
 
 0.5.1
-	- missed the ssl_verify command
+    - missed the ssl_verify command
 
 0.5.0
-	- migrated to the requests library
+    - migrated to the requests library
 
 0.4.13
-	- trapping all errors in httplib and urrlib2 ; raising as an NotParsable and sticking the original error into the `raised` attribute.
-		this will allow for cleaner error handling
-	- we *really* need to move to requests.py
+    - trapping all errors in httplib and urrlib2 ; raising as an NotParsable and sticking the original error into the `raised` attribute.
+        this will allow for cleaner error handling
+    - we *really* need to move to requests.py
 
 0.4.12
-	- created a workaround for sharethis hashbang urls, which urllib2 doesn't like
-	- we need to move to requests.py
+    - created a workaround for sharethis hashbang urls, which urllib2 doesn't like
+    - we need to move to requests.py
 
 0.4.11
-	- added more relaxed controls for parsing safe files
+    - added more relaxed controls for parsing safe files
 
 0.4.10
-	- fixed force_parse arg on init
-	- added support for more filetypes
+    - fixed force_parse arg on init
+    - added support for more filetypes
 
 0.4.9
-	- support for gzip documents that pad with extra data ( spec allows, python module doesn't )
-	- ensure proper document format
+    - support for gzip documents that pad with extra data ( spec allows, python module doesn't )
+    - ensure proper document format
 
 0.4.8
-	- added support for twitter's own og style markup
-	- cleaned up the beautifulsoup finds for og data
-	- moved 'try' from encapsulating 'for' blocks to encapsulating the inner loop.  this will pull more data out if an error occurs.
+    - added support for twitter's own og style markup
+    - cleaned up the beautifulsoup finds for og data
+    - moved 'try' from encapsulating 'for' blocks to encapsulating the inner loop.  this will pull more data out if an error occurs.
 
 0.4.7
-	- cleaned up some code
+    - cleaned up some code
 
 0.4.6
-	- realized that some servers return gzip content, despite not advertising that this client accepts that content ; fixed by using some ideas from mark pilgrim's feedparser.  metadata_parser now advertises gzip and zlib, and processes it as needed
+    - realized that some servers return gzip content, despite not advertising that this client accepts that content ; fixed by using some ideas from mark pilgrim's feedparser.  metadata_parser now advertises gzip and zlib, and processes it as needed
 
 0.4.5
-	- fixed a bug that prevented toplevel directories from being parsed
+    - fixed a bug that prevented toplevel directories from being parsed
 
 0.4.4
-	- made redirect/masked/shortened links have better dereferenced url support
+    - made redirect/masked/shortened links have better dereferenced url support
 
 0.4.2
-	- Wrapped title tag traversal with an AttributeException try block
-	- Wrapped canonical tag lookup with a KeyError try block, defaulting to 'href' then 'content'
-	- Added support for `url_actual` and `url_info` , which persist the data from the urllib2.urlopen object's `geturl()` and `info()`
-	- `get_discrete_url` and `absolute_url` use the underlying url_actual data
-	- added support for passing data and headers into urllib2 requests
+    - Wrapped title tag traversal with an AttributeException try block
+    - Wrapped canonical tag lookup with a KeyError try block, defaulting to 'href' then 'content'
+    - Added support for `url_actual` and `url_info` , which persist the data from the urllib2.urlopen object's `geturl()` and `info()`
+    - `get_discrete_url` and `absolute_url` use the underlying url_actual data
+    - added support for passing data and headers into urllib2 requests
 
 0.4.1
-	Initial Release
+    Initial Release
