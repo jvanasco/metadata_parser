@@ -266,7 +266,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
     def test_readme_scenario(self):
         """
         you had one job...
-        if someone lists the canonical as an invalid domain, remount the right domain
+        if someone lists the canonical as an invalid LOCAL domain, remount the right domain
 
         python -m unittest tests.url_parsing.TestDocumentCanonicals.test_readme_scenario
         """
@@ -335,6 +335,28 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)
+
+
+    def test_noupgrade_a(self):
+        """
+        """
+        url = 'https://example.com/nested/A.html'
+        rel_canonical = 'https://foo.local/B.html'
+        rel_expected = None
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
+
+        parsed_url = parsed.get_url_canonical(require_public_global=True)
+        self.assertEquals(parsed_url, rel_expected)
+
+        parsed_url = parsed.get_url_opengraph(require_public_global=True)
+        self.assertEquals(parsed_url, rel_expected)
+
+        parsed_url = parsed.get_url_canonical(require_public_global=True, url_fallback=url)
+        self.assertEquals(parsed_url, rel_expected)
+
+        parsed_url = parsed.get_url_opengraph(require_public_global=True, url_fallback=url)
         self.assertEquals(parsed_url, rel_expected)
 
 

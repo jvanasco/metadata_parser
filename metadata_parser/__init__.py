@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.10'
+__VERSION__ = '0.9.11'
 
 
 # ------------------------------------------------------------------------------
@@ -16,6 +16,7 @@ import datetime
 import re
 import unicodedata
 import warnings
+import pdb
 
 # pypi
 import requests
@@ -179,6 +180,24 @@ def encode_ascii(text):
 
 # ------------------------------------------------------------------------------
 
+
+def is_hostname_valid(hostname, allow_localhosts=True, require_public_netloc=False):
+    if hostname.lower() in PRIVATE_HOSTNAMES:
+        if not allow_localhosts:
+            return False
+        if require_public_netloc:
+            return False
+        return True
+    if USE_TLDEXTRACT:
+        extracted = tldextract.extract(hostname)
+        if not extracted.registered_domain:
+            return False
+        return True
+    if RE_DOMAIN_NAME.match(hostname):
+        return True
+    return False
+
+
 def is_parsed_valid_url(
     parsed,
     require_public_netloc=True,
@@ -212,14 +231,8 @@ def is_parsed_valid_url(
             return False
 
         # we may assign these
-        _hostname = parsed.netloc
-        _port = None
-
-        _netloc_ported = RE_PORT.match(parsed.netloc)
-        if _netloc_ported:
-            _netloc_ported_groudict = _netloc_ported.groupdict()
-            _hostname = _netloc_ported_groudict['main']
-            _port = _netloc_ported_groudict['port']
+        _hostname = parsed.hostname
+        _port = parsed.port
 
         # this can be a fast check..
         # note this is done AFTER we clean up a potential port grouping
@@ -379,7 +392,11 @@ def url_to_absolute_url(
         return url_fallback
 
     parsed = urlparse(url_test)
-    parsed_fallback = urlparse(url_fallback)
+    
+    # if we passed in a url, we can't remount it onto another domain
+    if parsed.hostname:
+        if not is_hostname_valid(parsed.hostname, allow_localhosts=True):
+            return None
 
     _path = parsed.path
     if _path:
@@ -391,6 +408,8 @@ def url_to_absolute_url(
             _path = "/%s" % _path
         if _path in known_invalid_plugins_paths:
             return url_fallback
+
+    parsed_fallback = urlparse(url_fallback)
 
     """
     # this was a testing concept to remount the path

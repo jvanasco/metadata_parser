@@ -1,6 +1,11 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.11
+    * some changes to how we handle upgrading bad canonicals
+      upgrades will no longer happen IF they specify a bad domain.
+      upgrades from localhost will still transfer over
+
 0.9.10
     * slight reorder internally of TLD extract support
 
