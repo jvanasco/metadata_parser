@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.11'
+__VERSION__ = '0.9.12'
 
 
 # ------------------------------------------------------------------------------
@@ -535,6 +535,8 @@ class DummyResponse(object):
     encoding = None
     elapsed_seconds = None
     history = None
+    headers = None
+    content = None
 
     def __init__(
         self,
@@ -543,12 +545,16 @@ class DummyResponse(object):
         status_code=200,
         encoding='utf-8',
         elapsed_seconds=0,
+        headers=None,
+        content=None,
     ):
         self.text = text
         self.url = url
         self.status_code = status_code
         self.encoding = encoding
         self.elapsed = datetime.timedelta(0, elapsed_seconds)
+        self.headers = headers if headers is not None else {}
+        self.content = content
 
 
 # ------------------------------------------------------------------------------
