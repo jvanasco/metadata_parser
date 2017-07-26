@@ -5,24 +5,33 @@ import requests
 from httpbin import app as httpbin_app
 import pytest_httpbin.serve
 
+import pdb
+import pprint
+import sys
+import traceback
 
 class SessionRedirect(requests.Session):
     num_checked = None
 
     def get_redirect_target(self, resp):
-        # cache this for later use
-        cached_peername = metadata_parser.get_response_peername(resp)
-        if self.num_checked is None:
-            self.num_checked = 0
-        self.num_checked += 1
-        if resp.is_redirect:
-            return resp.headers['location']
-        if resp.status_code == 200:
-            # some servers will do a 200 but put a redirect header in there. WTF
-            dumb_redirect = resp.headers.get('location')
-            if dumb_redirect:
-                return dumb_redirect
-        return None
+        # previous versions cached this for later use, but now we use a hook
+        # cached_peername = metadata_parser.get_response_peername(resp)
+        def _get():
+            if self.num_checked is None:
+                self.num_checked = 0
+            self.num_checked += 1
+            if resp.is_redirect:
+                return resp.headers['location']
+            if resp.status_code == 200:
+                # some servers will do a 200 but put a redirect header in there. WTF
+                dumb_redirect = resp.headers.get('location')
+                if dumb_redirect:
+                    return dumb_redirect
+            return None
+        # -- 
+        if not hasattr(resp, '_redirect_target'):
+            resp._redirect_target = _get()
+        return resp._redirect_target
 
 
 class TestSessionsHttpBin(unittest.TestCase):

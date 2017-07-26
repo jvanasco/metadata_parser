@@ -255,7 +255,6 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEquals(parsed.metadata['twitter']['url'], 'https://example.com/meta/name=twitter:url')
         self.assertEquals(parsed.is_opengraph_minimum(), True)
 
-
     def test_html_urls(self):
         """this tests simple.html to have certain fields"""
         html = self._MakeOne('simple.html')
@@ -266,3 +265,16 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEquals(parsed.get_url_opengraph(), 'https://www.example.com/meta/property=og:url')
         self.assertEquals(parsed.get_url_canonical(), 'http://example.com/meta/rel=canonical')
 
+    def test_encoding_fallback(self):
+        """this tests simple.html to have certain fields"""
+        html = """<html><head></head><body>body</body></html>"""
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+        self.assertEquals(parsed.response.encoding, 'ISO-8859-1')
+
+    def test_encoding_declared(self):
+        html = """<html><head><meta charset="UTF-8"></head><body>body</body></html>"""
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+        self.assertEquals(parsed.response.encoding, 'UTF-8')
+        
+        
+        

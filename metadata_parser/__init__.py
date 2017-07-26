@@ -5,22 +5,34 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.12'
+__VERSION__ = '0.9.13'
 
 
 # ------------------------------------------------------------------------------
 
 
 # stdlib
+import cgi
 import datetime
+import os
+import sys
 import re
 import unicodedata
 import warnings
-import pdb
+
+if __debug__:
+    # only used for testing. turn off in most production env with -o flags
+    import pdb
+    import pprint
 
 # pypi
-import requests
 from bs4 import BeautifulSoup
+import requests
+try:
+    # use the toolbelt if available
+    from requests_toolbelt.utils.deprecated import get_encodings_from_content
+except ImportError:
+    from requests.utils import get_encodings_from_content
 
 try:
     import tldextract
@@ -35,7 +47,6 @@ try:
 except:
     # Python 3 has the same library hidden in urllib.parse
     from urllib.parse import urlparse, ParseResult
-import sys
 PY3 = sys.version_info[0] == 3
 
 
@@ -46,14 +57,14 @@ def warn_future(message):
 # ------------------------------------------------------------------------------
 
 # defaults
-
-MAX_FILEIZE = 2**19  # bytes; this is .5MB
-MAX_CONNECTIONTIME = 20  # in seconds
-DUMMY_URL = "http://example.com/index.html"
+ENCODING_FALLBACK = os.environ.get('METADATA_PARSER__ENCODING_FALLBACK', 'ISO-8859-1')
+DUMMY_URL = os.environ.get('METADATA_PARSER__DUMMY_URL', "http://example.com/index.html")
+MAX_CONNECTIONTIME = int(os.environ.get('METADATA_PARSER__MAX_CONNECTIONTIME', 20))  # in seconds
+MAX_FILEIZE = int(os.environ.get('METADATA_PARSER__MAX_FILEIZE', 2**19))  # bytes; this is .5MB
 
 # peername hacks
 # these are in the stdlib
-# will be eventually not be needed thanks to upstream changes in `requests`
+# eventually will not be needed thanks to upstream changes in `requests`
 import _socket
 import socket
 try:
@@ -61,7 +72,9 @@ try:
 except AttributeError:
     _compatible_sockets = (_socket.socket, )
 
+
 # ------------------------------------------------------------------------------
+
 
 # regex library
 
@@ -145,8 +158,8 @@ RE_rfc3986_valid_characters = re.compile("""^[a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&
 """
 What is valid in the RFC?
     # don't need escaping
-    rfc3986_unreserved__noescape = ['a-z', '0-9', ]  
-    
+    rfc3986_unreserved__noescape = ['a-z', '0-9', ]
+
     # do need escaping
     rfc3986_unreserved__escape = ['-', '.', '_', '~', ]
     rfc3986_gen_delims__escape = [":", "/", "?", "#", "[", "]", "@", ]
@@ -159,7 +172,7 @@ What is valid in the RFC?
 
     a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%
 """
-    
+
 
 # ------------------------------------------------------------------------------
 
@@ -176,6 +189,119 @@ def encode_ascii(text):
     if PY3:
         normalized = normalized.decode("utf-8", "ignore")
     return normalized
+
+
+# ------------------------------------------------------------------------------
+
+
+def get_encoding_from_headers(headers):
+    """
+    Returns encodings from given HTTP Header Dict.
+
+    :param headers: dictionary to extract encoding from.
+    :rtype: str
+
+    ----------------------------------------------------------------------------
+
+    Modified from `requests` version 2.x
+
+    The Requests Library:
+
+        Copyright 2017 Kenneth Reitz
+
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+    """
+    content_type = headers.get('content-type')
+    if not content_type:
+        return None
+    content_type, params = cgi.parse_header(content_type)
+    if 'charset' in params:
+        return params['charset'].strip("'\"")
+    return None
+
+
+# ------------------------------------------------------------------------------
+
+
+def get_response_peername(resp):
+    """
+    used to get the peername (ip+port) data from the request
+    if a socket is found, caches this onto the request object
+
+    IMPORTANT. this must happen BEFORE any content is consumed.
+    """
+    if not isinstance(resp, requests.models.Response):
+        # raise AllowableError("Not a HTTPResponse")
+        log.debug("Not a HTTPResponse | %s", resp)
+        return None
+
+    if hasattr(resp, '_mp_peername'):
+        return resp._mp_peername
+
+    def _get_socket():
+        i = 0
+        while True:
+            i += 1
+            try:
+                if i == 1:
+                    sock = resp.raw._connection.sock
+                elif i == 2:
+                    sock = resp.raw._connection.sock.socket
+                elif i == 3:
+                    sock = resp.raw._fp.fp._sock
+                elif i == 4:
+                    sock = resp.raw._fp.fp._sock.socket
+                elif i == 5:
+                    sock = resp.raw._fp.fp.raw._sock
+                else:
+                    break
+                if not isinstance(sock, _compatible_sockets):
+                    raise AllowableError()
+                return sock
+            except Exception as e:  # noqa
+                pass
+        return None
+
+    sock = _get_socket()
+    if sock:
+        # only cache if we have a sock
+        # we may want/need to call again
+        resp._mp_peername = sock.getpeername()
+        return resp._mp_peername
+    return None
+
+
+# ------------------------------------------------------------------------------
+
+
+def response_peername__hook(resp, *args, **kwargs):
+    get_response_peername(resp)
+    # do not return anything
+
+
+def derive_encoding__hook(resp, *args, **kwargs):
+    resp._encoding_fallback = ENCODING_FALLBACK
+    # modified version, returns `None` if no charset available
+    resp._encoding_headers = get_encoding_from_headers(resp.headers)
+    resp._encoding_content = None
+    if not resp._encoding_headers and resp.content:
+        # html5 spec requires a meta-charset in the first 1024 bytes
+        resp._encoding_content = get_encodings_from_content(resp.content[:1024])
+    if resp._encoding_content:
+        resp.encoding = resp._encoding_content[0]  # it's a list
+    else:
+        resp.encoding = resp._encoding_headers or resp._encoding_fallback
+    # do not return anything
 
 
 # ------------------------------------------------------------------------------
@@ -392,7 +518,7 @@ def url_to_absolute_url(
         return url_fallback
 
     parsed = urlparse(url_test)
-    
+
     # if we passed in a url, we can't remount it onto another domain
     if parsed.hostname:
         if not is_hostname_valid(parsed.hostname, allow_localhosts=True):
@@ -543,67 +669,33 @@ class DummyResponse(object):
         text='',
         url=DUMMY_URL,
         status_code=200,
-        encoding='utf-8',
+        encoding=None,
         elapsed_seconds=0,
         headers=None,
         content=None,
+        derive_encoding=None,
     ):
         self.text = text
         self.url = url
         self.status_code = status_code
-        self.encoding = encoding
         self.elapsed = datetime.timedelta(0, elapsed_seconds)
         self.headers = headers if headers is not None else {}
         self.content = content
 
+        # start `encoding` block
+        if encoding:
+            self.encoding = encoding
+        elif derive_encoding:
+            # only examine first 1024 bytes. in this case chars. utf could be 4x chars
+            encodings = get_encodings_from_content(text[:1024])
+            if encodings:
+                self.encoding = encodings[0]
+        # second phase cleanup
+        if not self.encoding:
+            self.encoding = ENCODING_FALLBACK
+        # end `encoding` block
 
-# ------------------------------------------------------------------------------
-
-
-def get_response_peername(r):
-    """
-    used to get the peername (ip+port) data from the request
-    if a socket is found, caches this onto the request object
-    """
-    if not isinstance(r, requests.models.Response):
-        # raise AllowableError("Not a HTTPResponse")
-        log.debug("Not a HTTPResponse | %s", r)
-        return None
-
-    if hasattr(r, '_mp_peername'):
-        return r._mp_peername
-
-    def _get_socket():
-        i = 0
-        while True:
-            i += 1
-            try:
-                if i == 1:
-                    sock = r.raw._connection.sock
-                elif i == 2:
-                    sock = r.raw._connection.sock.socket
-                elif i == 3:
-                    sock = r.raw._fp.fp._sock
-                elif i == 4:
-                    sock = r.raw._fp.fp._sock.socket
-                elif i == 5:
-                    sock = r.raw._fp.fp.raw._sock
-                else:
-                    break
-                if not isinstance(sock, _compatible_sockets):
-                    raise AllowableError()
-                return sock
-            except Exception as e:  # noqa
-                pass
-        return None
-
-    sock = _get_socket()
-    if sock:
-        # only cache if we have a sock
-        # we may want/need to call again
-        r._mp_peername = sock.getpeername()
-        return r._mp_peername
-    return None
+        # TODO? encode/decode html
 
 
 # ------------------------------------------------------------------------------
@@ -740,10 +832,11 @@ class MetadataParser(object):
     force_parse_invalid_content_type = None
     only_parse_http_ok = None
     requests_session = None
+    derive_encoding = None
 
     # allow for the beautiful_soup to be saved
     soup = None
-
+    
     def __init__(
         self,
         url=None, html=None, strategy=None, url_data=None, url_headers=None,
@@ -752,6 +845,7 @@ class MetadataParser(object):
         allow_localhosts=None, force_doctype=False, requests_timeout=None,
         raise_on_invalid=False, search_head_only=None, allow_redirects=True,
         requests_session=None, only_parse_http_ok=True, defer_fetch=False,
+        derive_encoding=True, html_encoding=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -761,6 +855,8 @@ class MetadataParser(object):
                 url to parse
             `html`
                 instead of a url, parse raw html
+            `html_encoding`
+                if html is passed, optionally note the encoding
             `strategy`
                 default: None
                 sets default metadata strategy (['og', 'dc', 'meta', 'page'])
@@ -825,6 +921,9 @@ class MetadataParser(object):
             `defer_fetch`:
                 default: False
                 if True, will not fetch the url.
+            `derive_encoding`:
+                default: True
+                if True, will try to pull encoding from the content
         """
         if url is not None:
             url = url.strip()
@@ -851,6 +950,7 @@ class MetadataParser(object):
         self.search_head_only = search_head_only
         self.raise_on_invalid = raise_on_invalid
         self.requests_session = requests_session
+        self.derive_encoding = derive_encoding
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
@@ -871,7 +971,11 @@ class MetadataParser(object):
             else:
                 html = ''
         else:
-            self.response = DummyResponse(text=html, url=url or DUMMY_URL)
+            # if html
+            self.response = DummyResponse(text=html, url=(url or DUMMY_URL),
+                                          encoding=html_encoding,
+                                          derive_encoding=derive_encoding,
+                                          )
         if html:
             self.parse(html)
 
@@ -908,7 +1012,7 @@ class MetadataParser(object):
         url_data=None, url_headers=None, force_parse=None,
         force_parse_invalid_content_type=None, allow_redirects=None,
         ssl_verify=None, requests_timeout=None, requests_session=None,
-        only_parse_http_ok=None,
+        only_parse_http_ok=None, derive_encoding=None,
     ):
         """
         fetches the url and returns it.
@@ -936,6 +1040,8 @@ class MetadataParser(object):
                 defaults to self.requests_session if None
                 an instance of `requests.Session` or a subclass
                 if `None`, will create a new Session.
+            derive_encoding=None
+                defaults to self.derive_encoding if None
         """
         # should we even download/parse this?
         force_parse = force_parse if force_parse is not None else self.force_parse
@@ -967,28 +1073,32 @@ class MetadataParser(object):
         # that fucks things up.
         url = self.url.split('#')[0]
 
-        r = None
+        resp = None
         try:
             # requests gives us unicode and the correct encoding, yay
             allow_redirects = allow_redirects if allow_redirects is not None else self.allow_redirects
             requests_timeout = requests_timeout if requests_timeout is not None else self.requests_timeout
             ssl_verify = ssl_verify if ssl_verify is not None else self.ssl_verify
             requests_session = requests_session if requests_session is not None else self.requests_session
+            derive_encoding = derive_encoding if derive_encoding is not None else self.derive_encoding
             if requests_session is None:
                 requests_session = requests.Session()
-            r = requests_session.get(
+            requests_session.hooks['response'].insert(0, response_peername__hook)  # must be first
+            if derive_encoding:
+                requests_session.hooks['response'].append(derive_encoding__hook)
+            resp = requests_session.get(
                 url, params=url_data, headers=url_headers,
                 allow_redirects=allow_redirects, verify=ssl_verify,
                 timeout=requests_timeout, stream=True,
             )
-            self.response = r
-            self.peername = get_response_peername(r)
-            if r.history:
+            self.response = resp
+            self.peername = get_response_peername(resp)
+            if resp.history:
                 self.is_redirect = True
                 # sometimes we encounter a circular redirect for auth
-                self.is_redirect_unique = False if r.url == r.history[0].url else True
+                self.is_redirect_unique = False if resp.url == resp.history[0].url else True
                 parsed_url_og = urlparse(url)
-                parsed_url_dest = urlparse(r.url)
+                parsed_url_dest = urlparse(resp.url)
                 self.is_redirect_same_host = True if (parsed_url_og.netloc == parsed_url_dest.netloc) else False
             else:
                 self.is_redirect = False
@@ -996,37 +1106,38 @@ class MetadataParser(object):
 
             # lowercase all of the HTTP headers for comparisons per RFC 2616
             self.response_headers = dict((k.lower(), v)
-                                         for k, v in r.headers.items())
+                                         for k, v in resp.headers.items())
             # stash this into the url actual too
-            self.url_actual = self.parsed_result.metadata['_internal']['url_actual'] = r.url
+            self.url_actual = self.parsed_result.metadata['_internal']['url_actual'] = resp.url
 
             # if we're not following redirects, there could be an error here!
             if not allow_redirects:
-                if r.status_code in (301, 302, 307, 308):
-                    header_location = r.headers.get('location')
+                if resp.status_code in (301, 302, 307, 308):
+                    header_location = resp.headers.get('location')
                     if header_location:
                         raise RedirectDetected(location=header_location,
-                                               code=r.status_code,
-                                               response=r,
+                                               code=resp.status_code,
+                                               response=resp,
                                                metadataParser=self,
                                                )
                     raise NotParsableRedirect(
                         message="Status Code is redirect, but missing header",
-                        code=r.status_code,
+                        code=resp.status_code,
                         metadataParser=self,
                     )
 
-            if only_parse_http_ok and r.status_code != 200:
+            if only_parse_http_ok and resp.status_code != 200:
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
-                    code=r.status_code,
+                    code=resp.status_code,
                     metadataParser=self,
                 )
 
             content_type = None
-            if 'content-type' in r.headers:
-                content_type = r.headers['content-type']
+            if 'content-type' in resp.headers:
+                content_type = resp.headers['content-type']
                 # content type can have a character encoding in it...
+                # the encoding may have been used 
                 content_type = [i.strip() for i in content_type.split(';')]
                 content_type = content_type[0].lower()
                 if content_type == 'application/json':
@@ -1041,7 +1152,7 @@ class MetadataParser(object):
                                   metadataParser=self)
 
             # okay, now we're safe to consume the request content
-            html = r.text
+            html = resp.text
 
         except requests.exceptions.RequestException as error:
             if hasattr(error, 'response') and (error.response is not None):
@@ -1269,8 +1380,6 @@ class MetadataParser(object):
                 allow_localhosts=False,
             ):
                 # try making it absolute
-                
-                
                 canonical = url_to_absolute_url(
                     canonical,
                     url_fallback=url_fallback,

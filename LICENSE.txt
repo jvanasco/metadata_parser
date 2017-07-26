@@ -1,4 +1,4 @@
-Copyright (c) 2012, Jonathan Vanasco <jonathan@findmeon.com>
+Copyright (c) 2012-2017, Jonathan Vanasco <jonathan@findmeon.com>
 
 MIT License -- http://www.opensource.org/licenses/mit-license
 
@@ -19,3 +19,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Portions of this Library include code from other projects that are available
+under similarly permissive licenses.  More information and the license is
+available alongside the code.
+
+This includes:
+
+* code from the Requests project, copyright Kenneth Reitz, which is available
+  under the Apache2 license.

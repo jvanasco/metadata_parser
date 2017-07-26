@@ -1,6 +1,14 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.13
+    * doing some work to guess encoding...
+    * internal: now using `resp` instead of `r`, it is easier for pdb debugging
+    * the peername check was changed to be a hook, so it can be processed more immediately
+    * the custom session redirect test was altered
+	* changed the DummyResponse encoding fallback to `ENCODING_FALLBACK` which is Latin (not utf8)
+	  this is somewhat backwards incompatible with this library, but maintains compatibility with the underlying `requests` library
+
 0.9.12
     * added more attributes to DummyResponse:
     ** `content`
