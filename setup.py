@@ -38,6 +38,8 @@ setup(name='metadata_parser',
       tests_require=[
         'pytest',
         'pytest-httpbin',
+        'requests',
+        'responses',
       ],
       entry_points="""
       # -*- Entry points: -*-

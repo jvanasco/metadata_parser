@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.13'
+__VERSION__ = '0.9.14'
 
 
 # ------------------------------------------------------------------------------
@@ -1209,6 +1209,10 @@ class MetadataParser(object):
         else:
             doc = html
 
+        # stash the bs4 doc for further operations
+        # do this now, otherwise it's a pain to debug if we return
+        self.parsed_result.soup = doc
+
         # let's ensure that we have a real document...
         if not doc or not doc.html:
             if self.raise_on_invalid:
@@ -1224,9 +1228,6 @@ class MetadataParser(object):
                     raise InvalidDocument("missing `doc.html.head`")
                 return
             doc_searchpath = doc.html.head
-
-        # stash the bs4 doc for further operations
-        self.parsed_result.soup = doc
 
         ogs = doc_searchpath.findAll('meta',
                                      attrs={'property': RE_prefix_opengraph, }
