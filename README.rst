@@ -203,3 +203,9 @@ Usage
     >>> print page.get_metadata('title')
     >>> print page.get_metadata('title', strategy=['og',])
     >>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
+
+
+Notes
+======
+
+when building on python3, a `static` toplevel directory may be needed

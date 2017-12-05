@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.14'
+__VERSION__ = '0.9.15'
 
 
 # ------------------------------------------------------------------------------
@@ -296,7 +296,10 @@ def derive_encoding__hook(resp, *args, **kwargs):
     resp._encoding_content = None
     if not resp._encoding_headers and resp.content:
         # html5 spec requires a meta-charset in the first 1024 bytes
-        resp._encoding_content = get_encodings_from_content(resp.content[:1024])
+        _sample = resp.content[:1024]
+        if PY3:
+            _sample = resp.content.decode()
+        resp._encoding_content = get_encodings_from_content(_sample)
     if resp._encoding_content:
         resp.encoding = resp._encoding_content[0]  # it's a list
     else:
@@ -358,7 +361,13 @@ def is_parsed_valid_url(
 
         # we may assign these
         _hostname = parsed.hostname
-        _port = parsed.port
+        try:
+            # some py3 versions will have a ValueError here, e.g.
+            #   ValueError: invalid literal for int() with base 10: '8080:8080'
+            _port = parsed.port
+        except ValueError:
+            log.debug(" could not access parsed.port")
+            return False
 
         # this can be a fast check..
         # note this is done AFTER we clean up a potential port grouping
