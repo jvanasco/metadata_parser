@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.15'
+__VERSION__ = '0.9.16'
 
 
 # ------------------------------------------------------------------------------
@@ -43,10 +43,15 @@ except:
 # python 2/3
 try:
     # Python 2 has a standard urlparse library
-    from urlparse import urlparse, ParseResult
+    from urlparse import urlparse, urlunparse, ParseResult
+    from urllib import quote as url_quote
+    from urllib import unquote as url_unquote
 except:
     # Python 3 has the same library hidden in urllib.parse
-    from urllib.parse import urlparse, ParseResult
+    from urllib.parse import urlparse, urlunparse, ParseResult
+    from urllib.parse import quote as url_quote
+    from urllib.parse import unquote as url_unquote
+
 PY3 = sys.version_info[0] == 3
 
 
@@ -467,6 +472,36 @@ def parsed_to_relative(parsed, parsed_fallback=None):
     return _path
 
 
+def fix_unicode_url(url, encoding=None):
+    """
+    some cms systems will put unicode in their canonical url
+    this is not allowed by rfc.
+    currently this function will update the PATH but not the kwargs.
+    perhaps it should.
+    """
+    parsed = urlparse(url)
+    if parsed.path in ('', '/'):
+        # can't do anything
+        return url
+    if RE_rfc3986_valid_characters.match(parsed.path):
+        # again, can't do anything
+        return url
+    # okay, we know we have bad items in the path, so try and upgrade!
+    # turn the namedtuple from urlparse into something we can edit
+    candidate = [i for i in parsed]
+    try:
+        candidate[2] = parsed.path
+        if not PY3:
+            if encoding:
+                candidate[2] = parsed.path.encode(encoding)
+        candidate[2] = url_quote(url_unquote(candidate[2]))
+    except Exception as e:
+        log.debug("fix_unicode_url failure: %s | %s", url, encoding)
+        return url
+    candidate = urlunparse(candidate)
+    return candidate
+
+
 def is_url_valid(
     url,
     require_public_netloc=None,
@@ -672,6 +707,7 @@ class DummyResponse(object):
     history = None
     headers = None
     content = None
+    default_encoding = None
 
     def __init__(
         self,
@@ -683,6 +719,7 @@ class DummyResponse(object):
         headers=None,
         content=None,
         derive_encoding=None,
+        default_encoding=None,
     ):
         self.text = text
         self.url = url
@@ -699,9 +736,11 @@ class DummyResponse(object):
             encodings = get_encodings_from_content(text[:1024])
             if encodings:
                 self.encoding = encodings[0]
+        if default_encoding:
+            self.default_encoding = default_encoding
         # second phase cleanup
         if not self.encoding:
-            self.encoding = ENCODING_FALLBACK
+            self.encoding = self.default_encoding or ENCODING_FALLBACK
         # end `encoding` block
 
         # TODO? encode/decode html
@@ -842,6 +881,7 @@ class MetadataParser(object):
     only_parse_http_ok = None
     requests_session = None
     derive_encoding = None
+    default_encoding = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -854,7 +894,7 @@ class MetadataParser(object):
         allow_localhosts=None, force_doctype=False, requests_timeout=None,
         raise_on_invalid=False, search_head_only=None, allow_redirects=True,
         requests_session=None, only_parse_http_ok=True, defer_fetch=False,
-        derive_encoding=True, html_encoding=None,
+        derive_encoding=True, html_encoding=None, default_encoding=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -933,6 +973,9 @@ class MetadataParser(object):
             `derive_encoding`:
                 default: True
                 if True, will try to pull encoding from the content
+            `default_encoding`   
+                default: None
+                per-parser default
         """
         if url is not None:
             url = url.strip()
@@ -960,6 +1003,7 @@ class MetadataParser(object):
         self.raise_on_invalid = raise_on_invalid
         self.requests_session = requests_session
         self.derive_encoding = derive_encoding
+        self.default_encoding = default_encoding
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
@@ -984,6 +1028,7 @@ class MetadataParser(object):
             self.response = DummyResponse(text=html, url=(url or DUMMY_URL),
                                           encoding=html_encoding,
                                           derive_encoding=derive_encoding,
+                                          default_encoding=default_encoding,
                                           )
         if html:
             self.parse(html)
@@ -1016,12 +1061,18 @@ class MetadataParser(object):
 
     # --------------------------------------------------------------------------
 
+    def _response_encoding(self):
+        if self.response:
+            return self.response.encoding
+        return self.default_encoding or ENCODING_FALLBACK
+
     def fetch_url(
         self,
         url_data=None, url_headers=None, force_parse=None,
         force_parse_invalid_content_type=None, allow_redirects=None,
         ssl_verify=None, requests_timeout=None, requests_session=None,
         only_parse_http_ok=None, derive_encoding=None,
+        default_encoding=None,
     ):
         """
         fetches the url and returns it.
@@ -1051,6 +1102,8 @@ class MetadataParser(object):
                 if `None`, will create a new Session.
             derive_encoding=None
                 defaults to self.derive_encoding if None
+            default_encoding=None
+                defaults to self.default_encoding if None
         """
         # should we even download/parse this?
         force_parse = force_parse if force_parse is not None else self.force_parse
@@ -1204,20 +1257,24 @@ class MetadataParser(object):
             html
         """
         if not isinstance(html, BeautifulSoup):
-            # clean the html?
+            encoding = None
+            try:
+                encoding = self.response.encoding
+            except:
+                pass
             if self.force_doctype:
                 html = REGEX_doctype.sub("<!DOCTYPE html>", html)
             try:
                 try:
-                    doc = BeautifulSoup(html, "lxml")
+                    doc = BeautifulSoup(html, "lxml", fromEncoding=encoding)
                 except:
-                    doc = BeautifulSoup(html, "html.parser")
+                    doc = BeautifulSoup(html, "html.parser", fromEncoding=encoding)
             except:
                 raise NotParsable("could not parse into BeautifulSoup",
                                   metadataParser=self)
         else:
             doc = html
-
+        
         # stash the bs4 doc for further operations
         # do this now, otherwise it's a pain to debug if we return
         self.parsed_result.soup = doc
@@ -1367,8 +1424,16 @@ class MetadataParser(object):
         self,
         require_public_global=True,
         url_fallback=None,
+        allow_unicode_url=True,
     ):
-        """this was originally part of `get_discrete_url`"""
+        """
+        this was originally part of `get_discrete_url`
+
+        kwargs:
+            require_public_global=True
+            url_fallback=True
+            allow_unicode_url=True
+        """
         canonical = self.get_metadata('canonical', strategy=['page'])
         if not canonical:
             return None
@@ -1377,7 +1442,14 @@ class MetadataParser(object):
         # amateurs.
         canonical_valid_chars = RE_rfc3986_valid_characters.match(canonical)
         if not canonical_valid_chars:
-            return None
+            if not allow_unicode_url:
+                # exit early
+                return None
+            # try to fix it
+            canonical = fix_unicode_url(canonical, encoding=self._response_encoding())
+            canonical_valid_chars = RE_rfc3986_valid_characters.match(canonical)
+            if not canonical_valid_chars:
+                return None
         if require_public_global:
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
@@ -1409,8 +1481,16 @@ class MetadataParser(object):
         self,
         require_public_global=True,
         url_fallback=None,
+        allow_unicode_url=True,
     ):
-        """this was originally part of `get_discrete_url`"""
+        """
+        this was originally part of `get_discrete_url`
+
+        kwargs:
+            require_public_global=True
+            url_fallback=None
+            allow_unicode_url=True
+        """
         og = self.get_metadata('url', strategy=['og'])
         if not og:
             return None
@@ -1419,7 +1499,14 @@ class MetadataParser(object):
         # idiots.
         og_valid_chars = RE_rfc3986_valid_characters.match(og)
         if not og_valid_chars:
-            return None
+            if not allow_unicode_url:
+                # exit early
+                return None
+            # try to fix it
+            og = fix_unicode_url(og, encoding=self._response_encoding())
+            og_valid_chars = RE_rfc3986_valid_characters.match(og)
+            if not og_valid_chars:
+                return None
         if require_public_global:
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
@@ -1454,6 +1541,7 @@ class MetadataParser(object):
         og_first=True,
         canonical_first=False,
         require_public_global=True,
+        allow_unicode_url=True,
     ):
         """
         convenience method.
@@ -1466,6 +1554,7 @@ class MetadataParser(object):
             og_first=True
             canonical_first=False
             require_public_global=True
+            allow_unicode_url=True
         """
         _ts = (og_first, canonical_first)
         if not any(_ts) or all(_ts):
@@ -1487,10 +1576,12 @@ class MetadataParser(object):
             if source == 'og':
                 url = self.get_url_opengraph(require_public_global=require_public_global,
                                              url_fallback=url_fallback,
+                                             allow_unicode_url=allow_unicode_url,
                                              )
             elif source == 'canonical':
                 url = self.get_url_canonical(require_public_global=require_public_global,
                                              url_fallback=url_fallback,
+                                             allow_unicode_url=allow_unicode_url,
                                              )
             if url:
                 return url

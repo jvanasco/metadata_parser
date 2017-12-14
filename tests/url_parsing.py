@@ -1,3 +1,5 @@
+# -*- coding=utf-8 -*-
+
 import metadata_parser
 try:
     from urllib.parse import urlparse
@@ -235,6 +237,18 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         parsed_url = parsed.get_discrete_url()
         self.assertEquals(parsed_url, rel_expected)
 
+    def test_upgrade_utf8_path(self):
+        """
+        you had one job... but you didn't read the RFC you shitty third rate enterprise cms
+        """
+        url = 'https://example.com'
+        rel_canonical = r'https://example.com/canonical-ü'
+        rel_expected = r'https://example.com/canonical-%C3%BC'
+        html_doc = self._MakeOne(rel_canonical)
+        parsed = metadata_parser.MetadataParser(url=url, html=html_doc, derive_encoding=False, default_encoding='utf-8', html_encoding='utf-8')
+        parsed_url = parsed.get_discrete_url()
+        self.assertEquals(parsed_url, rel_expected)
+
     def test_upgrade_invalid_file(self):
         """
         you had one job...
@@ -358,6 +372,33 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
 
         parsed_url = parsed.get_url_opengraph(require_public_global=True, url_fallback=url)
         self.assertEquals(parsed_url, rel_expected)
+
+
+class TestFixUnicodeUrls(unittest.TestCase):
+
+    def test_fix_unicode_path(self):
+        _test_pairs = (('https://example.com/2017/12/abcdefgühijklmnop?a=%20foo',
+                        'https://example.com/2017/12/abcdefg%C3%BChijklmnop?a=%20foo',
+                        ),
+                       )
+        for (raw, expected) in _test_pairs:
+            cleaned = metadata_parser.fix_unicode_url(raw)
+            self.assertEqual(cleaned, expected)
+            if not metadata_parser.PY3:
+                cleaned = metadata_parser.fix_unicode_url(raw.decode('utf-8'), encoding='utf-8').encode('utf-8')
+                self.assertEqual(cleaned, expected)
+
+    def test_fix_unicode_path_leave_unicode_kwargs(self):
+        _test_pairs = (('https://example.com/2017/12/abcdefgühijklmnop?a=%20foo&b=ü',
+                        'https://example.com/2017/12/abcdefg%C3%BChijklmnop?a=%20foo&b=ü',
+                        ),
+                       )
+        for (raw, expected) in _test_pairs:
+            cleaned = metadata_parser.fix_unicode_url(raw)
+            self.assertEqual(cleaned, expected)
+            if not metadata_parser.PY3:
+                cleaned = metadata_parser.fix_unicode_url(raw.decode('utf-8'), encoding='utf-8').encode('utf-8')
+                self.assertEqual(cleaned, expected)
 
 
 class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):

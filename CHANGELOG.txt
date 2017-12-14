@@ -1,6 +1,14 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.16
+	* added `fix_unicode_url()`
+	* Added `allow_unicode_url` (default True) to the following calls:
+		`MetadataParser.get_url_canonical`
+		`MetadataParser.get_url_opengraph`
+		`MetadataParser.get_discrete_url`
+	  When True, will run the ths that use utf8 encoding.
+
 0.9.15
 	* Python3 support returned
 
