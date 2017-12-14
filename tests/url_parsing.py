@@ -175,19 +175,19 @@ class TestAbsoluteUpgrades(unittest.TestCase):
 
     def test_none_returns_none(self):
         absolute = metadata_parser.url_to_absolute_url(None, url_fallback=None)
-        self.assertEquals(absolute, None)
+        self.assertEqual(absolute, None)
 
     def test_nothing(self):
         absolute = metadata_parser.url_to_absolute_url('http://example.com', url_fallback='http://example.com')
-        self.assertEquals(absolute, 'http://example.com')
+        self.assertEqual(absolute, 'http://example.com')
 
     def test_upgrade(self):
         absolute = metadata_parser.url_to_absolute_url('a.html', url_fallback='http://example.com')
-        self.assertEquals(absolute, 'http://example.com/a.html')
+        self.assertEqual(absolute, 'http://example.com/a.html')
 
     def test_fallback(self):
         absolute = metadata_parser.url_to_absolute_url(None, url_fallback='http://example.com')
-        self.assertEquals(absolute, 'http://example.com')
+        self.assertEqual(absolute, 'http://example.com')
 
 
 class _DocumentCanonicalsMixin(object):
@@ -213,7 +213,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_canonical_upgrade(self):
         """someone else did their job. not as good, but did their job"""
@@ -223,7 +223,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_invalid_root(self):
         """
@@ -235,7 +235,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_utf8_path(self):
         """
@@ -247,7 +247,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc, derive_encoding=False, default_encoding='utf-8', html_encoding='utf-8')
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_invalid_file(self):
         """
@@ -262,7 +262,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_invalid_file_b(self):
         """
@@ -275,7 +275,7 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_readme_scenario(self):
         """
@@ -293,11 +293,11 @@ class TestDocumentCanonicals(unittest.TestCase, _DocumentCanonicalsMixin):
 
         # ensure we replace the bad domain with the right one
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
         # ensure support for the legacy behavior...
         parsed_url = parsed.get_discrete_url(require_public_global=False)
-        self.assertEquals(parsed_url, rel_expected_legacy)
+        self.assertEqual(parsed_url, rel_expected_legacy)
 
 
 class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin):
@@ -316,7 +316,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_local_b(self):
         """
@@ -327,7 +327,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_local_bb(self):
         """
@@ -338,7 +338,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_local_c(self):
         """
@@ -349,7 +349,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         parsed_url = parsed.get_discrete_url()
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
 
     def test_noupgrade_a(self):
@@ -363,16 +363,16 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
 
         parsed_url = parsed.get_url_canonical(require_public_global=True)
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
         parsed_url = parsed.get_url_opengraph(require_public_global=True)
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
         parsed_url = parsed.get_url_canonical(require_public_global=True, url_fallback=url)
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
         parsed_url = parsed.get_url_opengraph(require_public_global=True, url_fallback=url)
-        self.assertEquals(parsed_url, rel_expected)
+        self.assertEqual(parsed_url, rel_expected)
 
 
 class TestFixUnicodeUrls(unittest.TestCase):

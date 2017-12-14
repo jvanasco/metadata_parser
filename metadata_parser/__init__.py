@@ -1259,18 +1259,21 @@ class MetadataParser(object):
             html
         """
         if not isinstance(html, BeautifulSoup):
-            encoding = None
+            kwargs_bs = {}
             try:
-                encoding = self.response.encoding
+                if not PY3:
+                    # on Python2, if we're given a string, not unicode, it may have an encoding.
+                    if isinstance(html, str):
+                        kwargs_bs['from_encoding'] = self.response.encoding
             except:
                 pass
             if self.force_doctype:
                 html = REGEX_doctype.sub("<!DOCTYPE html>", html)
             try:
                 try:
-                    doc = BeautifulSoup(html, "lxml", fromEncoding=encoding)
+                    doc = BeautifulSoup(html, "lxml", **kwargs_bs)
                 except:
-                    doc = BeautifulSoup(html, "html.parser", fromEncoding=encoding)
+                    doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
             except:
                 raise NotParsable("could not parse into BeautifulSoup",
                                   metadataParser=self)
