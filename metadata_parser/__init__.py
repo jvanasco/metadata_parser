@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.16'
+__VERSION__ = '0.9.17'
 
 
 # ------------------------------------------------------------------------------
@@ -897,6 +897,7 @@ class MetadataParser(object):
         raise_on_invalid=False, search_head_only=None, allow_redirects=True,
         requests_session=None, only_parse_http_ok=True, defer_fetch=False,
         derive_encoding=True, html_encoding=None, default_encoding=None,
+        retry_dropped_without_headers=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -978,6 +979,9 @@ class MetadataParser(object):
             `default_encoding`
                 default: None
                 per-parser default
+            `retry_dropped_without_headers`
+                default: None
+                if True, will retry a dropped connection without headers
         """
         if url is not None:
             url = url.strip()
@@ -1015,6 +1019,7 @@ class MetadataParser(object):
                     def deferred_fetch():
                         html = self.fetch_url(url_data=url_data,
                                               url_headers=url_headers,
+                                              retry_dropped_without_headers=retry_dropped_without_headers,
                                               )
                         self.parse(html)
                         return
@@ -1022,6 +1027,7 @@ class MetadataParser(object):
                     return
                 html = self.fetch_url(url_data=url_data,
                                       url_headers=url_headers,
+                                      retry_dropped_without_headers=retry_dropped_without_headers,
                                       )
             else:
                 html = ''
@@ -1074,7 +1080,7 @@ class MetadataParser(object):
         force_parse_invalid_content_type=None, allow_redirects=None,
         ssl_verify=None, requests_timeout=None, requests_session=None,
         only_parse_http_ok=None, derive_encoding=None,
-        default_encoding=None,
+        default_encoding=None, retry_dropped_without_headers=None,
     ):
         """
         fetches the url and returns it.
@@ -1106,6 +1112,8 @@ class MetadataParser(object):
                 defaults to self.derive_encoding if None
             default_encoding=None
                 defaults to self.default_encoding if None
+            retry_dropped_without_headers=None
+                if true, will retry_dropped_without_headers
         """
         # should we even download/parse this?
         force_parse = force_parse if force_parse is not None else self.force_parse
@@ -1150,11 +1158,23 @@ class MetadataParser(object):
             requests_session.hooks['response'].insert(0, response_peername__hook)  # must be first
             if derive_encoding:
                 requests_session.hooks['response'].append(derive_encoding__hook)
-            resp = requests_session.get(
-                url, params=url_data, headers=url_headers,
-                allow_redirects=allow_redirects, verify=ssl_verify,
-                timeout=requests_timeout, stream=True,
-            )
+            try:
+                resp = requests_session.get(
+                    url, params=url_data, headers=url_headers,
+                    allow_redirects=allow_redirects, verify=ssl_verify,
+                    timeout=requests_timeout, stream=True,
+                )
+            except requests.exceptions.ChunkedEncodingError as error:
+                # some servers drop a connection on the bad user-agent
+                if not url_headers:
+                    raise
+                if not retry_dropped_without_headers:
+                    raise
+                resp = requests_session.get(
+                    url, params=url_data, headers={},
+                    allow_redirects=allow_redirects, verify=ssl_verify,
+                    timeout=requests_timeout, stream=True,
+                )
             self.response = resp
             self.peername = get_response_peername(resp)
             if resp.history:
@@ -1219,6 +1239,9 @@ class MetadataParser(object):
             html = resp.text
 
         except requests.exceptions.RequestException as error:
+            raise
+            import pdb
+            pdb.set_trace()
             if hasattr(error, 'response') and (error.response is not None):
                 self.response = error.response
                 try:
@@ -1227,6 +1250,7 @@ class MetadataParser(object):
                         self.is_redirect = True
                 except:
                     pass
+            pdb.set_trace()
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                         " attribute of this error.",
