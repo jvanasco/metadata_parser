@@ -2,27 +2,27 @@
     1.0 will be a complete api overhaul
 
 0.9.16
-	* added `fix_unicode_url()`
-	* Added `allow_unicode_url` (default True) to the following calls:
-		`MetadataParser.get_url_canonical`
-		`MetadataParser.get_url_opengraph`
-		`MetadataParser.get_discrete_url`
-	  When True, will run the ths that use utf8 encoding.
-
+    * added `fix_unicode_url()`
+    * Added `allow_unicode_url` (default True) to the following calls:
+        `MetadataParser.get_url_canonical`
+        `MetadataParser.get_url_opengraph`
+        `MetadataParser.get_discrete_url`
+      This functionality will try to recode canonical urls with unicode data into percent-encoded streams
+      
 0.9.15
-	* Python3 support returned
+    * Python3 support returned
 
 0.9.14
-	* added some more tests to ensure encoding detected correctly
-	* stash the soup sooner when parsing, to aid in debugging
+    * added some more tests to ensure encoding detected correctly
+    * stash the soup sooner when parsing, to aid in debugging
 
 0.9.13
     * doing some work to guess encoding...
     * internal: now using `resp` instead of `r`, it is easier for pdb debugging
     * the peername check was changed to be a hook, so it can be processed more immediately
     * the custom session redirect test was altered
-	* changed the DummyResponse encoding fallback to `ENCODING_FALLBACK` which is Latin (not utf8)
-	  this is somewhat backwards incompatible with this library, but maintains compatibility with the underlying `requests` library
+    * changed the DummyResponse encoding fallback to `ENCODING_FALLBACK` which is Latin (not utf8)
+      this is somewhat backwards incompatible with this library, but maintains compatibility with the underlying `requests` library
 
 0.9.12
     * added more attributes to DummyResponse:

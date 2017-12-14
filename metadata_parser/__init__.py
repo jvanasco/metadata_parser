@@ -478,6 +478,7 @@ def fix_unicode_url(url, encoding=None):
     this is not allowed by rfc.
     currently this function will update the PATH but not the kwargs.
     perhaps it should.
+    rfc3986 says that characters should be put into utf8 then percent encoded
     """
     parsed = urlparse(url)
     if parsed.path in ('', '/'):
@@ -489,15 +490,16 @@ def fix_unicode_url(url, encoding=None):
     # okay, we know we have bad items in the path, so try and upgrade!
     # turn the namedtuple from urlparse into something we can edit
     candidate = [i for i in parsed]
-    try:
-        candidate[2] = parsed.path
-        if not PY3:
-            if encoding:
-                candidate[2] = parsed.path.encode(encoding)
-        candidate[2] = url_quote(url_unquote(candidate[2]))
-    except Exception as e:
-        log.debug("fix_unicode_url failure: %s | %s", url, encoding)
-        return url
+    for _idx in [2, ]:  # 2=path, 3=params, 4=queryparams, 5fragment
+        try:
+            candidate[_idx] = parsed[_idx]
+            if not PY3:
+                if encoding:
+                    candidate[_idx] = parsed[_idx].encode(encoding)
+            candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
+        except Exception as e:
+            log.debug("fix_unicode_url failure: %s | %s", url, encoding)
+            return url
     candidate = urlunparse(candidate)
     return candidate
 
