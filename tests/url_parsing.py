@@ -354,6 +354,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
 
     def test_noupgrade_a(self):
         """
+        these tests currently require tldextract; otherwise they won't work right.
         """
         url = 'https://example.com/nested/A.html'
         rel_canonical = 'https://foo.local/B.html'

@@ -885,7 +885,7 @@ class MetadataParser(object):
 
     # allow for the beautiful_soup to be saved
     soup = None
-    
+
     def __init__(
         self,
         url=None, html=None, strategy=None, url_data=None, url_headers=None,
@@ -973,7 +973,7 @@ class MetadataParser(object):
             `derive_encoding`:
                 default: True
                 if True, will try to pull encoding from the content
-            `default_encoding`   
+            `default_encoding`
                 default: None
                 per-parser default
         """
@@ -1199,7 +1199,7 @@ class MetadataParser(object):
             if 'content-type' in resp.headers:
                 content_type = resp.headers['content-type']
                 # content type can have a character encoding in it...
-                # the encoding may have been used 
+                # the encoding may have been used
                 content_type = [i.strip() for i in content_type.split(';')]
                 content_type = content_type[0].lower()
                 if content_type == 'application/json':
@@ -1274,7 +1274,7 @@ class MetadataParser(object):
                                   metadataParser=self)
         else:
             doc = html
-        
+
         # stash the bs4 doc for further operations
         # do this now, otherwise it's a pain to debug if we return
         self.parsed_result.soup = doc
@@ -1447,6 +1447,7 @@ class MetadataParser(object):
                 return None
             # try to fix it
             canonical = fix_unicode_url(canonical, encoding=self._response_encoding())
+
             canonical_valid_chars = RE_rfc3986_valid_characters.match(canonical)
             if not canonical_valid_chars:
                 return None
