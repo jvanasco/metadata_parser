@@ -1239,9 +1239,6 @@ class MetadataParser(object):
             html = resp.text
 
         except requests.exceptions.RequestException as error:
-            raise
-            import pdb
-            pdb.set_trace()
             if hasattr(error, 'response') and (error.response is not None):
                 self.response = error.response
                 try:
