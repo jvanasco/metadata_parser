@@ -1,6 +1,9 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.18
+	* removed a stray debug line
+
 0.9.17
 	* added `retry_dropped_without_headers` option
 

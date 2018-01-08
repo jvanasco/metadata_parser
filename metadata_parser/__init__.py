@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.17'
+__VERSION__ = '0.9.18'
 
 
 # ------------------------------------------------------------------------------
@@ -1247,7 +1247,7 @@ class MetadataParser(object):
                         self.is_redirect = True
                 except:
                     pass
-            pdb.set_trace()
+            log.error("NotParsableFetchError | %s", error)
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                         " attribute of this error.",
