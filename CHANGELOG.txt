@@ -1,6 +1,22 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.19
+	* addressing https://github.com/jvanasco/metadata_parser/issues/12
+		on pages with duplicate metadata keys, additional elements are ignored
+		when parsing the document, duplicate data was not kept.
+	* `MetadataParser.get_metadata` will always return a single string (or none)
+	* `MetadataParser.get_metadatas` has been introduced. this will always return an array.
+	* the internal parsed_metadata store will now store data in a mix of arrays and strings, keeping it backwards compatible
+	* This new version benches slightly slower because of the mixed format but preserves a smaller footprint.
+	* the parsed result now contains a version record for tracking the format `_v`.
+	* standardized single/double quoting
+	* cleaned up some line
+	* the library will try to coerce strategy= arguments into the right format
+	* when getting dublin core data, the result could either be a string of a dict.  there's no good way to handle this.
+	* added tests for encoders
+	* greatly expanded tests
+	
 0.9.18
 	* removed a stray debug line
 

@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.18'
+__VERSION__ = '0.9.19'
 
 
 # ------------------------------------------------------------------------------
@@ -57,6 +57,10 @@ PY3 = sys.version_info[0] == 3
 
 def warn_future(message):
     warnings.warn(message, FutureWarning, stacklevel=2)
+
+
+def warn_user(message):
+    warnings.warn(message, UserWarning, stacklevel=2)
 
 
 # ------------------------------------------------------------------------------
@@ -192,7 +196,7 @@ def encode_ascii(text):
         text = unicode(text)
     normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore')
     if PY3:
-        normalized = normalized.decode("utf-8", "ignore")
+        normalized = normalized.decode('utf-8', 'ignore')
     return normalized
 
 
@@ -452,23 +456,23 @@ def parsed_to_relative(parsed, parsed_fallback=None):
     assert isinstance(parsed, ParseResult)
     _path = parsed.path
     # cleanup, might be unnecessary now
-    if _path and _path[0] != "/":
+    if _path and _path[0] != '/':
         if parsed_fallback:
             assert isinstance(parsed_fallback, ParseResult)
             _path_fallback = parsed_fallback.path
             if _path_fallback and _path_fallback[0] != '/':
                 # there's not much we can do here... pretend there's no fallback
-                _path = "/%s" % _path
+                _path = '/%s' % _path
             else:
                 _path_fallback_dir = '/'.join(_path_fallback.split('/')[:-1])
-                _path = "%s/%s" % (_path_fallback_dir, _path)
+                _path = '%s/%s' % (_path_fallback_dir, _path)
         else:
             # prepend a slash
-            _path = "/%s" % _path
+            _path = '/%s' % _path
     if parsed.query:
-        _path += "?" + parsed.query
+        _path += '?' + parsed.query
     if parsed.fragment:
-        _path += "#" + parsed.fragment
+        _path += '#' + parsed.fragment
     return _path
 
 
@@ -553,7 +557,7 @@ def url_to_absolute_url(
     """
     # quickly correct for some dumb mistakes
     if isinstance(url_test, str):
-        if url_test.lower() in ("http://", "https://"):
+        if url_test.lower() in ('http://', 'https://'):
             url_test = None
 
     # if we don't have a test url or fallback, we can't generate an absolute
@@ -575,9 +579,9 @@ def url_to_absolute_url(
         # sanity check
         # some stock plugins create invalid urls/files like '/...' in meta-data
         known_invalid_plugins_paths = ['/...', ]
-        if _path[0] != "/":
+        if _path[0] != '/':
             # prepend a slash
-            _path = "/%s" % _path
+            _path = '/%s' % _path
         if _path in known_invalid_plugins_paths:
             return url_fallback
 
@@ -625,7 +629,7 @@ def url_to_absolute_url(
                 parsed_domain_source = parsed_fallback
 
     if parsed_domain_source:
-        rval = "%s://%s%s" % (
+        rval = '%s://%s%s' % (
             parsed_domain_source.scheme,
             parsed_domain_source.netloc, _path)
     return rval
@@ -640,7 +644,7 @@ class InvalidDocument(Exception):
         self.message = message
 
     def __str__(self):
-        return "InvalidDocument: %s" % (self.message)
+        return 'InvalidDocument: %s' % (self.message)
 
 
 class NotParsable(Exception):
@@ -652,24 +656,24 @@ class NotParsable(Exception):
         self.metadataParser = metadataParser
 
     def __str__(self):
-        return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
+        return 'NotParsable: %s | %s | %s' % (self.message, self.code, self.raised)
 
 
 class NotParsableJson(NotParsable):
 
     def __str__(self):
-        return "NotParsableJson: %s | %s | %s" % (self.message, self.code, self.raised)
+        return 'NotParsableJson: %s | %s | %s' % (self.message, self.code, self.raised)
 
 
 class NotParsableRedirect(NotParsable):
     """Raised if a redirect is detected, but there is no Location header."""
     def __str__(self):
-        return "NotParsableRedirect: %s | %s | %s" % (self.message, self.code, self.raised)
+        return 'NotParsableRedirect: %s | %s | %s' % (self.message, self.code, self.raised)
 
 
 class NotParsableFetchError(NotParsable):
     def __str__(self):
-        return "NotParsableFetchError: %s | %s | %s" % (self.message, self.code, self.raised)
+        return 'NotParsableFetchError: %s | %s | %s' % (self.message, self.code, self.raised)
 
 
 class AllowableError(Exception):
@@ -752,8 +756,16 @@ class DummyResponse(object):
 
 
 class ParsedResult(object):
+    """
+    Class for managing a dict of metadata
+    The dict can contain string or array values for legacy compatability reasons.
+
+    Version Tracking:
+    * version tracking was introduced in 0.9.19
+    """
     metadata = None
     soup = None
+    _version = 1  # version tracking
 
     og_minimum_requirements = ['title', 'type', 'image', 'url']
     twitter_sections = ['card', 'title', 'site', 'description']
@@ -767,13 +779,61 @@ class ParsedResult(object):
             'page': {},
             'twitter': {},
             '_internal': {},
+            '_v': ParsedResult._version,  # version tracking
         }
+
+    @property
+    def metadata_version(self):
+        return self.metadata.get('_v', None)
+
+    def _add_discovered(self, _target_container, _target_key, _raw_value, _formatted_value=None):
+        """
+        unified function to add data.
+        because this information is often stored in a database, to conserve
+        space it will eat some CPU functions and store the data as an list
+        or string.
+        """
+        if _formatted_value is None:
+            _formatted_value = _raw_value.strip()
+        _target_container = self.metadata[_target_container]
+        if _target_key not in _target_container:
+            _target_container[_target_key] = _formatted_value
+        else:
+            if type(_target_container[_target_key]) != list:
+                _target_container[_target_key] = [_target_container[_target_key], ]
+            if _formatted_value not in _target_container[_target_key]:
+                _target_container[_target_key].append(_formatted_value)
+
+    def _coerce_strategy(self, strategy=None):
+        """normalize a strategy into a valid option"""
+        if strategy:
+            if type(strategy) is not list:
+                if strategy != 'all':
+                    warn_user("""If `strategy` is not a `list`, it should be 'all'."""
+                              """This was coerced into a list, but will be enforced.""")
+                    if strategy in self.strategy:
+                        strategy = [strategy, ]
+                    else:
+                        raise ValueError('invalid strategy')
+        if strategy is None:
+            strategy = self.strategy
+        return strategy
 
     def get_metadata(self, field, strategy=None, encoder=None):
         """
+        legacy. DEPRECATED.
         looks for the field in various stores.  defaults to the core
         strategy, though you may specify a certain item.  if you search for
         'all' it will return a dict of all values.
+
+        This is a legacy method and is being deprecated in favor of `get_metadatas`
+        This method will always return a string, however it is possible that the
+        field contains multiple elements or even a dict if the source was dublincore.
+        `get_metadatas` will always return a list.
+
+        In the case of DC/DublinCore metadata, this will return the first 'simple'
+        pairing (key/value - without a scheme/language) or the first element if no
+        simple match exists.
 
         args:
             field
@@ -785,26 +845,106 @@ class ParsedResult(object):
                 a function, such as `encode_ascii`, to encode values.
                 a valid `encoder` accepts one(1) arg.
         """
-        if strategy:
-            _strategy = strategy
-        else:
-            _strategy = self.strategy
-        if _strategy == 'all':
+        warn_future("""`get_metadata` returns a string and is being deprecated"""
+                    """in favor of `get_metadatas` which returns a list.""")
+        strategy = self._coerce_strategy(strategy)
+
+        def _lookup(store):
+            if field in self.metadata[store]:
+                val = self.metadata[store][field]
+                if store == 'dc':
+                    # dublincore will be different. it uses dicts by default
+                    # this is a one-element match
+                    if type(val) == dict:
+                        val = val['content']
+                    else:
+                        _opt = None
+                        for _val in val:
+                            if len(_val.keys()) == 1:
+                                _opt = _val['content']
+                                break
+                        if _opt is None:
+                            _opt = val[0]['content']
+                        val = _opt
+                else:
+                    if type(val) == list:
+                        val = val[0]
+                if encoder:
+                    val = encoder(val)
+                return val
+            return None
+
+        if type(strategy) is list:
+            for store in strategy:
+                if store in self.metadata:
+                    val = _lookup(store)
+                    if val is not None:
+                        return val
+            return None
+
+        if strategy == 'all':
             rval = {}
             for store in self.metadata:
+                if store == '_v':
+                    continue
                 if field in self.metadata[store]:
-                    val = self.metadata[store][field]
-                    if encoder:
-                        val = encoder(val)
+                    val = _lookup(store)
                     rval[store] = val
             return rval
-        for store in _strategy:
-            if store in self.metadata:
+
+        return None
+
+    def get_metadatas(self, field, strategy=None, encoder=None):
+        """
+        looks for the field in various stores.  defaults to the core
+        strategy, though you may specify a certain item.  if you search for
+        'all' it will return a dict of all values.
+
+        This method replaced the legacy method `get_metadatas`.
+        This method will always return a list.
+
+        args:
+            field
+
+        kwargs:
+            strategy=None
+                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
+            encoder=None
+                a function, such as `encode_ascii`, to encode values.
+                a valid `encoder` accepts one(1) arg.
+        """
+        warn_future("""`get_metadata` returns a string and is being deprecated"""
+                    """in favor of `get_metadatas` which returns a list.""")
+        strategy = self._coerce_strategy(strategy)
+
+        def _lookup(store):
+            if field in self.metadata[store]:
+                val = self.metadata[store][field]
+                if type(val) != list:
+                    val = [val, ]
+                if encoder:
+                    val = [encoder(v) for v in val]
+                return val
+            return None
+
+        if type(strategy) is list:
+            for store in strategy:
+                if store in self.metadata:
+                    val = _lookup(store)
+                    if val is not None:
+                        return val
+            return None
+
+        if strategy == 'all':
+            rval = {}
+            for store in self.metadata:
+                if store == '_v':
+                    continue
                 if field in self.metadata[store]:
-                    val = self.metadata[store][field]
-                    if encoder:
-                        val = encoder(val)
-                    return val
+                    val = _lookup(store)
+                    rval[store] = val
+            return rval
+
         return None
 
     def is_opengraph_minimum(self):
@@ -1049,6 +1189,11 @@ class MetadataParser(object):
         return self.parsed_result.metadata
 
     @property
+    def metadata_version(self):
+        # deprecating in 1.0
+        return self.parsed_result.metadata_version
+
+    @property
     def soup(self):
         # deprecating in 1.0
         return self.parsed_result.soup
@@ -1056,6 +1201,10 @@ class MetadataParser(object):
     def get_metadata(self, field, strategy=None, encoder=None):
         # deprecating in 1.0
         return self.parsed_result.get_metadata(field, strategy=strategy, encoder=encoder)
+
+    def get_metadatas(self, field, strategy=None, encoder=None):
+        # deprecating in 1.0
+        return self.parsed_result.get_metadatas(field, strategy=strategy, encoder=encoder)
 
     def is_opengraph_minimum(self):
         # deprecating in 1.0
@@ -1065,7 +1214,7 @@ class MetadataParser(object):
 
     def deferred_fetch(self):
         # allows for a deferrable fetch; override in __init__
-        raise ValueError("no `deferred_fetch` set")
+        raise ValueError('no `deferred_fetch` set')
 
     # --------------------------------------------------------------------------
 
@@ -1205,14 +1354,14 @@ class MetadataParser(object):
                                                metadataParser=self,
                                                )
                     raise NotParsableRedirect(
-                        message="Status Code is redirect, but missing header",
+                        message='Status Code is redirect, but missing header',
                         code=resp.status_code,
                         metadataParser=self,
                     )
 
             if only_parse_http_ok and resp.status_code != 200:
                 raise NotParsableFetchError(
-                    message="Status Code is not 200",
+                    message='Status Code is not 200',
                     code=resp.status_code,
                     metadataParser=self,
                 )
@@ -1225,7 +1374,7 @@ class MetadataParser(object):
                 content_type = [i.strip() for i in content_type.split(';')]
                 content_type = content_type[0].lower()
                 if content_type == 'application/json':
-                    raise NotParsableJson("JSON header detected",
+                    raise NotParsableJson('JSON header detected',
                                           metadataParser=self)
             if (((content_type is None) or (content_type != 'text/html'))
                 and
@@ -1247,7 +1396,7 @@ class MetadataParser(object):
                         self.is_redirect = True
                 except:
                     pass
-            log.error("NotParsableFetchError | %s", error)
+            log.error('NotParsableFetchError | %s', error)
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                         " attribute of this error.",
@@ -1289,14 +1438,14 @@ class MetadataParser(object):
             except:
                 pass
             if self.force_doctype:
-                html = REGEX_doctype.sub("<!DOCTYPE html>", html)
+                html = REGEX_doctype.sub('<!DOCTYPE html>', html)
             try:
                 try:
-                    doc = BeautifulSoup(html, "lxml", **kwargs_bs)
+                    doc = BeautifulSoup(html, 'lxml', **kwargs_bs)
                 except:
-                    doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
+                    doc = BeautifulSoup(html, 'html.parser', **kwargs_bs)
             except:
-                raise NotParsable("could not parse into BeautifulSoup",
+                raise NotParsable('could not parse into BeautifulSoup',
                                   metadataParser=self)
         else:
             doc = html
@@ -1308,16 +1457,19 @@ class MetadataParser(object):
         # let's ensure that we have a real document...
         if not doc or not doc.html:
             if self.raise_on_invalid:
-                raise InvalidDocument("missing `doc` or `doc.html`")
+                raise InvalidDocument('missing `doc` or `doc.html`')
             return
 
         # set the searchpath
         doc_searchpath = doc.html
 
+        # shortcut
+        parsed_result = self.parsed_result
+
         if self.search_head_only:
             if not doc.html.head:
                 if self.raise_on_invalid:
-                    raise InvalidDocument("missing `doc.html.head`")
+                    raise InvalidDocument('missing `doc.html.head`')
                 return
             doc_searchpath = doc.html.head
 
@@ -1326,12 +1478,15 @@ class MetadataParser(object):
                                      )
         for og in ogs:
             try:
-                self.parsed_result.metadata['og'][og['property'][3:]] = og['content'].strip()
+                parsed_result._add_discovered(_target_container='og',
+                                              _target_key=og['property'][3:],
+                                              _raw_value=og['content'],
+                                              )
             except (AttributeError, KeyError):
                 pass
             except:
                 if __debug__:
-                    log.debug("Ran into a serious error parsing `og`")
+                    log.debug('Ran into a serious error parsing `og`')
                 pass
 
         twitters = doc_searchpath.findAll('meta',
@@ -1339,8 +1494,10 @@ class MetadataParser(object):
                                           )
         for twitter in twitters:
             try:
-                self.parsed_result.metadata['twitter'][
-                    twitter['name'][8:]] = twitter['content'].strip()
+                parsed_result._add_discovered(_target_container='twitter',
+                                              _target_key=twitter['name'][8:],
+                                              _raw_value=twitter['content'],
+                                              )
             except (AttributeError, KeyError):
                 pass
 
@@ -1351,7 +1508,10 @@ class MetadataParser(object):
                 _title_text = _title_text.strip()
             if len(_title_text) > self.LEN_MAX_TITLE:
                 _title_text = _title_text[:self.LEN_MAX_TITLE]
-            self.parsed_result.metadata['page']['title'] = _title_text
+            parsed_result._add_discovered(_target_container='page',
+                                          _target_key='title',
+                                          _raw_value=_title_text,
+                                          )
         except AttributeError:
             pass
 
@@ -1360,13 +1520,20 @@ class MetadataParser(object):
                              attrs={'rel': RE_prefix_rel_img_src, }
                              )
         if images:
+            # we only use the first image on the page
             image = images[0]
-            if image.has_attr("href"):
-                img_url = image['href'].strip()
-                self.parsed_result.metadata['page']['image'] = img_url
-            elif image.has_attr("content"):
-                img_url = image['content'].strip()
-                self.parsed_result.metadata['page']['image'] = img_url
+            if image.has_attr('href'):
+                _img_url = image['href']
+                parsed_result._add_discovered(_target_container='page',
+                                              _target_key='image',
+                                              _raw_value=_img_url,
+                                              )
+            elif image.has_attr('content'):
+                _img_url = image['content']
+                parsed_result._add_discovered(_target_container='page',
+                                              _target_key='image',
+                                              _raw_value=_img_url,
+                                              )
             else:
                 pass
 
@@ -1375,13 +1542,20 @@ class MetadataParser(object):
                                  attrs={'rel': RE_canonical, }
                                  )
         if canonicals:
+            # only use the first?
             canonical = canonicals[0]
-            if canonical.has_attr("href"):
-                link = canonical['href'].strip()
-                self.parsed_result.metadata['page']['canonical'] = link
-            elif canonical.has_attr("content"):
-                link = canonical['content'].strip()
-                self.parsed_result.metadata['page']['canonical'] = link
+            if canonical.has_attr('href'):
+                _link = canonical['href']
+                parsed_result._add_discovered(_target_container='page',
+                                              _target_key='canonical',
+                                              _raw_value=_link,
+                                              )
+            elif canonical.has_attr('content'):
+                _link = canonical['content']
+                parsed_result._add_discovered(_target_container='page',
+                                              _target_key='canonical',
+                                              _raw_value=_link,
+                                              )
             else:
                 pass
 
@@ -1389,14 +1563,19 @@ class MetadataParser(object):
         shortlinks = doc.findAll('link',
                                  attrs={'rel': RE_shortlink}
                                  )
-        if shortlinks:
-            shortlink = shortlinks[0]
-            if shortlink.has_attr("href"):
-                link = shortlink['href'].strip()
-                self.parsed_result.metadata['page']['shortlink'] = link
-            elif shortlink.has_attr("content"):
-                link = shortlink['content'].strip()
-                self.parsed_result.metadata['page']['shortlink'] = link
+        for shortlink in shortlinks:
+            if shortlink.has_attr('href'):
+                _link = shortlink['href']
+                parsed_result._add_discovered(_target_container='page',
+                                              _target_key='shortlink',
+                                              _raw_value=_link,
+                                              )
+            elif shortlink.has_attr('content'):
+                _link = shortlink['content']
+                parsed_result._add_discovered(_target_container='page',
+                                              _target_key='shortlink',
+                                              _raw_value=_link,
+                                              )
             else:
                 pass
 
@@ -1417,11 +1596,23 @@ class MetadataParser(object):
                 if k:
                     k = attrs[k].strip()
                     if 'content' in attrs:
-                        v = attrs['content'].strip()
-                    if (len(k) > 3) and (k[:3] == 'dc:'):
-                        self.parsed_result.metadata['dc'][k[3:]] = v
+                        v = attrs['content']
+                    if (len(k) > 3) and (k[:3].lower() in ('dc:', 'dc.')):
+                        _dc_formatted = {'content': v, }
+                        if 'lang' in attrs:
+                            _dc_formatted['lang'] = attrs['lang']
+                        if 'scheme' in attrs:
+                            _dc_formatted['scheme'] = attrs['scheme']
+                        self.parsed_result._add_discovered(_target_container='dc',
+                                                           _target_key=k[3:],
+                                                           _raw_value=v,
+                                                           _formatted_value=_dc_formatted,
+                                                           )
                     else:
-                        self.parsed_result.metadata['meta'][k] = v
+                        self.parsed_result._add_discovered(_target_container='meta',
+                                                           _target_key=k,
+                                                           _raw_value=v,
+                                                           )
             except AttributeError:
                 pass
 

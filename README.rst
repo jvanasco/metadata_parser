@@ -23,8 +23,8 @@ Features
 =============
 
 * it pulls as much metadata out of a document as possible
-* you can set a 'strategy' for finding metadata ( ie, only accept opengraph or page attributes )
-* lightweight BUT FUNCTIONAL url validation
+* you can set a 'strategy' for finding metadata (i.e. only accept opengraph or page attributes)
+* lightweight but functional(!) url validation
 * logging is verbose, but nested under `__debug__` statements, so it is compiled away when PYTHONOPTIMIZE is set
 
 Notes
@@ -183,26 +183,52 @@ WARNING
 1.0 will be a complete API overhaul.  pin your releases to avoid sadness.
 
 
+Version 0.9.19 Breaking Changes
+===============================
+
+Issue #12 exposed some flaws in the existing package
+
+## 1. `MetadataParser.get_metadatas` replaces `MetadataParser.get_metadata`
+
+Until version 0.9.19, the recommended way to get metadata was to use `get_metadata` which will either return a string (or None).
+
+Starting with version 0.9.19, the recommended way to get metadata is to use `get_metadatas` which will always return a list (or None).
+
+This change was made because the library incorrectly stored a single metadata key value when there were duplicates.
+
+## 2. The `ParsedResult` payload stores mixed content and tracks it's version
+
+Many users (including the maintainer) archive the parsed metadata. After testing a variety of payloads with an all-list format and a mixed format (string or list), a mixed format had a much smaller payload size with a negligible performance hit.
+
+## 3. `DublinCore` payloads might be a dict
+
+Tests were added to handle dublincore data. An extra attribute may be needed.
+
+
+
+
 Usage
 ==============
+
+Until version 0.9.19, the recommended way to get metadata was to use `get_metadata` which will return a string (or None):
 
 **From an URL**
 
     >>> import metadata_parser
     >>> page = metadata_parser.MetadataParser(url="http://www.example.com")
     >>> print page.metadata
-    >>> print page.get_metadata('title')
-    >>> print page.get_metadata('title', strategy=['og',])
-    >>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
+    >>> print page.get_metadatas('title')
+    >>> print page.get_metadatas('title', strategy=['og',])
+    >>> print page.get_metadatas('title', strategy=['page', 'og', 'dc',])
 
 **From HTML**
 
     >>> HTML = """<here>"""
     >>> page = metadata_parser.MetadataParser(html=HTML)
     >>> print page.metadata
-    >>> print page.get_metadata('title')
-    >>> print page.get_metadata('title', strategy=['og',])
-    >>> print page.get_metadata('title', strategy=['page', 'og', 'dc',])
+    >>> print page.get_metadatas('title')
+    >>> print page.get_metadatas('title', strategy=['og',])
+    >>> print page.get_metadatas('title', strategy=['page', 'og', 'dc',])
 
 
 Notes
