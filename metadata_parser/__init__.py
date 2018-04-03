@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.19'
+__VERSION__ = '0.9.20-dev'
 
 
 # ------------------------------------------------------------------------------
@@ -761,7 +761,12 @@ class ParsedResult(object):
     The dict can contain string or array values for legacy compatability reasons.
 
     Version Tracking:
-    * version tracking was introduced in 0.9.19
+    * Version tracking was introduced in 0.9.19 via the `_v` metadata entry.
+      In the future, payloads without the `_v` will be interpreted as being
+      in the pre-versioning format (which is the same as v1)
+
+    Any changes to the versioning should be tracked in this docstring, as the
+    readme/docs are not necessarily installed locally.
     """
     metadata = None
     soup = None

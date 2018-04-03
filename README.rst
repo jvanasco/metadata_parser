@@ -188,7 +188,8 @@ Version 0.9.19 Breaking Changes
 
 Issue #12 exposed some flaws in the existing package
 
-## 1. `MetadataParser.get_metadatas` replaces `MetadataParser.get_metadata`
+1. `MetadataParser.get_metadatas` replaces `MetadataParser.get_metadata`
+-----------------------
 
 Until version 0.9.19, the recommended way to get metadata was to use `get_metadata` which will either return a string (or None).
 
@@ -196,14 +197,15 @@ Starting with version 0.9.19, the recommended way to get metadata is to use `get
 
 This change was made because the library incorrectly stored a single metadata key value when there were duplicates.
 
-## 2. The `ParsedResult` payload stores mixed content and tracks it's version
+2. The `ParsedResult` payload stores mixed content and tracks it's version
+-----------------------
 
-Many users (including the maintainer) archive the parsed metadata. After testing a variety of payloads with an all-list format and a mixed format (string or list), a mixed format had a much smaller payload size with a negligible performance hit.
+Many users (including the maintainer) archive the parsed metadata. After testing a variety of payloads with an all-list format and a mixed format (string or list), a mixed format had a much smaller payload size with a negligible performance hit. A new `_v` attribute tracks the payload version.  In the future, payloads without a `_v` attribute will be interpreted as the pre-versioning format.
 
-## 3. `DublinCore` payloads might be a dict
+3. `DublinCore` payloads might be a dict
+-----------------------
 
-Tests were added to handle dublincore data. An extra attribute may be needed.
-
+Tests were added to handle dublincore data. An extra attribute may be needed to properly represent the payload, so always returning a dict with at least a name+content (and possibly `lang` or `scheme` is the best approach.
 
 
 
