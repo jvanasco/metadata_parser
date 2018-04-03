@@ -299,7 +299,7 @@ class TestDocumentParsing(unittest.TestCase):
         """
         html = self._MakeOne('duplicates.html')
         parsed = metadata_parser.MetadataParser(url=None, html=html)
-
+        
         # this is just a property and should be the same object
         self.assertIs(parsed.metadata, parsed.parsed_result.metadata)
 
@@ -545,3 +545,24 @@ class TestDocumentParsing(unittest.TestCase):
                                                                                                                        ]
                                                                                                                 })
 
+        # TestMixedField3
+        self.assertEqual(parsed.get_metadata('TestMixedField3', strategy='dc'), 'dc:TestMixedField3')
+        self.assertEqual(parsed.get_metadata('TestMixedField3', strategy='meta'), 'meta:TestMixedField3')
+        self.assertEqual(parsed.get_metadata('TestMixedField3', strategy='all'), {'meta': 'meta:TestMixedField3',
+                                                                                  'dc': 'dc:TestMixedField3',
+                                                                                  })
+        self.assertEqual(parsed.get_metadata('TestMixedField3', strategy='dc', encoder=encoder_capitalizer), 'DC:TESTMIXEDFIELD3')
+        self.assertEqual(parsed.get_metadata('TestMixedField3', strategy='meta', encoder=encoder_capitalizer), 'META:TESTMIXEDFIELD3')
+        self.assertEqual(parsed.get_metadata('TestMixedField3', strategy='all', encoder=encoder_capitalizer), {'meta': 'META:TESTMIXEDFIELD3',
+                                                                                                               'dc': 'DC:TESTMIXEDFIELD3'
+                                                                                                               })
+        self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='dc'), [{'content': 'dc:TestMixedField3'}, ])
+        self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='meta'), ['meta:TestMixedField3', ])
+        self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='all'), {'meta': ['meta:TestMixedField3', ],
+                                                                                   'dc': [{'content': 'dc:TestMixedField3',}],
+                                                                                   })
+        self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='dc', encoder=encoder_capitalizer), [{'CONTENT': 'DC:TESTMIXEDFIELD3'}, ])
+        self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='meta', encoder=encoder_capitalizer), ['META:TESTMIXEDFIELD3', ])
+        self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='all', encoder=encoder_capitalizer), {'meta': ['META:TESTMIXEDFIELD3', ],
+                                                                                                                'dc': [{'CONTENT': 'DC:TESTMIXEDFIELD3',},
+                                                                                                                ]})

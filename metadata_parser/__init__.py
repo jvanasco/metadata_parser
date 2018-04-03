@@ -1651,7 +1651,7 @@ class MetadataParser(object):
             url_fallback=True
             allow_unicode_url=True
         """
-        canonical = self.get_metadata('canonical', strategy=['page'])
+        canonical = self.get_metadata('canonical', strategy=['page', ])
         if not canonical:
             return None
         # does the canonical have valid characters?
@@ -1709,7 +1709,7 @@ class MetadataParser(object):
             url_fallback=None
             allow_unicode_url=True
         """
-        og = self.get_metadata('url', strategy=['og'])
+        og = self.get_metadata('url', strategy=['og', ])
         if not og:
             return None
         # does the og have valid characters?
