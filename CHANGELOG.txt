@@ -1,6 +1,12 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.20
+	* support for deprecated `twitter:label` and `twitter:data` metatags, which use "value" instead of "content".
+	* new param to `__init__` and `parse`: `support_malformed` (default `None`).
+	  if true, will support malformed parsing (such as consulting "value" instead of "content".
+	  functionality extended from PR #13 (https://github.com/jvanasco/metadata_parser/pull/13) from https://github.com/amensouissi
+
 0.9.19
 	* addressing https://github.com/jvanasco/metadata_parser/issues/12
 		on pages with duplicate metadata keys, additional elements are ignored
