@@ -1499,9 +1499,11 @@ class MetadataParser(object):
                                           )
         for twitter in twitters:
             try:
+                # for a twitter:label/data meta tags, we must use a 'value' attr
+                raw_value = twitter.get('content', twitter.get('value', None))
                 parsed_result._add_discovered(_target_container='twitter',
                                               _target_key=twitter['name'][8:],
-                                              _raw_value=twitter['content'],
+                                              _raw_value=raw_value,
                                               )
             except (AttributeError, KeyError):
                 pass
