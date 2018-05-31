@@ -1521,14 +1521,19 @@ class MetadataParser(object):
                         _val = twitter.get('content', None)
                         if _val is None:
                            _val = twitter.get('value', None)
-                    # clients expect an empty string though, not `None`
-                    _val = '' if _val is None else _val
                 else:
-                    _val = twitter.get('content', '')
+                    _val = twitter.get('content', None)
+
+                # clients expect a string, not none
+                # previous behavior was to exclude these items too
+                if _val is None:
+                    continue
+
                 parsed_result._add_discovered(_target_container='twitter',
                                               _target_key=_key,
                                               _raw_value=_val,
                                               )
+
             except (AttributeError, KeyError):
                 pass
 

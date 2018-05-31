@@ -265,7 +265,7 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(parsed.metadata['twitter']['title'], 'meta.name=twitter:title')
         self.assertEqual(parsed.metadata['twitter']['url'], 'https://example.com/meta/name=twitter:url')
         self.assertEqual(parsed.metadata['twitter']['data'], 'meta.name=twitter:data||value')
-        self.assertEqual(parsed.metadata['twitter']['label'], '')
+        self.assertNotIn('label', parsed.metadata['twitter'])
         self.assertEqual(parsed.is_opengraph_minimum(), True)
 
     def test_html_urls(self):
@@ -581,8 +581,8 @@ class TestDocumentParsing(unittest.TestCase):
         # in `simple.html`, "label" (incorrectly) uses "content" and "data" uses "label"
         parsed = metadata_parser.MetadataParser(url=None, html=html)
         self.assertEqual(parsed.metadata['twitter']['data'], 'meta.name=twitter:data||value')
-        self.assertEqual(parsed.metadata['twitter']['label'], '')
-        self.assertEqual(parsed.metadata['twitter']['invalid'], '')
+        self.assertNotIn('label', parsed.metadata['twitter'])
+        self.assertNotIn('invalid', parsed.metadata['twitter'])
 
         # now with `support_malformed` support we will load the label!
         parsed2 = metadata_parser.MetadataParser(url=None, html=html, support_malformed=True)
@@ -597,7 +597,7 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(parsed_dupe.metadata['twitter']['data'], ['meta.name=twitter:data||value,1',
                                                                    'meta.name=twitter:data||value,2',
                                                                    ])
-        self.assertEqual(parsed_dupe.metadata['twitter']['label'], [''])
+        self.assertNotIn('label', parsed.metadata['twitter'])
 
         # everyone is happy when metadata is malformed!
         parsed_dupe = metadata_parser.MetadataParser(url=None, html=html_dupes, support_malformed=True)
