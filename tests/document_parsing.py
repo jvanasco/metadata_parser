@@ -264,6 +264,8 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(parsed.metadata['twitter']['site'], 'meta.name=twitter:site')
         self.assertEqual(parsed.metadata['twitter']['title'], 'meta.name=twitter:title')
         self.assertEqual(parsed.metadata['twitter']['url'], 'https://example.com/meta/name=twitter:url')
+        self.assertEqual(parsed.metadata['twitter']['data'], 'meta.name=twitter:data||value')
+        self.assertNotIn('label', parsed.metadata['twitter'])
         self.assertEqual(parsed.is_opengraph_minimum(), True)
 
     def test_html_urls(self):
@@ -299,7 +301,7 @@ class TestDocumentParsing(unittest.TestCase):
         """
         html = self._MakeOne('duplicates.html')
         parsed = metadata_parser.MetadataParser(url=None, html=html)
-        
+
         # this is just a property and should be the same object
         self.assertIs(parsed.metadata, parsed.parsed_result.metadata)
 
@@ -566,3 +568,45 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(parsed.get_metadatas('TestMixedField3', strategy='all', encoder=encoder_capitalizer), {'meta': ['META:TESTMIXEDFIELD3', ],
                                                                                                                 'dc': [{'CONTENT': 'DC:TESTMIXEDFIELD3',},
                                                                                                                 ]})
+
+    def test_malformed_twitter(self):
+        """
+        this tests simple.html to have certain fields
+        python -munittest tests.document_parsing.TestDocumentParsing.test_malformed_twitter
+        """
+        html = self._MakeOne('simple.html')
+
+        # the default behavior is to not support malformed
+        # that means we should consult 'value' for data and 'label'
+        # in `simple.html`, "label" (incorrectly) uses "content" and "data" uses "label"
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+        self.assertEqual(parsed.metadata['twitter']['data'], 'meta.name=twitter:data||value')
+        self.assertNotIn('label', parsed.metadata['twitter'])
+        self.assertNotIn('invalid', parsed.metadata['twitter'])
+
+        # now with `support_malformed` support we will load the label!
+        parsed2 = metadata_parser.MetadataParser(url=None, html=html, support_malformed=True)
+        self.assertEqual(parsed2.metadata['twitter']['data'], 'meta.name=twitter:data||value')
+        self.assertEqual(parsed2.metadata['twitter']['label'], 'meta.name=twitter:label||content')
+        self.assertEqual(parsed2.metadata['twitter']['invalid'], 'meta.name=twitter:invalid')
+
+        # try it with dupes...
+        html_dupes = self._MakeOne('duplicates.html')
+        parsed_dupe = metadata_parser.MetadataParser(url=None, html=html_dupes)
+        # two items for each of data/label, but label is empty strings
+        self.assertEqual(parsed_dupe.metadata['twitter']['data'], ['meta.name=twitter:data||value,1',
+                                                                   'meta.name=twitter:data||value,2',
+                                                                   ])
+        self.assertNotIn('label', parsed.metadata['twitter'])
+
+        # everyone is happy when metadata is malformed!
+        parsed_dupe = metadata_parser.MetadataParser(url=None, html=html_dupes, support_malformed=True)
+        self.assertEqual(parsed_dupe.metadata['twitter']['data'], ['meta.name=twitter:data||value,1',
+                                                                   'meta.name=twitter:data||value,2',
+                                                                   ])
+        self.assertEqual(parsed_dupe.metadata['twitter']['label'], ['meta.name=twitter:label||content,1',
+                                                                    'meta.name=twitter:label||content,2',
+                                                                    ])
+
+
+

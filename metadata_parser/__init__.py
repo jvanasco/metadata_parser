@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.20-dev'
+__VERSION__ = '0.9.20'
 
 
 # ------------------------------------------------------------------------------
@@ -1029,6 +1029,7 @@ class MetadataParser(object):
     requests_session = None
     derive_encoding = None
     default_encoding = None
+    support_malformed = None
 
     # allow for the beautiful_soup to be saved
     soup = None
@@ -1042,7 +1043,7 @@ class MetadataParser(object):
         raise_on_invalid=False, search_head_only=None, allow_redirects=True,
         requests_session=None, only_parse_http_ok=True, defer_fetch=False,
         derive_encoding=True, html_encoding=None, default_encoding=None,
-        retry_dropped_without_headers=None,
+        retry_dropped_without_headers=None, support_malformed=None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -1127,6 +1128,9 @@ class MetadataParser(object):
             `retry_dropped_without_headers`
                 default: None
                 if True, will retry a dropped connection without headers
+            `support_malformed`
+                default: None
+                if True, will support parsing some commonly malformed tag implementations
         """
         if url is not None:
             url = url.strip()
@@ -1155,6 +1159,7 @@ class MetadataParser(object):
         self.requests_session = requests_session
         self.derive_encoding = derive_encoding
         self.default_encoding = default_encoding
+        self.support_malformed = support_malformed
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if html is None:
@@ -1166,7 +1171,7 @@ class MetadataParser(object):
                                               url_headers=url_headers,
                                               retry_dropped_without_headers=retry_dropped_without_headers,
                                               )
-                        self.parse(html)
+                        self.parse(html, support_malformed=support_malformed)
                         return
                     self.deferred_fetch = deferred_fetch
                     return
@@ -1184,7 +1189,7 @@ class MetadataParser(object):
                                           default_encoding=default_encoding,
                                           )
         if html:
-            self.parse(html)
+            self.parse(html, support_malformed=support_malformed)
 
     # --------------------------------------------------------------------------
 
@@ -1426,13 +1431,14 @@ class MetadataParser(object):
             allow_localhosts=self.allow_localhosts,
         )
 
-    def parse(self, html):
+    def parse(self, html, support_malformed=None):
         """
         parses submitted `html`
 
         args:
             html
         """
+        support_malformed = support_malformed if support_malformed is not None else self.support_malformed
         if not isinstance(html, BeautifulSoup):
             kwargs_bs = {}
             try:
@@ -1499,10 +1505,35 @@ class MetadataParser(object):
                                           )
         for twitter in twitters:
             try:
+                # for the deprecated "twitter:(label|data)" meta tags, we must use a 'value' attr
+                # other tags use the "content" attr
+                # some implementations uses "value" or "content" interchangeably though
+                _key = twitter['name'][8:]
+                if support_malformed or (_key.lower() in ('label', 'data')):
+                    _val = None  # scoping reminder
+                    if _key.lower() in ('label', 'data'):
+                        _val = twitter.get('value', None)
+                        if _val is None:
+                            if support_malformed:
+                                _val = twitter.get('content', None)
+                    elif support_malformed:
+                        # prefer `content` to `value`
+                        _val = twitter.get('content', None)
+                        if _val is None:
+                           _val = twitter.get('value', None)
+                else:
+                    _val = twitter.get('content', None)
+
+                # clients expect a string, not none
+                # previous behavior was to exclude these items too
+                if _val is None:
+                    continue
+
                 parsed_result._add_discovered(_target_container='twitter',
-                                              _target_key=twitter['name'][8:],
-                                              _raw_value=twitter['content'],
+                                              _target_key=_key,
+                                              _raw_value=_val,
                                               )
+
             except (AttributeError, KeyError):
                 pass
 
