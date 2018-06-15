@@ -308,11 +308,9 @@ def derive_encoding__hook(resp, *args, **kwargs):
         _sample = resp.content[:1024]
         if PY3:
             _py3_sample = resp.content.decode()
-            try:
+            if isinstance(_py3_sample, bytes):
                 resp._encoding_content = get_encodings_from_content(_py3_sample)
-            except TypeError:
-                #sometimes _py3_sample seems to be str, when get_encodings_from_content expects bytes like, so catch, and fall through 
-                pass
+
         if not resp._encoding_content:
             resp._encoding_content = get_encodings_from_content(_sample)
     if resp._encoding_content:
