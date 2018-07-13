@@ -322,8 +322,8 @@ def response_peername__hook(resp, *args, **kwargs):
 def safe_sample(source):
     _sample = source[:1024]
     if PY3:
-        # this block can cause an error on PY3 depending on whether or not requests-toolbelt is used
-        # and what the source is (from a request vs a url/test)
+        # this block can cause an error on PY3 depending on where the data came
+        # from such as what the source is (from a request vs a document/test)
         # thanks, @keyz182 for the PR/investigation https://github.com/jvanasco/metadata_parser/pull/16
         if type(source) is not bytes:
             _sample = (source.encode())[:1024]
