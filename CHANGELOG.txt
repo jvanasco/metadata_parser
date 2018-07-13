@@ -1,10 +1,16 @@
 1.0
     1.0 will be a complete api overhaul
 
-TODO:
-	* cache the parsed urls
-
 0.9.21
+	* the output of urlparse is now cached onto the parser instance.
+	** perhaps this will be global cache in the future
+	* MetadataParser now accepts `cached_urlparser`
+	** default: True
+	   options: True: use a instance of UrlParserCacheable(maxitems=30)
+			  : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
+			  : None/False/0 - use native urlparse
+			  : other truthy values - use as a custom urlparse
+
 	* addressing issue #17 (https://github.com/jvanasco/metadata_parser/issues/17) where `get_link_` logic does not handle schemeless urls.
 	** `MetadataParser.get_metadata_link` will now try to upgrade schemeless links (e.g. urls that start with "//")
 	** `MetadataParser.get_metadata_link` will now check values against `FIELDS_REQUIRE_HTTPS` in certain situations to see if the value is valid for http
@@ -24,7 +30,6 @@ TODO:
 			'og:image:secure_url',
 			'og:audio:secure_url',
 			'og:video:secure_url',
-
 
 0.9.20
 	* support for deprecated `twitter:label` and `twitter:data` metatags, which use "value" instead of "content".

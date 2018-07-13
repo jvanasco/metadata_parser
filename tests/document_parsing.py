@@ -286,6 +286,31 @@ def _docs_test(test_names):
     return errors
 
 
+def _docs_test_parser(test_names, cached_urlparser):
+    errors = []
+    for test in test_names:
+        tests = []
+        url = docs[test]['url-real']
+        kwargs = {}
+        if cached_urlparser != '*no-kwarg':
+            kwargs['cached_urlparser'] = cached_urlparser
+        parsed = metadata_parser.MetadataParser(
+            url=url,
+            html=docs[test]['doc'],
+            **kwargs
+        )
+        if 'get_discrete_url()' in docs[test]['expected']:
+            tests.append('get_discrete_url()')
+            url_expected = docs[test]['expected']['get_discrete_url()']
+            url_retrieved = parsed.get_discrete_url()
+            if url_retrieved != url_expected:
+                errors.append([test, 'get_discrete_url()', url_expected, url_retrieved, ])
+        if not tests:
+            raise ValueError("No tests!")
+    return errors
+
+
+
 class TestHtmlDocument(unittest.TestCase):
     """
         python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_relative
@@ -772,3 +797,69 @@ class TestDocumentParsing(unittest.TestCase):
 
 
 
+class TestCustomUrlparser(unittest.TestCase):
+    """
+        python -m unittest tests.document_parsing.TestCustomUrlparser
+    """
+
+    def test_default__get_discrete_url__good_relative(self):
+        errors = _docs_test_parser(['good-canonical-relative',
+                                    'good-canonical-relative_alt',
+                                    'good-og-relative_alt', 
+                                    ],
+                                    '*no-kwarg'
+                                   )
+        if errors:
+            raise ValueError(errors)
+
+    def test_true__get_discrete_url__good_relative(self):
+        errors = _docs_test_parser(['good-canonical-relative',
+                                    'good-canonical-relative_alt',
+                                    'good-og-relative_alt', 
+                                    ],
+                                    True
+                                   )
+        if errors:
+            raise ValueError(errors)
+
+    def test_int__get_discrete_url__good_relative(self):
+        errors = _docs_test_parser(['good-canonical-relative',
+                                    'good-canonical-relative_alt',
+                                    'good-og-relative_alt', 
+                                    ],
+                                    1
+                                   )
+        if errors:
+            raise ValueError(errors)
+
+    def test_none__get_discrete_url__good_relative(self):
+        errors = _docs_test_parser(['good-canonical-relative',
+                                    'good-canonical-relative_alt',
+                                    'good-og-relative_alt', 
+                                    ],
+                                    None
+                                   )
+        if errors:
+            raise ValueError(errors)
+
+    def test_false__get_discrete_url__good_relative(self):
+        errors = _docs_test_parser(['good-canonical-relative',
+                                    'good-canonical-relative_alt',
+                                    'good-og-relative_alt', 
+                                    ],
+                                    False
+                                   )
+        if errors:
+            raise ValueError(errors)
+
+    def test_instance__get_discrete_url__good_relative(self):
+        custom_parser_obj = metadata_parser.UrlParserCacheable()
+        custom_parser = custom_parser_obj.urlparse
+        errors = _docs_test_parser(['good-canonical-relative',
+                                    'good-canonical-relative_alt',
+                                    'good-og-relative_alt', 
+                                    ],
+                                    custom_parser
+                                   )
+        if errors:
+            raise ValueError(errors)
