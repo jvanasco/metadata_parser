@@ -29,12 +29,7 @@ if __debug__:
 # pypi
 from bs4 import BeautifulSoup
 import requests
-try:
-    # use the toolbelt if available
-    from requests_toolbelt.utils.deprecated import get_encodings_from_content
-except ImportError:
-    from requests.utils import get_encodings_from_content
-
+from requests_toolbelt.utils.deprecated import get_encodings_from_content
 try:
     import tldextract
     USE_TLDEXTRACT = True
@@ -324,6 +319,17 @@ def response_peername__hook(resp, *args, **kwargs):
     # do not return anything
 
 
+def safe_sample(source):
+    _sample = source[:1024]
+    if PY3:
+        # this block can cause an error on PY3 depending on whether or not requests-toolbelt is used
+        # and what the source is (from a request vs a url/test)
+        # thanks, @keyz182 for the PR/investigation https://github.com/jvanasco/metadata_parser/pull/16
+        if type(source) is not bytes:
+            _sample = (source.encode())[:1024]
+    return _sample
+
+
 def derive_encoding__hook(resp, *args, **kwargs):
     resp._encoding_fallback = ENCODING_FALLBACK
     # modified version, returns `None` if no charset available
@@ -331,9 +337,7 @@ def derive_encoding__hook(resp, *args, **kwargs):
     resp._encoding_content = None
     if not resp._encoding_headers and resp.content:
         # html5 spec requires a meta-charset in the first 1024 bytes
-        _sample = resp.content[:1024]
-        if PY3:
-            _sample = resp.content.decode()
+        _sample = safe_sample(resp.content)
         resp._encoding_content = get_encodings_from_content(_sample)
     if resp._encoding_content:
         resp.encoding = resp._encoding_content[0]  # it's a list
@@ -784,7 +788,8 @@ class DummyResponse(object):
             self.encoding = encoding
         elif derive_encoding:
             # only examine first 1024 bytes. in this case chars. utf could be 4x chars
-            encodings = get_encodings_from_content(text[:1024])
+            _sample = safe_sample(text)
+            encodings = get_encodings_from_content(_sample)
             if encodings:
                 self.encoding = encodings[0]
         if default_encoding:
