@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.20'
+__VERSION__ = '0.9.21'
 
 
 # ------------------------------------------------------------------------------
@@ -13,6 +13,7 @@ __VERSION__ = '0.9.20'
 
 # stdlib
 import cgi
+import collections
 import datetime
 import os
 import sys
@@ -501,15 +502,24 @@ def parsed_to_relative(parsed, parsed_fallback=None):
     return _path
 
 
-def fix_unicode_url(url, encoding=None):
+def fix_unicode_url(
+    url,
+    encoding=None,
+    urlparser=urlparse,
+    ):
     """
     some cms systems will put unicode in their canonical url
     this is not allowed by rfc.
     currently this function will update the PATH but not the kwargs.
     perhaps it should.
     rfc3986 says that characters should be put into utf8 then percent encoded
+    
+    kwargs:
+        `encoding` - used for python2 encoding
+        `urlparser` - defaults to standard `urlparse`, can be substituted with
+                      a cacheable version.
     """
-    parsed = urlparse(url)
+    parsed = urlparser(url)
     if parsed.path in ('', '/'):
         # can't do anything
         return url
@@ -537,14 +547,20 @@ def is_url_valid(
     url,
     require_public_netloc=None,
     allow_localhosts=None,
+    urlparser=urlparse,
 ):
     """
     tries to parse a url. if valid returns `ParseResult`
     (boolean eval is True); if invalid returns `False`
+    kwargs:
+        `require_public_netloc` - 
+        `allow_localhosts` - 
+        `urlparser` - defaults to standard `urlparse`, can be substituted with
+                      a cacheable version.
     """
     if url is None:
         return False
-    parsed = urlparse(url)
+    parsed = urlparser(url)
     if is_parsed_valid_url(
         parsed,
         require_public_netloc=require_public_netloc,
@@ -559,6 +575,7 @@ def url_to_absolute_url(
     url_fallback=None,
     require_public_netloc=None,
     allow_localhosts=None,
+    urlparser=urlparse,
 ):
     """
     returns an "absolute url" if we have one.
@@ -579,6 +596,8 @@ def url_to_absolute_url(
         `require_public_netloc` - requires the hostname/netloc to be a
             valid IPV4 or public dns domain name
         `allow_localhosts` - filters localhost values
+        `urlparser` - defaults to standard `urlparse`, can be substituted with
+                      a cacheable version.
     """
     # quickly correct for some dumb mistakes
     if isinstance(url_test, str):
@@ -592,7 +611,7 @@ def url_to_absolute_url(
     if url_test is None and url_fallback is not None:
         return url_fallback
 
-    parsed = urlparse(url_test)
+    parsed = urlparser(url_test)
 
     # if we passed in a url, we can't remount it onto another domain
     if parsed.hostname:
@@ -610,7 +629,7 @@ def url_to_absolute_url(
         if _path in known_invalid_plugins_paths:
             return url_fallback
 
-    parsed_fallback = urlparse(url_fallback)
+    parsed_fallback = urlparser(url_fallback)
 
     """
     # this was a testing concept to remount the path
@@ -779,6 +798,25 @@ class DummyResponse(object):
 
 
 # ------------------------------------------------------------------------------
+
+
+class UrlParserCacheable(object):
+    """
+    class for caching calls to urlparse
+    
+    this simply manipulates a dict
+    """
+
+    def __init__(self, maxitems=30):
+        self.cache = collections.OrderedDict()
+        self.maxitems = maxitems
+    
+    def urlparse(self, url):
+        if url not in self.cache:
+            self.cache[url] = urlparse(url)
+            if len(self.cache) > self.maxitems:
+                self.cache.popitem(last=False)
+        return self.cache[url]
 
 
 class ParsedResult(object):
@@ -1075,6 +1113,7 @@ class MetadataParser(object):
         requests_session=None, only_parse_http_ok=True, defer_fetch=False,
         derive_encoding=True, html_encoding=None, default_encoding=None,
         retry_dropped_without_headers=None, support_malformed=None,
+        cached_urlparser=True,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -1162,10 +1201,29 @@ class MetadataParser(object):
             `support_malformed`
                 default: None
                 if True, will support parsing some commonly malformed tag implementations
+            `cached_urlparser`
+                default: True
+                options: True: use a instance of UrlParserCacheable(maxitems=30)
+                       : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
+                       : None/False/0 - use native urlparse
+                       : other truthy values - use as a custom urlparse
         """
         if url is not None:
             url = url.strip()
         self.parsed_result = ParsedResult()
+        if cached_urlparser:
+            if cached_urlparser is True:
+                cached_urlparser = UrlParserCacheable()  # a cache
+                self._cached_urlparser = cached_urlparser  # stash it
+                self.urlparse = cached_urlparser.urlparse
+            elif type(cached_urlparser) is int:
+                cached_urlparser = UrlParserCacheable(maxitems=cached_urlparser)  # a cache
+                self._cached_urlparser = cached_urlparser  # stash it
+                self.urlparse = cached_urlparser.urlparse
+            else:
+                self.urlparse = cached_urlparser
+        else:
+            self.urlparse = urlparse
         if strategy:
             self.parsed_result.strategy = strategy
         self.url = self.parsed_result.metadata['_internal']['url'] = url
@@ -1310,7 +1368,7 @@ class MetadataParser(object):
         force_parse_invalid_content_type = force_parse_invalid_content_type if force_parse_invalid_content_type is not None else self.force_parse_invalid_content_type
         only_parse_http_ok = only_parse_http_ok if only_parse_http_ok is not None else self.only_parse_http_ok
         if not force_parse and self.only_parse_file_extensions is not None:
-            parsed = urlparse(self.url)
+            parsed = self.urlparse(self.url)
             path = parsed.path
             if path:
                 url_fpath = path.split('.')
@@ -1371,8 +1429,8 @@ class MetadataParser(object):
                 self.is_redirect = True
                 # sometimes we encounter a circular redirect for auth
                 self.is_redirect_unique = False if resp.url == resp.history[0].url else True
-                parsed_url_og = urlparse(url)
-                parsed_url_dest = urlparse(resp.url)
+                parsed_url_og = self.urlparse(url)
+                parsed_url_dest = self.urlparse(resp.url)
                 self.is_redirect_same_host = True if (parsed_url_og.netloc == parsed_url_dest.netloc) else False
             else:
                 self.is_redirect = False
@@ -1460,6 +1518,7 @@ class MetadataParser(object):
             url_fallback=url_fallback,
             require_public_netloc=self.require_public_netloc,
             allow_localhosts=self.allow_localhosts,
+            urlparser=self.urlparse,
         )
 
     def parse(self, html, support_malformed=None):
@@ -1689,7 +1748,7 @@ class MetadataParser(object):
         if candidate is None:
             candidate = self.url or None
         if candidate:
-            parsed = urlparse(candidate)
+            parsed = self.urlparse(candidate)
             if parsed.scheme:
                 return parsed.scheme
         return None
@@ -1729,6 +1788,7 @@ class MetadataParser(object):
                 _parsed = is_url_valid(_fallback_candndiate,
                                        require_public_netloc=require_public_netloc,
                                        allow_localhosts=allow_localhosts,
+                                       urlparser=self.urlparse,
                                        )
                 if not _parsed:
                     continue
@@ -1764,7 +1824,11 @@ class MetadataParser(object):
                 # exit early
                 return None
             # try to fix it
-            canonical = fix_unicode_url(canonical, encoding=self._response_encoding())
+            canonical = fix_unicode_url(
+                canonical,
+                encoding=self._response_encoding(),
+                urlparser=self.urlparse,
+            )
 
             canonical_valid_chars = RE_rfc3986_valid_characters.match(canonical)
             if not canonical_valid_chars:
@@ -1786,6 +1850,7 @@ class MetadataParser(object):
                 canonical,
                 require_public_netloc=True,
                 allow_localhosts=False,
+                urlparser=self.urlparse,
             ):
                 # try making it absolute
                 canonical = url_to_absolute_url(
@@ -1793,11 +1858,13 @@ class MetadataParser(object):
                     url_fallback=url_fallback,
                     require_public_netloc=True,
                     allow_localhosts=False,
+                    urlparser=self.urlparse,
                 )
                 if not is_url_valid(
                     canonical,
                     require_public_netloc=True,
                     allow_localhosts=False,
+                    urlparser=self.urlparse,
                 ):
                     # set to NONE if invalid
                     canonical = None
@@ -1829,7 +1896,11 @@ class MetadataParser(object):
                 # exit early
                 return None
             # try to fix it
-            og = fix_unicode_url(og, encoding=self._response_encoding())
+            og = fix_unicode_url(
+                og,
+                encoding=self._response_encoding(),
+                urlparser=self.urlparse,
+                )
             og_valid_chars = RE_rfc3986_valid_characters.match(og)
             if not og_valid_chars:
                 return None
@@ -1850,6 +1921,7 @@ class MetadataParser(object):
                 og,
                 require_public_netloc=True,
                 allow_localhosts=False,
+                urlparser=self.urlparse,
             ):
                 # try making it absolute
                 og = url_to_absolute_url(
@@ -1857,11 +1929,13 @@ class MetadataParser(object):
                     url_fallback=url_fallback,
                     require_public_netloc=True,
                     allow_localhosts=False,
+                    urlparser=self.urlparse,
                 )
                 if not is_url_valid(
                     og,
                     require_public_netloc=True,
                     allow_localhosts=False,
+                    urlparser=self.urlparse,
                 ):
                     # set to NONE if invalid
                     og = None
@@ -1988,6 +2062,7 @@ class MetadataParser(object):
             value,
             require_public_netloc=_require_public_netloc,
             allow_localhosts=_allow_localhosts,
+            urlparser=self.urlparse,
         ):
             return value
 
@@ -2001,16 +2076,18 @@ class MetadataParser(object):
                                           url_fallback=url_fallback,
                                           require_public_netloc=_require_public_netloc,
                                           allow_localhosts=_allow_localhosts,
+                                          urlparser=self.urlparse,
                                           )
         if is_url_valid(
             value_fixed,
             require_public_netloc=_require_public_netloc,
             allow_localhosts=_allow_localhosts,
+            urlparser=self.urlparse,
         ):
             # last check on the field...
             # only needed here, because we're using the url_fallback
             if field in FIELDS_REQUIRE_HTTPS:
-                parsed_fixed_url = urlparse(value_fixed)
+                parsed_fixed_url = self.urlparse(value_fixed)
                 if parsed_fixed_url.scheme != 'https':
                     return None
             return value_fixed
