@@ -212,7 +212,7 @@ Tests were added to handle dublincore data. An extra attribute may be needed to 
 Usage
 ==============
 
-Until version 0.9.19, the recommended way to get metadata was to use `get_metadata` which will return a string (or None):
+Until version `0.9.19`, the recommended way to get metadata was to use `get_metadata` which will return a string (or None):
 
 **From an URL**
 
@@ -231,6 +231,21 @@ Until version 0.9.19, the recommended way to get metadata was to use `get_metada
     >>> print page.get_metadatas('title')
     >>> print page.get_metadatas('title', strategy=['og',])
     >>> print page.get_metadatas('title', strategy=['page', 'og', 'dc',])
+
+
+Malformed Data
+======================
+
+It is very common to find malformed data. As of version `0.9.20` the following methods should be used to allow malformed presentation:
+
+    >>> page = metadata_parser.MetadataParser(html=HTML, support_malformed=True)
+
+or
+
+    >>> parsed = page.parse(html=html, support_malformed=True)
+	>>> parsed = page.parse(html=html, support_malformed=False)
+
+The above options will support parsing common malformed options.  Currently this only looks at alternate (improper) ways of producing twitter tags, but may be expanded
 
 
 Notes
