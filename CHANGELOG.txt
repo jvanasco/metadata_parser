@@ -2,6 +2,9 @@
     1.0 will be a complete api overhaul
 
 0.9.21
+	* requests_toolbelt is now required
+	** this is to solve PR#16 / Issue#21
+	** the toolbelt and built-in versions of get_encodings_from_content required different workarounds
 	* the output of urlparse is now cached onto the parser instance.
 	** perhaps this will be global cache in the future
 	* MetadataParser now accepts `cached_urlparser`
