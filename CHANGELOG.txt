@@ -1,6 +1,31 @@
 1.0
     1.0 will be a complete api overhaul
 
+TODO:
+	* cache the parsed urls
+
+0.9.21
+	* addressing issue #17 (https://github.com/jvanasco/metadata_parser/issues/17) where `get_link_` logic does not handle schemeless urls.
+	** `MetadataParser.get_metadata_link` will now try to upgrade schemeless links (e.g. urls that start with "//")
+	** `MetadataParser.get_metadata_link` will now check values against `FIELDS_REQUIRE_HTTPS` in certain situations to see if the value is valid for http
+	** `MetadataParser.schemeless_fields_upgradeable` is a tuple of the fields which can be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
+		The defaults are:
+			'image',
+			'og:image', 'og:image:url', 'og:audio', 'og:video', 
+			'og:image:secure_url', 'og:audio:secure_url', 'og:video:secure_url',		
+	** `MetadataParser.schemeless_fields_disallow` is a tuple of the fields which can not be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
+		The defaults are:
+			'canonical',
+			'og:url',
+	** `MetadataParser.get_url_scheme()` is a new method to expose the scheme of the active url
+	** `MetadataParser.upgrade_schemeless_url()` is a new method to upgrade schemeless links
+		it accepts two arguments: url and field(optional)
+		if present, the field is checked against the package tuple FIELDS_REQUIRE_HTTPS to see if the value is valid for http
+			'og:image:secure_url',
+			'og:audio:secure_url',
+			'og:video:secure_url',
+
+
 0.9.20
 	* support for deprecated `twitter:label` and `twitter:data` metatags, which use "value" instead of "content".
 	* new param to `__init__` and `parse`: `support_malformed` (default `None`).

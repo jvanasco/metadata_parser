@@ -182,6 +182,31 @@ What is valid in the RFC?
     a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%
 """
 
+"""
+these fields can be upgraded to the current scheme if no scheme is detected
+notes:
+    `og:image:secure_url` is omitted, because it should be HTTPS
+"""
+SCHEMELESS_FIELDS_UPGRADEABLE = (
+    'image',
+    'og:image', 'og:image:url', 'og:audio', 'og:video',
+    'og:image:secure_url', 'og:audio:secure_url', 'og:video:secure_url',
+)
+FIELDS_REQUIRE_HTTPS = (
+    'og:image:secure_url',
+    'og:audio:secure_url',
+    'og:video:secure_url',
+
+    # the following are just alternate representations of og: items
+    'image:secure_url',
+    'audio:secure_url',
+    'video:secure_url',
+)
+SCHEMELESS_FIELDS_DISALLOW = (
+    'canonical',
+    'og:url',
+)
+
 
 # ------------------------------------------------------------------------------
 
@@ -629,9 +654,10 @@ def url_to_absolute_url(
                 parsed_domain_source = parsed_fallback
 
     if parsed_domain_source:
-        rval = '%s://%s%s' % (
-            parsed_domain_source.scheme,
-            parsed_domain_source.netloc, _path)
+        rval = '%s://%s%s' % (parsed_domain_source.scheme,
+                              parsed_domain_source.netloc,
+                              _path,
+                              )
     return rval
 
 
@@ -1033,6 +1059,11 @@ class MetadataParser(object):
 
     # allow for the beautiful_soup to be saved
     soup = None
+
+    # this has a per-parser default tuple
+    # it can be upgraded manually
+    schemeless_fields_upgradeable = SCHEMELESS_FIELDS_UPGRADEABLE
+    schemeless_fields_disallow = SCHEMELESS_FIELDS_DISALLOW
 
     def __init__(
         self,
@@ -1520,7 +1551,7 @@ class MetadataParser(object):
                         # prefer `content` to `value`
                         _val = twitter.get('content', None)
                         if _val is None:
-                           _val = twitter.get('value', None)
+                            _val = twitter.get('value', None)
                 else:
                     _val = twitter.get('content', None)
 
@@ -1652,24 +1683,38 @@ class MetadataParser(object):
             except AttributeError:
                 pass
 
-    def upgrade_schemeless_url(self, url):
+    def get_url_scheme(self):
+        """try to determine the scheme"""
+        candidate = self.url_actual or None
+        if candidate is None:
+            candidate = self.url or None
+        if candidate:
+            parsed = urlparse(candidate)
+            if parsed.scheme:
+                return parsed.scheme
+        return None
+
+    def upgrade_schemeless_url(self, url, field=None):
+        """
+        urls can appear in html 3 ways:
+
+        * Absolute -  https://example.com/path/to/foo
+        * Relative -  /path/to/foo
+        * Schemeless - //subdomain.example.com/path/to/foo
+
+        if a url is schemeless, it should be treated as an absolute url on the same scheme.
+
+        field is an optional paramter.
+        if provided, it will be used to ensure the field of the url can be ugpraded.
+        certain fields appear in `FIELDS_REQUIRE_HTTPS` and require an https scheme
+        """
         if url[0:2] != '//':
             raise ValueError("not a schemeless url")
-
-        def _get_url_scheme():
-            """try to determine the scheme"""
-            candidate = self.url_actual or None
-            if candidate is None:
-                candidate = self.url or None
-            if candidate:
-                parsed = urlparse(candidate)
-                if parsed.scheme:
-                    return parsed.scheme
-            return None
-
-        scheme = _get_url_scheme()
+        scheme = self.get_url_scheme()
         if scheme:
-            url = "%s:%s" % (scheme, url)
+            # field could be None
+            if (field not in FIELDS_REQUIRE_HTTPS) or (scheme == 'https'):
+                url = "%s:%s" % (scheme, url)
         return url
 
     def get_fallback_url(
@@ -1724,6 +1769,13 @@ class MetadataParser(object):
             canonical_valid_chars = RE_rfc3986_valid_characters.match(canonical)
             if not canonical_valid_chars:
                 return None
+
+        # upgrade the url to a scheme?
+        if canonical[0:2] == '//':
+            field = 'canonical'
+            if field in self.schemeless_fields_upgradeable:
+                value = self.upgrade_schemeless_url(canonical, field=field)
+
         if require_public_global:
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
@@ -1781,6 +1833,13 @@ class MetadataParser(object):
             og_valid_chars = RE_rfc3986_valid_characters.match(og)
             if not og_valid_chars:
                 return None
+
+        # upgrade the url to a scheme?
+        if og[0:2] == '//':
+            field = 'og:url'
+            if field in self.schemeless_fields_upgradeable:
+                value = self.upgrade_schemeless_url(og, field=field)
+
         if require_public_global:
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
@@ -1912,8 +1971,11 @@ class MetadataParser(object):
 
         # upgrade the url to a scheme?
         if value[0:2] == '//':
-            value = self.upgrade_schemeless_url(value)
-        
+            if field in self.schemeless_fields_upgradeable:
+                value = self.upgrade_schemeless_url(value, field=field)
+            if field in self.schemeless_fields_disallow:
+                return None
+
         if require_public_global:
             _require_public_netloc = True
             _allow_localhosts = False
@@ -1928,7 +1990,7 @@ class MetadataParser(object):
             allow_localhosts=_allow_localhosts,
         ):
             return value
-        
+
         # fallback url is used to drop to the domain
         url_fallback = self.get_fallback_url(require_public_netloc=_require_public_netloc,
                                              allow_localhosts=_allow_localhosts,
@@ -1945,6 +2007,12 @@ class MetadataParser(object):
             require_public_netloc=_require_public_netloc,
             allow_localhosts=_allow_localhosts,
         ):
+            # last check on the field...
+            # only needed here, because we're using the url_fallback
+            if field in FIELDS_REQUIRE_HTTPS:
+                parsed_fixed_url = urlparse(value_fixed)
+                if parsed_fixed_url.scheme != 'https':
+                    return None
             return value_fixed
 
         return None

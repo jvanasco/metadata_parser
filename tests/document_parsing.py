@@ -40,7 +40,8 @@ docs = {
             'get_discrete_url()': 'http://example.com/og.html',
         },
     },
-    'good-canonical-absolute-noschema': {
+
+    'good-canonical-noscheme-http': {
         'url-real': """http://example.com""",
         'head': {
             'url-canonical': """//example.com/canonical.html""",
@@ -50,7 +51,7 @@ docs = {
             'get_discrete_url()': 'http://example.com/canonical.html',
         },
     },
-    'good-og-absolute-noschema': {
+    'good-og-noscheme-http': {
         'url-real': """http://example.com""",
         'head': {
             'url-canonical': None,
@@ -60,7 +61,26 @@ docs = {
             'get_discrete_url()': 'http://example.com/og.html',
         },
     },
-
+    'good-canonical-noscheme-https': {
+        'url-real': """https://example.com""",
+        'head': {
+            'url-canonical': """//example.com/canonical.html""",
+            'url-og': None,
+        },
+        'expected': {
+            'get_discrete_url()': 'https://example.com/canonical.html',
+        },
+    },
+    'good-og-noscheme-https': {
+        'url-real': """https://example.com""",
+        'head': {
+            'url-canonical': None,
+            'url-og': """//example.com/og.html""",
+        },
+        'expected': {
+            'get_discrete_url()': 'https://example.com/og.html',
+        },
+    },
 
     'good-canonical-relative': {
         'url-real': """http://example.com""",
@@ -134,6 +154,74 @@ docs = {
             'get_discrete_url()': 'http://example.com/one-two-three.html',
         },
     },
+
+
+    'image-https': {
+        'url-real': """https://example.com""",
+        'head': {
+            'url-canonical': """https://example.com/canonical.html""",
+            'url-og': None,
+            'url-og:image': """https://example.com/img.gif""",
+        },
+        'expected': {
+            'og:image':  """https://example.com/img.gif""",
+        },
+    },
+    'image-https-noscheme': {
+        'url-real': """https://example.com""",
+        'head': {
+            'url-canonical': """https://example.com/canonical.html""",
+            'url-og': None,
+            'url-og:image': """//example.com/img.gif""",
+        },
+        'expected': {
+            'og:image':  """https://example.com/img.gif""",
+        },
+    },
+    'image-https-noscheme-secure': {
+        'url-real': """https://example.com""",
+        'head': {
+            'url-canonical': """https://example.com/canonical.html""",
+            'url-og': None,
+            'url-og:image:secure_url': """//example.com/img.gif""",
+        },
+        'expected': {
+            'og:image:secure_url':  """https://example.com/img.gif""",
+        },
+    },
+    'image-http': {
+        'url-real': """http://example.com""",
+        'head': {
+            'url-canonical': """http://example.com/canonical.html""",
+            'url-og': None,
+            'url-og:image': """http://example.com/img.gif""",
+        },
+        'expected': {
+            'og:image':  """http://example.com/img.gif""",
+        },
+    },
+    'image-http-noscheme': {
+        'url-real': """http://example.com""",
+        'head': {
+            'url-canonical': """http://example.com/canonical.html""",
+            'url-og': None,
+            'url-og:image': """//example.com/img.gif""",
+        },
+        'expected': {
+            'og:image':  """http://example.com/img.gif""",
+        },
+    },
+    'image-http-noscheme-secure': {
+        'url-real': """http://example.com""",
+        'head': {
+            'url-canonical': """//example.com/canonical.html""",
+            'url-og': None,
+            'url-og:image:secure_url': """//example.com/img.gif""",
+        },
+        'expected': {
+            'og:image:secure_url':  None,
+        },
+    },
 }
 
 
@@ -146,12 +234,22 @@ def encoder_capitalizer(decoded):
 # setup the test_docs with html bodies
 for test in docs.keys():
     head = ''
-    if docs[test]['head']['url-og'] is not None:
-        head += """<meta property="og:url" content="%s"/>""" % \
-            docs[test]['head']['url-og']
-    if docs[test]['head']['url-canonical'] is not None:
-        head += """<link rel="canonical" href="%s" />""" % \
-            docs[test]['head']['url-canonical']
+    if 'url-og' in docs[test]['head']:
+        if docs[test]['head']['url-og'] is not None:
+            head += """<meta property="og:url" content="%s"/>""" % \
+                docs[test]['head']['url-og']
+    if 'url-canonical' in docs[test]['head']:
+        if docs[test]['head']['url-canonical'] is not None:
+            head += """<link rel="canonical" href="%s" />""" % \
+                docs[test]['head']['url-canonical']
+    if 'url-og:image' in docs[test]['head']:
+        if docs[test]['head']['url-og:image'] is not None:
+            head += '''<meta property="og:image" content="%s" />''' % \
+                docs[test]['head']['url-og:image']
+    if 'url-og:image:secure_url' in docs[test]['head']:
+        if docs[test]['head']['url-og:image:secure_url'] is not None:
+            head += '''<meta property="og:image:secure_url" content="%s" />''' % \
+                docs[test]['head']['url-og:image:secure_url']
     custom_vars = {'head': head}
     docs[test]['doc'] = doc_base % custom_vars
 
@@ -159,15 +257,32 @@ for test in docs.keys():
 def _docs_test(test_names):
     errors = []
     for test in test_names:
+        tests = []
         url = docs[test]['url-real']
-        url_expected = docs[test]['expected']['get_discrete_url()']
         parsed = metadata_parser.MetadataParser(
             url=url,
             html=docs[test]['doc']
         )
-        url_retrieved = parsed.get_discrete_url()
-        if url_retrieved != url_expected:
-            errors.append([test, url_expected, url_retrieved, ])
+        if 'get_discrete_url()' in docs[test]['expected']:
+            tests.append('get_discrete_url()')
+            url_expected = docs[test]['expected']['get_discrete_url()']
+            url_retrieved = parsed.get_discrete_url()
+            if url_retrieved != url_expected:
+                errors.append([test, 'get_discrete_url()', url_expected, url_retrieved, ])
+        if 'og:image' in docs[test]['expected']:
+            tests.append('og:image')
+            url_expected = docs[test]['expected']['og:image']
+            url_retrieved = parsed.get_metadata_link('og:image')
+            if url_retrieved != url_expected:
+                errors.append([test, 'og:image', url_expected, url_retrieved, ])
+        if 'og:image:secure_url' in docs[test]['expected']:
+            tests.append('og:image:secure_url')
+            url_expected = docs[test]['expected']['og:image:secure_url']
+            url_retrieved = parsed.get_metadata_link('og:image:secure_url')
+            if url_retrieved != url_expected:
+                errors.append([test, 'og:image:secure_url', url_expected, url_retrieved, ])
+        if not tests:
+            raise ValueError("No tests!")
     return errors
 
 
@@ -188,12 +303,18 @@ class TestHtmlDocument(unittest.TestCase):
             raise ValueError(errors)
 
     def test_get_discrete_url__good_absolute(self):
-        errors = _docs_test(['good-canonical-absolute', 'good-og-absolute', ])
+        errors = _docs_test(['good-canonical-absolute',
+                             'good-og-absolute',
+                             ])
         if errors:
             raise ValueError(errors)
 
-    def test_get_discrete_url__good_absolute(self):
-        errors = _docs_test(['good-canonical-absolute-noschema', 'good-og-absolute-noschema', ])
+    def test_get_discrete_url__good_noscheme(self):
+        errors = _docs_test(['good-canonical-noscheme-http',
+                             'good-og-noscheme-http',
+                             'good-canonical-noscheme-https',
+                             'good-og-noscheme-https',
+                             ])
         if errors:
             raise ValueError(errors)
 
@@ -202,6 +323,19 @@ class TestHtmlDocument(unittest.TestCase):
                              'bad-canonical2',
                              'bad-canonical3',
                              'bad-og', ]
+                            )
+        if errors:
+            raise ValueError(errors)
+
+    def test_get_image(self):
+        errors = _docs_test([
+                             'image-http-noscheme-secure',
+                             'image-https-noscheme-secure',
+                             'image-http',
+                             'image-https',
+                             'image-http-noscheme',
+                             'image-https-noscheme',
+                             ]
                             )
         if errors:
             raise ValueError(errors)
