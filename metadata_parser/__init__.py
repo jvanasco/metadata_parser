@@ -1652,6 +1652,26 @@ class MetadataParser(object):
             except AttributeError:
                 pass
 
+    def upgrade_schemeless_url(self, url):
+        if url[0:2] != '//':
+            raise ValueError("not a schemeless url")
+
+        def _get_url_scheme():
+            """try to determine the scheme"""
+            candidate = self.url_actual or None
+            if candidate is None:
+                candidate = self.url or None
+            if candidate:
+                parsed = urlparse(candidate)
+                if parsed.scheme:
+                    return parsed.scheme
+            return None
+
+        scheme = _get_url_scheme()
+        if scheme:
+            url = "%s:%s" % (scheme, url)
+        return url
+
     def get_fallback_url(
         self,
         require_public_netloc=True,
@@ -1890,6 +1910,10 @@ class MetadataParser(object):
         if not is_valid_chars:
             return None
 
+        # upgrade the url to a scheme?
+        if value[0:2] == '//':
+            value = self.upgrade_schemeless_url(value)
+        
         if require_public_global:
             _require_public_netloc = True
             _allow_localhosts = False
@@ -1904,7 +1928,7 @@ class MetadataParser(object):
             allow_localhosts=_allow_localhosts,
         ):
             return value
-
+        
         # fallback url is used to drop to the domain
         url_fallback = self.get_fallback_url(require_public_netloc=_require_public_netloc,
                                              allow_localhosts=_allow_localhosts,

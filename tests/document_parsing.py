@@ -40,6 +40,28 @@ docs = {
             'get_discrete_url()': 'http://example.com/og.html',
         },
     },
+    'good-canonical-absolute-noschema': {
+        'url-real': """http://example.com""",
+        'head': {
+            'url-canonical': """//example.com/canonical.html""",
+            'url-og': None,
+        },
+        'expected': {
+            'get_discrete_url()': 'http://example.com/canonical.html',
+        },
+    },
+    'good-og-absolute-noschema': {
+        'url-real': """http://example.com""",
+        'head': {
+            'url-canonical': None,
+            'url-og': """//example.com/og.html""",
+        },
+        'expected': {
+            'get_discrete_url()': 'http://example.com/og.html',
+        },
+    },
+
+
     'good-canonical-relative': {
         'url-real': """http://example.com""",
         'head': {
@@ -159,13 +181,19 @@ class TestHtmlDocument(unittest.TestCase):
     def test_get_discrete_url__good_relative(self):
         errors = _docs_test(['good-canonical-relative',
                              'good-canonical-relative_alt',
-                             'good-og-relative_alt', ]
+                             'good-og-relative_alt', 
+                             ]
                             )
         if errors:
             raise ValueError(errors)
 
     def test_get_discrete_url__good_absolute(self):
         errors = _docs_test(['good-canonical-absolute', 'good-og-absolute', ])
+        if errors:
+            raise ValueError(errors)
+
+    def test_get_discrete_url__good_absolute(self):
+        errors = _docs_test(['good-canonical-absolute-noschema', 'good-og-absolute-noschema', ])
         if errors:
             raise ValueError(errors)
 
