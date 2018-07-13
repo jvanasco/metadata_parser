@@ -333,8 +333,12 @@ def derive_encoding__hook(resp, *args, **kwargs):
         # html5 spec requires a meta-charset in the first 1024 bytes
         _sample = resp.content[:1024]
         if PY3:
-            _sample = resp.content.decode()
-        resp._encoding_content = get_encodings_from_content(_sample)
+            _py3_sample = resp.content.decode()
+            if isinstance(_py3_sample, bytes):
+                resp._encoding_content = get_encodings_from_content(_py3_sample)
+
+        if not resp._encoding_content:
+            resp._encoding_content = get_encodings_from_content(_sample)
     if resp._encoding_content:
         resp.encoding = resp._encoding_content[0]  # it's a list
     else:
