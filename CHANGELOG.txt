@@ -1,6 +1,15 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.9.23
+	added tests for url entities
+	better grabbing of the charset
+	better grabbing of some edge cases
+
+0.9.22
+	removed internal calls to the deprecated `get_metadata`, replacing them with `get_metadatas`.
+	this will avoid emitting a deprecation warning, allowing users to migrate more easily
+
 0.9.21
 	* requests_toolbelt is now required
 	** this is to solve PR#16 / Issue#21

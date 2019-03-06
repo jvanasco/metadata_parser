@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.21'
+__VERSION__ = '0.9.22'
 
 
 # ------------------------------------------------------------------------------
@@ -633,7 +633,7 @@ def url_to_absolute_url(
         if _path in known_invalid_plugins_paths:
             return url_fallback
 
-    parsed_fallback = urlparser(url_fallback)
+    parsed_fallback = urlparser(url_fallback) if url_fallback else None
 
     """
     # this was a testing concept to remount the path
@@ -653,6 +653,7 @@ def url_to_absolute_url(
             if (parsed_fallback.scheme == parsed.scheme) or (parsed_fallback.netloc == parsed.netloc):
                 return url_fallback
 
+    # initialize our return value
     rval = None
 
     # we'll use a placeholder for a source 'parsed' object that has a domain...
@@ -873,10 +874,14 @@ class ParsedResult(object):
         if _target_key not in _target_container:
             _target_container[_target_key] = _formatted_value
         else:
-            if type(_target_container[_target_key]) != list:
-                _target_container[_target_key] = [_target_container[_target_key], ]
-            if _formatted_value not in _target_container[_target_key]:
-                _target_container[_target_key].append(_formatted_value)
+            _current_value = _target_container[_target_key]
+            if type(_current_value) != list:
+                if _formatted_value == _current_value:
+                    return
+                _target_container[_target_key] = [_target_container[_target_key], _formatted_value, ]
+            else:
+                if _formatted_value not in _target_container[_target_key]:
+                    _target_container[_target_key].append(_formatted_value)
 
     def _coerce_strategy(self, strategy=None):
         """normalize a strategy into a valid option"""
@@ -987,8 +992,6 @@ class ParsedResult(object):
                 a function, such as `encode_ascii`, to encode values.
                 a valid `encoder` accepts one(1) arg.
         """
-        warn_future("""`get_metadata` returns a string and is being deprecated"""
-                    """in favor of `get_metadatas` which returns a list.""")
         strategy = self._coerce_strategy(strategy)
 
         def _lookup(store):
@@ -1303,11 +1306,11 @@ class MetadataParser(object):
         return self.parsed_result.soup
 
     def get_metadata(self, field, strategy=None, encoder=None):
-        # deprecating in 1.0
+        # deprecating in 1.0; operate on the result instead
         return self.parsed_result.get_metadata(field, strategy=strategy, encoder=encoder)
 
     def get_metadatas(self, field, strategy=None, encoder=None):
-        # deprecating in 1.0
+        # deprecating in 1.0; operate on the result instead
         return self.parsed_result.get_metadatas(field, strategy=strategy, encoder=encoder)
 
     def is_opengraph_minimum(self):
@@ -1534,6 +1537,7 @@ class MetadataParser(object):
             html
         """
         support_malformed = support_malformed if support_malformed is not None else self.support_malformed
+        
         if not isinstance(html, BeautifulSoup):
             kwargs_bs = {}
             try:
@@ -1714,35 +1718,46 @@ class MetadataParser(object):
         meta = doc_searchpath.findAll(name='meta')
         for m in meta:
             try:
-                k = None
-                v = None
+                k = None  # metadata key
+                l = None  # metadata-label
+                v = None  # metadata-value
                 attrs = m.attrs
-                k = None
-                if 'name' in attrs:
-                    k = 'name'
-                elif 'property' in attrs:
-                    k = 'property'
-                elif 'http-equiv' in attrs:
-                    k = 'http-equiv'
+                # _k = k-candidate
+                for _k in ('name', 'property', 'http-equiv', ):
+                    if _k in attrs:
+                        k = _k
+                        break
+
                 if k:
-                    k = attrs[k].strip()
+                    l = attrs[k].strip()
                     if 'content' in attrs:
                         v = attrs['content']
-                    if (len(k) > 3) and (k[:3].lower() in ('dc:', 'dc.')):
-                        _dc_formatted = {'content': v, }
-                        if 'lang' in attrs:
-                            _dc_formatted['lang'] = attrs['lang']
-                        if 'scheme' in attrs:
-                            _dc_formatted['scheme'] = attrs['scheme']
-                        self.parsed_result._add_discovered(_target_container='dc',
-                                                           _target_key=k[3:],
-                                                           _raw_value=v,
-                                                           _formatted_value=_dc_formatted,
-                                                           )
-                    else:
+                    elif 'value' in attrs:
+                        v = attrs['value']
+                    if (v is None) and (k == 'name') and (l == 'charset'):
+                        v = attrs['charset']
+                    if v is not None:
+                        if (len(l) > 3) and (l[:3].lower() in ('dc:', 'dc.')):
+                            _dc_formatted = {'content': v, }
+                            if 'lang' in attrs:
+                                _dc_formatted['lang'] = attrs['lang']
+                            if 'scheme' in attrs:
+                                _dc_formatted['scheme'] = attrs['scheme']
+                            self.parsed_result._add_discovered(_target_container='dc',
+                                                               _target_key=l[3:],
+                                                               _raw_value=v,
+                                                               _formatted_value=_dc_formatted,
+                                                               )
+                        else:
+                            self.parsed_result._add_discovered(_target_container='meta',
+                                                               _target_key=l,
+                                                               _raw_value=v,
+                                                               )
+                elif k is None:
+                    if 'charset' in attrs:
                         self.parsed_result._add_discovered(_target_container='meta',
-                                                           _target_key=k,
-                                                           _raw_value=v,
+                                                           _target_key='charset',
+                                                           _raw_value=attrs['charset'],
                                                            )
             except AttributeError:
                 pass
@@ -1817,9 +1832,13 @@ class MetadataParser(object):
             url_fallback=True
             allow_unicode_url=True
         """
-        canonical = self.get_metadata('canonical', strategy=['page', ])
-        if not canonical:
+        _candidates = self.parsed_result.get_metadatas('canonical', strategy=['page', ])
+        # get_metadatas returns a list, so find the first canonical item
+        _candidates = [c for c in _candidates if c] if _candidates else []
+        if not _candidates:
             return None
+        canonical = _candidates[0]
+
         # does the canonical have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
         # amateurs.
@@ -1889,9 +1908,13 @@ class MetadataParser(object):
             url_fallback=None
             allow_unicode_url=True
         """
-        og = self.get_metadata('url', strategy=['og', ])
-        if not og:
+        _candidates = self.parsed_result.get_metadatas('url', strategy=['og', ])
+        # get_metadatas returns a list, so find the first og item
+        _candidates = [c for c in _candidates if c] if _candidates else []
+        if not _candidates:
             return None
+        og = _candidates[0]
+
         # does the og have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
         # idiots.
@@ -2025,10 +2048,12 @@ class MetadataParser(object):
             also require the fallback url to be on the public internet and not a
             localhost value.
         """
-        # `_value` will be our raw value
-        _value = self.get_metadata(field, strategy=strategy)
-        if not _value:
+        _candidates = self.parsed_result.get_metadatas(field, strategy=strategy)
+        _candidates = [c for c in _candidates if c] if _candidates else []
+        if not _candidates:
             return None
+        # `_value` will be our raw value
+        _value = _candidates[0]
 
         # `value` will be our clean value
         # remove whitespace, because some bad blogging platforms add in whitespace by printing elements on multiple lines. d'oh!

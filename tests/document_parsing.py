@@ -407,6 +407,7 @@ class TestDocumentParsing(unittest.TestCase):
     python -m unittest tests.document_parsing.TestDocumentParsing.test_simple_html
     python -m unittest tests.document_parsing.TestDocumentParsing.test_html_urls
     python -m unittest tests.document_parsing.TestDocumentParsing.test_complex_html
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_charsets
     """
 
     def _MakeOne(self, filename):
@@ -498,6 +499,16 @@ class TestDocumentParsing(unittest.TestCase):
         # it should be the same version
         self.assertEqual(parsed.metadata_version, metadata_parser.ParsedResult._version)
         self.assertEqual(parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version)
+
+        # we have 3 og:image entries in this file
+        _computed_link = parsed.get_metadata_link('image', strategy=['og',])
+        assert _computed_link == 'https://www.example.com/meta/property=og:image'
+        _all_og_images = parsed.get_metadatas('og:image')
+        assert len(_all_og_images) == 3
+        assert 'https://www.example.com/meta/property=og:image' in _all_og_images
+         # bs4 cleans up the ampersand internally into an entity, but prints it deserialized by default
+        assert 'https://www.example.com/meta?property=og:image&duplicate=1' in _all_og_images
+        assert 'https://www.example.com/meta?property=og:image&duplicate=2' in _all_og_images
 
         # -----
         # this is a duplicate element and should be stored in the metadata dict as a list
@@ -756,6 +767,25 @@ class TestDocumentParsing(unittest.TestCase):
                                                                                                                 'dc': [{'CONTENT': 'DC:TESTMIXEDFIELD3',},
                                                                                                                 ]})
 
+        self.assertEqual(parsed.get_metadata('news_keywords', strategy=['meta', ]), '', )
+        self.assertEqual(parsed.get_metadata('auto-publish', strategy=['meta', ]), 'timely', )
+        self.assertEqual(parsed.get_metadata('article:modified_time', strategy=['meta', ]), '2017-10-11 01:01:01', )
+        self.assertEqual(parsed.get_metadata('msapplication-tap-highlight', strategy=['meta', ]), 'no', )
+        self.assertEqual(parsed.get_metadata('google-site-verification', strategy=['meta', ]), '123123123', )
+        self.assertEqual(parsed.get_metadata('twitter:data1', strategy=['meta', ]), '8 min read', )
+        self.assertEqual(parsed.get_metadata('google', strategy=['meta', ]), 'notranslate', )
+        self.assertEqual(parsed.get_metadata('news_keywords', strategy=['meta', ]), '', )
+        self.assertEqual(parsed.get_metadatas('viewport', strategy=['meta', ]), ['width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no',
+                                                                                 'width=device-width, initial-scale=1, maximum-scale=1',
+                                                                                 ])
+        self.assertEqual(parsed.get_metadata('thumbnail', strategy=['meta', ]), 'https://example.com/path/to/image.jpg')
+        self.assertEqual(parsed.get_metadata_link('thumbnail', strategy=['meta', ]), 'https://example.com/path/to/image.jpg')
+        self.assertEqual(parsed.get_metadata('thumbnail-2', strategy=['meta', ]), '//example.com/path/to/image.jpg')
+        self.assertEqual(parsed.get_metadata_link('thumbnail-2', strategy=['meta', ]), None)
+        self.assertEqual(parsed.get_metadata('thumbnail-3', strategy=['meta', ]), '/path/to/image.jpg')
+        self.assertEqual(parsed.get_metadata_link('thumbnail-3', strategy=['meta', ]), None)
+
+
     def test_malformed_twitter(self):
         """
         this tests simple.html to have certain fields
@@ -795,11 +825,26 @@ class TestDocumentParsing(unittest.TestCase):
                                                                     'meta.name=twitter:label||content,2',
                                                                     ])
 
+    def test_charsets(self):
+        """
+        python -m unittest tests.document_parsing.TestDocumentParsing.test_charsets
+        """
+        a_html = self._MakeOne('charset_a.html')
+        a_parsed = metadata_parser.MetadataParser(url=None, html=a_html)
+        self.assertEqual(a_parsed.metadata['meta']['content-type'], 'text/html; charset=UTF-8')
+
+        b_html = self._MakeOne('charset_b.html')
+        b_parsed = metadata_parser.MetadataParser(url=None, html=b_html)
+        self.assertEqual(b_parsed.metadata['meta']['charset'], 'UTF-8')
+
+        c_html = self._MakeOne('charset_c.html')
+        c_parsed = metadata_parser.MetadataParser(url=None, html=c_html)
+        self.assertEqual(c_parsed.metadata['meta']['charset'], 'UTF-8')
 
 
 class TestCustomUrlparser(unittest.TestCase):
     """
-        python -m unittest tests.document_parsing.TestCustomUrlparser
+    python -m unittest tests.document_parsing.TestCustomUrlparser
     """
 
     def test_default__get_discrete_url__good_relative(self):

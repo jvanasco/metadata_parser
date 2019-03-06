@@ -1,0 +1,139 @@
+<html>
+<head>
+    <!-- core page attributes -->
+    <title>title</title>
+    <link rel='canonical' href='http://example.com/meta/rel=canonical' />
+    <link rel='shortlink' href='http://example.com/meta/rel=shortlink' />
+
+
+    <!-- meta attributes -->
+    <meta name="description" content="meta.description">
+    <meta name="keywords" content="meta.keywords:1">
+    <meta name="keywords" content="meta.keywords:2">
+    <meta name="author" content="meta.author:1">
+    <meta name="author" content="meta.author:2">
+
+
+    <!-- meta attributes : opengraph markup -->
+    <meta property="article:publisher" content="https://www.example.com/meta/property=article:publisher" />
+    <meta property="og:site_name" content="meta.property=og:site_name" />
+    <meta property="og:title" content="meta.property=og:title" />
+    <meta property="og:description" content="meta.property=og:description" />
+    <meta property="og:image" content="https://www.example.com/meta/property=og:image" />
+    <meta property="og:image" content="https://www.example.com/meta?property=og:image&duplicate=1" />
+    <meta property="og:image" content="https://www.example.com/meta?property=og:image&amp;duplicate=2" />
+    <meta property="og:url" content="https://www.example.com/meta/property=og:url" />
+    <meta property="og:type" content="meta.property=og:type" />
+
+
+    <!-- meta attributes : twitter cards -->
+    <meta name='twitter:card' content='meta.name=twitter:card' />
+    <meta name='twitter:image:src' content='https://example.com/meta/name=twitter:image:src' />
+    <meta name='twitter:site' content='meta.name=twitter:site' />
+    <meta name='twitter:url' content='https://example.com/meta/name=twitter:url' />
+    <meta name='twitter:description' content='meta.name=twitter:description' />
+    <meta name='twitter:title' content='meta.name=twitter:title' />
+    <meta name='twitter:label' content='meta.name=twitter:label||content,1' />
+    <meta name='twitter:data' value='meta.name=twitter:data||value,1' />
+    <meta name='twitter:label' content='meta.name=twitter:label||content,2' />
+    <meta name='twitter:data' value='meta.name=twitter:data||value,2' />
+
+
+    <!-- some documents have multiple meta tags -->
+    <meta name="citation_title" content="citation:title" />
+    <meta name="citation_author" content="citation_author:1" />
+    <meta name="citation_author" content="citation_author:2" />
+    <meta name="citation_author" content="citation_author:3" />
+    <meta name="citation_date" content="citation_date" />
+    <meta name="citation_online_date" content="citation_online_date" />
+    <meta name="citation_pdf_url" content="citation_pdf_url" />
+
+    <!-- dublin core. these are from the RFC https://www.ietf.org/rfc/rfc2731.txt -->
+    <meta name    = "DC.Creator"
+          content = "Plato">
+    <meta name    = "DC.Creator"
+          lang    = "fr"
+          content = "Platon">
+    <meta name    = "DC.Subject"
+          content = "heart attack">
+    <meta name    = "DC.Subject"
+          scheme  = "MESH"
+          content = "Myocardial Infarction; Pericardial Effusion">
+    <meta name    = "DC.Subject"
+          content = "vietnam war">
+    <meta name    = "DC.Subject"
+          scheme  = "LCSH"
+          content = "Vietnamese Conflict, 1961-1975">
+    <meta name    = "DC.Subject"
+          content = "Friendship">
+    <meta name    = "DC.Subject"
+          scheme  = "ddc"
+          content = "158.25">
+
+    <!-- dublin core. variant of above to test for ordering of duplicates -->
+    <!-- 1a - single item, simple k/v -->
+    <meta name    = "DC.TestMixedCandidates1a"
+          content = "Friendship">
+    <!-- 1b - single item, k/v+meta -->
+    <meta name    = "DC.TestMixedCandidates1b"
+          scheme  = "ddc"
+          content = "158.25">
+    <!-- 2a - mutiple item, meta first  -->
+    <meta name    = "DC.TestMixedCandidates2a"
+          scheme  = "ddc"
+          content = "158.25">
+    <meta name    = "DC.TestMixedCandidates2a"
+          content = "Friendship">
+    <!-- 2b - mutiple item, meta second  -->
+    <meta name    = "DC.TestMixedCandidates2b"
+          content = "Friendship">
+    <meta name    = "DC.TestMixedCandidates2b"
+          scheme  = "ddc"
+          content = "158.25">
+
+    <!-- some documents have multiple meta tags -->
+    <!-- TestMixedField0: control -->
+    <meta name="TestMixedField0" content="meta:TestMixedField0" />
+
+    <!-- TestMixedField1: meta+dc-->
+    <meta name="TestMixedField1" content="meta:TestMixedField1" />
+    <meta name    = "dc.TestMixedField1"
+          content = "dc:TestMixedField1">
+
+    <!-- TestMixedField2: meta+dc+dc[scheme]-->
+    <meta name="TestMixedField2" content="meta:TestMixedField2" />
+    <meta name    = "dc.TestMixedField2"
+          content = "dc:TestMixedField2">
+    <meta name    = "dc.TestMixedField2"
+          scheme  = "ddc"
+          content = "dc:TestMixedField2.ddc">
+
+    <!-- TestMixedField2: meta+meta+dc-->
+    <meta name="TestMixedField3" content="meta:TestMixedField3" />
+    <meta name="TestMixedField3" content="meta:TestMixedField3" />
+    <meta name    = "dc.TestMixedField3"
+          content = "dc:TestMixedField3">
+
+	<!-- testing new - thumbnails -->
+	<meta name="thumbnail" content="https://example.com/path/to/image.jpg">
+	<meta name="thumbnail-2" content="//example.com/path/to/image.jpg">
+	<meta name="thumbnail-3" content="/path/to/image.jpg">
+
+
+	<!-- testing new -->
+	<meta name="news_keywords" content="">
+	<meta name="article:modified_time" content="2017-10-11 01:01:01" property="article:modified_time">
+	<meta name="auto-publish" content="timely">
+	<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+	<meta name="msapplication-tap-highlight" content="no">
+	<meta name="google-site-verification" content="123123123">
+	<meta name="twitter:data1" value="8 min read">
+	<meta name="google" value="notranslate">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">	
+
+</head>
+<body>
+body
+<img src="https://www.example.com/body/first-image" alt="first image on page">
+</body>
+</html>
