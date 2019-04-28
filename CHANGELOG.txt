@@ -1,6 +1,10 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.10.0
+	better Python3 support by using the six library
+
+
 0.9.23
 	added tests for url entities
 	better grabbing of the charset

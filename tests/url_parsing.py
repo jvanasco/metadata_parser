@@ -10,6 +10,9 @@ except ImportError:
 
 import unittest
 
+import six
+
+
 if False:
     import logging
     l = logging.getLogger()
@@ -385,7 +388,7 @@ class TestFixUnicodeUrls(unittest.TestCase):
         for (raw, expected) in _test_pairs:
             cleaned = metadata_parser.fix_unicode_url(raw)
             self.assertEqual(cleaned, expected)
-            if not metadata_parser.PY3:
+            if six.PY2:
                 cleaned = metadata_parser.fix_unicode_url(raw.decode('utf-8'), encoding='utf-8').encode('utf-8')
                 self.assertEqual(cleaned, expected)
 
@@ -397,7 +400,7 @@ class TestFixUnicodeUrls(unittest.TestCase):
         for (raw, expected) in _test_pairs:
             cleaned = metadata_parser.fix_unicode_url(raw)
             self.assertEqual(cleaned, expected)
-            if not metadata_parser.PY3:
+            if six.PY2:
                 cleaned = metadata_parser.fix_unicode_url(raw.decode('utf-8'), encoding='utf-8').encode('utf-8')
                 self.assertEqual(cleaned, expected)
 

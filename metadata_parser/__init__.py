@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.9.23'
+__VERSION__ = '0.10.0'
 
 
 # ------------------------------------------------------------------------------
@@ -35,20 +35,15 @@ try:
     USE_TLDEXTRACT = True
 except:
     USE_TLDEXTRACT = False
+import six
 
-# python 2/3
-try:
-    # Python 2 has a standard urlparse library
-    from urlparse import urlparse, urlunparse, ParseResult
-    from urllib import quote as url_quote
-    from urllib import unquote as url_unquote
-except:
-    # Python 3 has the same library hidden in urllib.parse
-    from urllib.parse import urlparse, urlunparse, ParseResult
-    from urllib.parse import quote as url_quote
-    from urllib.parse import unquote as url_unquote
-
-PY3 = sys.version_info[0] == 3
+# python 2/3 compat
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlunparse
+from six.moves.urllib.parse import ParseResult
+from six.moves.urllib.parse import quote as url_quote
+from six.moves.urllib.parse import unquote as url_unquote
+from six import text_type
 
 
 def warn_future(message):
@@ -213,10 +208,11 @@ def encode_ascii(text):
     """
     if not text:
         text = ''
-    if not PY3:
-        text = unicode(text)
+    if six.PY2:
+        # text = unicode(text)
+        text = text_type(text)
     normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore')
-    if PY3:
+    if six.PY3:
         normalized = normalized.decode('utf-8', 'ignore')
     return normalized
 
@@ -321,11 +317,11 @@ def response_peername__hook(resp, *args, **kwargs):
 
 def safe_sample(source):
     _sample = source[:1024]
-    if PY3:
+    if six.PY3:
         # this block can cause an error on PY3 depending on where the data came
         # from such as what the source is (from a request vs a document/test)
         # thanks, @keyz182 for the PR/investigation https://github.com/jvanasco/metadata_parser/pull/16
-        if type(source) is not bytes:
+        if not isinstance(source, bytes):
             _sample = (source.encode())[:1024]
     return _sample
 
@@ -536,7 +532,7 @@ def fix_unicode_url(
     for _idx in [2, ]:  # 2=path, 3=params, 4=queryparams, 5fragment
         try:
             candidate[_idx] = parsed[_idx]
-            if not PY3:
+            if six.PY2:
                 if encoding:
                     candidate[_idx] = parsed[_idx].encode(encoding)
             candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
@@ -1541,7 +1537,7 @@ class MetadataParser(object):
         if not isinstance(html, BeautifulSoup):
             kwargs_bs = {}
             try:
-                if not PY3:
+                if six.PY2:
                     # on Python2, if we're given a string, not unicode, it may have an encoding.
                     if isinstance(html, str):
                         kwargs_bs['from_encoding'] = self.response.encoding

@@ -232,7 +232,7 @@ def encoder_capitalizer(decoded):
 
 
 # setup the test_docs with html bodies
-for test in docs.keys():
+for test in list(docs.keys()):
     head = ''
     if 'url-og' in docs[test]['head']:
         if docs[test]['head']['url-og'] is not None:
