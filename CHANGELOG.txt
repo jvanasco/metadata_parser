@@ -1,6 +1,14 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.10.1
+	clarifying some inline docs
+	BREAKING CHANGE: `fetch_url` now returns a tuple of `(html, encoding)
+	now tracking in ParsedResult: encoding
+		ParsedResult.metadata['_internal']['encoding'] = resp.encoding.lower() if resp.encoding else None
+	.parse now accepts `html_encoding`
+
+
 0.10.0
 	better Python3 support by using the six library
 

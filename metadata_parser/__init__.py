@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.10.0'
+__VERSION__ = '0.10.1'
 
 
 # ------------------------------------------------------------------------------
@@ -513,7 +513,7 @@ def fix_unicode_url(
     currently this function will update the PATH but not the kwargs.
     perhaps it should.
     rfc3986 says that characters should be put into utf8 then percent encoded
-    
+
     kwargs:
         `encoding` - used for python2 encoding
         `urlparser` - defaults to standard `urlparse`, can be substituted with
@@ -553,8 +553,8 @@ def is_url_valid(
     tries to parse a url. if valid returns `ParseResult`
     (boolean eval is True); if invalid returns `False`
     kwargs:
-        `require_public_netloc` - 
-        `allow_localhosts` - 
+        `require_public_netloc` -
+        `allow_localhosts` -
         `urlparser` - defaults to standard `urlparse`, can be substituted with
                       a cacheable version.
     """
@@ -805,14 +805,14 @@ class DummyResponse(object):
 class UrlParserCacheable(object):
     """
     class for caching calls to urlparse
-    
+
     this simply manipulates a dict
     """
 
     def __init__(self, maxitems=30):
         self.cache = collections.OrderedDict()
         self.maxitems = maxitems
-    
+
     def urlparse(self, url):
         if url not in self.cache:
             self.cache[url] = urlparse(url)
@@ -856,6 +856,10 @@ class ParsedResult(object):
     @property
     def metadata_version(self):
         return self.metadata.get('_v', None)
+
+    @property
+    def metadata_encoding(self):
+        return self.metadata.get('_internal', {}).get('encoding', None)
 
     def _add_discovered(self, _target_container, _target_key, _raw_value, _formatted_value=None):
         """
@@ -1255,34 +1259,51 @@ class MetadataParser(object):
         self.support_malformed = support_malformed
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
-        if html is None:
-            # we may not have a url for tests or other api usage
-            if url:
-                if defer_fetch:
-                    def deferred_fetch():
-                        html = self.fetch_url(url_data=url_data,
-                                              url_headers=url_headers,
-                                              retry_dropped_without_headers=retry_dropped_without_headers,
-                                              )
-                        self.parse(html, support_malformed=support_malformed)
-                        return
-                    self.deferred_fetch = deferred_fetch
-                    return
-                html = self.fetch_url(url_data=url_data,
-                                      url_headers=url_headers,
-                                      retry_dropped_without_headers=retry_dropped_without_headers,
-                                      )
-            else:
-                html = ''
-        else:
-            # if html
+        if html is not None:
+            # mock a response
+            # if `html_encoding` was provided as a kwarg, it becomes the encoding
             self.response = DummyResponse(text=html, url=(url or DUMMY_URL),
                                           encoding=html_encoding,
                                           derive_encoding=derive_encoding,
                                           default_encoding=default_encoding,
                                           )
+        else:
+            if html_encoding is not None:
+                warn_user("""`html_encoding` should only be provided when """
+                          """`html` is `None`"""
+                          )
+            # we may not have a url for tests or other api usage
+            # note that `html_encoding` is pulled out here.
+            if url:
+                if defer_fetch:
+                    def deferred_fetch():
+                        (html,
+                         html_encoding
+                         ) = self.fetch_url(url_data=url_data,
+                                            url_headers=url_headers,
+                                            retry_dropped_without_headers=retry_dropped_without_headers,
+                                            )
+                        self.parse(html,
+                                   html_encoding=html_encoding,
+                                   support_malformed=support_malformed,
+                                   )
+                        return
+                    self.deferred_fetch = deferred_fetch
+                    return
+                (html,
+                 html_encoding
+                 ) = self.fetch_url(url_data=url_data,
+                                    url_headers=url_headers,
+                                    retry_dropped_without_headers=retry_dropped_without_headers,
+                                    )
+            else:
+                # our html should always be unicode coming from `requests`
+                html = u''
         if html:
-            self.parse(html, support_malformed=support_malformed)
+            self.parse(html,
+                       html_encoding=html_encoding,
+                       support_malformed=support_malformed
+                       )
 
     # --------------------------------------------------------------------------
 
@@ -1295,6 +1316,11 @@ class MetadataParser(object):
     def metadata_version(self):
         # deprecating in 1.0
         return self.parsed_result.metadata_version
+
+    @property
+    def metadata_encoding(self):
+        # deprecating in 1.0
+        return self.parsed_result.metadata_encoding
 
     @property
     def soup(self):
@@ -1335,7 +1361,7 @@ class MetadataParser(object):
         default_encoding=None, retry_dropped_without_headers=None,
     ):
         """
-        fetches the url and returns it.
+        fetches the url and returns a tuple of (html, html_encoding).
         this was busted out so you could subclass.
 
         kwargs:
@@ -1445,6 +1471,8 @@ class MetadataParser(object):
                                          for k, v in resp.headers.items())
             # stash this into the url actual too
             self.url_actual = self.parsed_result.metadata['_internal']['url_actual'] = resp.url
+            # stash the encoding
+            self.parsed_result.metadata['_internal']['encoding'] = html_encoding = resp.encoding.lower() if resp.encoding else None
 
             # if we're not following redirects, there could be an error here!
             if not allow_redirects:
@@ -1488,6 +1516,7 @@ class MetadataParser(object):
                                   metadataParser=self)
 
             # okay, now we're safe to consume the request content
+            # note that we're using `html` as `.text` which will be unicode coming in
             html = resp.text
 
         except requests.exceptions.RequestException as error:
@@ -1507,7 +1536,7 @@ class MetadataParser(object):
                 metadataParser=self,
             )
 
-        return html
+        return (html, html_encoding)
 
     def absolute_url(self, link=None):
         """
@@ -1525,17 +1554,19 @@ class MetadataParser(object):
             urlparser=self.urlparse,
         )
 
-    def parse(self, html, support_malformed=None):
+    def parse(self, html, html_encoding=None, support_malformed=None):
         """
         parses submitted `html`
 
         args:
             html
+            html_encoding - not currently used
         """
         support_malformed = support_malformed if support_malformed is not None else self.support_malformed
-        
+
         if not isinstance(html, BeautifulSoup):
             kwargs_bs = {}
+            # todo: use html_encoding
             try:
                 if six.PY2:
                     # on Python2, if we're given a string, not unicode, it may have an encoding.
@@ -1757,6 +1788,8 @@ class MetadataParser(object):
                                                            )
             except AttributeError:
                 pass
+        # pprint.pprint(self.parsed_result.__dict__)
+        # pdb.set_trace()
 
     def get_url_scheme(self):
         """try to determine the scheme"""
