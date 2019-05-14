@@ -39,6 +39,7 @@ setup(name='metadata_parser',
           'six',
       ],
       tests_require=[
+        'httpbin',
         'pytest',
         'pytest-httpbin',
         'requests',

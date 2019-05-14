@@ -1431,28 +1431,43 @@ class MetadataParser(object):
             ssl_verify = ssl_verify if ssl_verify is not None else self.ssl_verify
             requests_session = requests_session if requests_session is not None else self.requests_session
             derive_encoding = derive_encoding if derive_encoding is not None else self.derive_encoding
+
+            def _run_in_session(_requests_session):
+                """
+                perform the http(s) fetching in a nested function
+                this allows us to use a context-manager for generated sessions
+                which will handle unclosed socket issues in Python3
+                """
+                if response_peername__hook not in _requests_session.hooks['response']:
+                    _requests_session.hooks['response'].insert(0, response_peername__hook)  # must be first
+                if derive_encoding:
+                    if derive_encoding__hook not in _requests_session.hooks['response']:
+                        _requests_session.hooks['response'].append(derive_encoding__hook)
+                try:
+                    _resp = _requests_session.get(
+                        url, params=url_data, headers=url_headers,
+                        allow_redirects=allow_redirects, verify=ssl_verify,
+                        timeout=requests_timeout, stream=True,
+                    )
+                except requests.exceptions.ChunkedEncodingError as error:
+                    # some servers drop a connection on the bad user-agent
+                    if not url_headers:
+                        raise
+                    if not retry_dropped_without_headers:
+                        raise
+                    _resp = _requests_session.get(
+                        url, params=url_data, headers={},
+                        allow_redirects=allow_redirects, verify=ssl_verify,
+                        timeout=requests_timeout, stream=True,
+                    )
+                return _resp
+
             if requests_session is None:
-                requests_session = requests.Session()
-            requests_session.hooks['response'].insert(0, response_peername__hook)  # must be first
-            if derive_encoding:
-                requests_session.hooks['response'].append(derive_encoding__hook)
-            try:
-                resp = requests_session.get(
-                    url, params=url_data, headers=url_headers,
-                    allow_redirects=allow_redirects, verify=ssl_verify,
-                    timeout=requests_timeout, stream=True,
-                )
-            except requests.exceptions.ChunkedEncodingError as error:
-                # some servers drop a connection on the bad user-agent
-                if not url_headers:
-                    raise
-                if not retry_dropped_without_headers:
-                    raise
-                resp = requests_session.get(
-                    url, params=url_data, headers={},
-                    allow_redirects=allow_redirects, verify=ssl_verify,
-                    timeout=requests_timeout, stream=True,
-                )
+                with requests.Session() as requests_session:
+                    resp = _run_in_session(requests_session)
+            else:
+                resp = _run_in_session(requests_session)
+                
             self.response = resp
             self.peername = get_response_peername(resp)
             if resp.history:
