@@ -5,7 +5,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = '0.10.1'
+__VERSION__ = '0.10.2'
 
 
 # ------------------------------------------------------------------------------
@@ -327,6 +327,18 @@ def safe_sample(source):
 
 
 def derive_encoding__hook(resp, *args, **kwargs):
+    """
+    a note about `requests`
+
+    `response.content` is the raw response bytes
+    `response.text` is `response.content` decoded to the identified codec or
+                    the fallback codec.
+
+    This fallback codec is normally iso-8859-1 (latin-1) which is defined by the
+    RFC for HTTP as the default when no codec is provided in the headers or
+    body. This hook exists because users in certain regions may expect the
+    servers to not follow RFC and for the default encoding to be different.
+    """
     resp._encoding_fallback = ENCODING_FALLBACK
     # modified version, returns `None` if no charset available
     resp._encoding_headers = get_encoding_from_headers(resp.headers)
