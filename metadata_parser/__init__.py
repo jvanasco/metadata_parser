@@ -1181,8 +1181,9 @@ class MetadataParser(object):
             `force_doctype`
                 default: False
                 if set to true, will replace a doctype with 'html'
-                why? some cms give a bad doctype (like nasa.gov)
-                which can break lxml/bsd
+                why? some cms give a bad doctype (like nasa.gov) which can break
+                lxml/bs4. some cms also give a non-html doctype, which will remove
+                the elements from 'head' when parsed.
             `requests_timeout`
                 default: None
                 if set, proxies the value into `requests.get` as `timeout`

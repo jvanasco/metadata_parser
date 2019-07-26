@@ -1,6 +1,9 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.10.unreleased
+	updated docs on bad data
+
 0.10.2
 	added some docs on encoding
 

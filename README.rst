@@ -116,7 +116,7 @@ By default, the `get_metadata_link()` method can be used to ensure a valid link 
 This method accepts a kwarg `allow_encoded_uri` (default False) which will return the image without further processing:
 
     >>> print page.get_metadata_link('image', allow_encoded_uri=True)
-    
+
 Similarly, if a url is local...
 
     <meta property="og:image" content="/image.jpg" />
@@ -135,7 +135,7 @@ Many website publishers implement canonical URLs incorrectly.  This package trie
 
 By default `MetadataParser` is constructed with `require_public_netloc=True` and `allow_localhosts=True`.
 
-This will require somewhat valid 'public' network locations in the url.  
+This will require somewhat valid 'public' network locations in the url.
 
 For example, these will all be valid URLs:
 
@@ -176,6 +176,23 @@ In order to preserve the earlier behavior, just submit `require_public_global=Fa
 
     print page.get_discrete_url(require_public_global=False)
     >>> http://localhost:8000/alt-path/to/foo
+
+
+Handling Bad Data
+=================
+
+Many CMS systems (and developers) create malformed content or incorrect document identifiers.  When this happens, the BeautifulSoup parser will lose data or move it into an unexpected place.
+
+There are two arguments that can help you analyze this data:
+
+* `MetadataParser(..., force_doctype=True, ...)`
+
+    `force_doctype=True` will try to replace the identified doctype with "html" via regex.  This will often make the input data usable by BS4.
+
+* `MetadataParser(..., search_head_only=False, ...)`
+
+    `search_head_only=False` will not limit the search path to the "<head>" element. This will have a slight performance hit and will incorporate data from CMS/User content, not just templates/Site-Operators.
+
 
 WARNING
 =============
@@ -243,7 +260,7 @@ It is very common to find malformed data. As of version `0.9.20` the following m
 or
 
     >>> parsed = page.parse(html=html, support_malformed=True)
-	>>> parsed = page.parse(html=html, support_malformed=False)
+    >>> parsed = page.parse(html=html, support_malformed=False)
 
 The above options will support parsing common malformed options.  Currently this only looks at alternate (improper) ways of producing twitter tags, but may be expanded
 
