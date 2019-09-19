@@ -28,25 +28,25 @@ class SessionRedirect(requests.Session):
                 self.num_checked = 0
             self.num_checked += 1
             if resp.is_redirect:
-                return resp.headers['location']
+                return resp.headers["location"]
             if resp.status_code == 200:
                 # some servers will do a 200 but put a redirect header in there. WTF
-                dumb_redirect = resp.headers.get('location')
+                dumb_redirect = resp.headers.get("location")
                 if dumb_redirect:
                     return dumb_redirect
             return None
-        # -- 
-        if not hasattr(resp, '_redirect_target'):
+
+        # --
+        if not hasattr(resp, "_redirect_target"):
             resp._redirect_target = _get()
         return resp._redirect_target
 
 
 class TestSessionsHttpBin(unittest.TestCase):
-
     def setUp(self):
         self.httpbin_server = pytest_httpbin.serve.Server(application=httpbin_app)
         self.httpbin_server.start()
-    
+
     def tearDown(self):
         self.httpbin_server.stop()
         try:
@@ -60,38 +60,36 @@ class TestSessionsHttpBin(unittest.TestCase):
             pass
 
     def test_no_session(self):
-        '''just checking for args'''
-        url = self.httpbin_server.url + '/html'
+        """just checking for args"""
+        url = self.httpbin_server.url + "/html"
         page = metadata_parser.MetadataParser(url=url)
         assert page
         assert page.url == url
 
     def test_simple_session(self):
-        '''just checking for args'''
-        url = self.httpbin_server.url + '/html'
+        """just checking for args"""
+        url = self.httpbin_server.url + "/html"
         with requests.Session() as s:
             page = metadata_parser.MetadataParser(url=url, requests_session=s)
             assert page
             assert page.url == url
 
     def test_custom_session(self):
-        '''just checking for a custom session'''
+        """just checking for a custom session"""
         num_redirects = 4
-        url = self.httpbin_server.url + '/redirect/%s' % num_redirects
+        url = self.httpbin_server.url + "/redirect/%s" % num_redirects
         with SessionRedirect() as s:
             try:
                 page = metadata_parser.MetadataParser(url=url, requests_session=s)
             except metadata_parser.NotParsableJson as e:
                 page = e.metadataParser
             # we end on get
-            self.assertEqual(page.response.url, self.httpbin_server.url + '/get')
+            self.assertEqual(page.response.url, self.httpbin_server.url + "/get")
             # the session should have checked the following responses: redirects + final
             self.assertEqual(num_redirects + 1, s.num_checked)
             self.assertEqual(num_redirects, len(page.response.history))
-        
+
             # make sure that we tracked the peername.  httpbin will encode
             self.assertTrue(metadata_parser.get_response_peername(page.response))
             for h in page.response.history:
                 self.assertTrue(metadata_parser.get_response_peername(h))
-            
-    
