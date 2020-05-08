@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = "0.10.3rc"
+__VERSION__ = "0.10.3rc1"
 
 
 # ------------------------------------------------------------------------------
@@ -17,7 +17,6 @@ import cgi
 import collections
 import datetime
 import os
-import sys
 import re
 import unicodedata
 import warnings
@@ -36,7 +35,7 @@ try:
     import tldextract
 
     USE_TLDEXTRACT = True
-except:
+except ImportError:
     USE_TLDEXTRACT = False
 import six
 
@@ -89,13 +88,13 @@ except AttributeError:
 # regex library
 
 RE_bad_title = re.compile(
-    """(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I
+    r"""(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I
 )
 
 
-REGEX_doctype = re.compile("^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
+REGEX_doctype = re.compile(r"^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
 
-RE_whitespace = re.compile("\s+")
+RE_whitespace = re.compile(r"\s+")
 
 
 PARSE_SAFE_FILES = (
@@ -166,13 +165,13 @@ RE_IPV4_ADDRESS = re.compile(
     r"^(\d{1,3})\.(\d{1,3}).(\d{1,3}).(\d{1,3})$"  # grab 4 octets
 )
 
-RE_ALL_NUMERIC = re.compile("^[\d\.]+$")
+RE_ALL_NUMERIC = re.compile(r"^[\d\.]+$")
 
 # we may need to test general validity of url components
 RE_rfc3986_valid_characters = re.compile(
-    """^[a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%]+$""", re.I
+    r"""^[a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%]+$""", re.I
 )
-"""
+r"""
 What is valid in the RFC?
     # don't need escaping
     rfc3986_unreserved__noescape = ['a-z', '0-9', ]
@@ -479,7 +478,7 @@ def is_parsed_valid_url(
                         if __debug__:
                             log.debug(" netloc.port does not match our regex _port")
                         return False
-                except:
+                except ValueError:
                     if __debug__:
                         log.debug(" _port is not an int")
                     return False
@@ -561,8 +560,8 @@ def fix_unicode_url(url, encoding=None, urlparser=urlparse):
                 if encoding:
                     candidate[_idx] = parsed[_idx].encode(encoding)
             candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
-        except Exception as e:
-            log.debug("fix_unicode_url failure: %s | %s", url, encoding)
+        except Exception as exc:
+            log.debug("fix_unicode_url failure: %s | %s | %s", url, encoding, exc)
             return url
     candidate = urlunparse(candidate)
     return candidate
@@ -1563,7 +1562,7 @@ class MetadataParser(object):
                         timeout=requests_timeout,
                         stream=True,
                     )
-                except requests.exceptions.ChunkedEncodingError as error:
+                except requests.exceptions.ChunkedEncodingError as exc:
                     # some servers drop a connection on the bad user-agent
                     if not url_headers:
                         raise
@@ -1669,7 +1668,7 @@ class MetadataParser(object):
                     self.peername = get_response_peername(self.response)
                     if self.response.history:
                         self.is_redirect = True
-                except:
+                except Exception as exc2:
                     pass
             log.error("NotParsableFetchError | %s", error)
             raise NotParsableFetchError(
@@ -1697,6 +1696,34 @@ class MetadataParser(object):
             urlparser=self.urlparse,
         )
 
+    def make_soup(self, html, **kwargs_bs):
+        """
+        Turns an HTML string into a BeautifulSoup document.
+
+        If your project requires a specific BeautifulSoup parser or failover,
+        simply subclass `:class:MetadataParser` and implement this function.
+
+        args:
+            html: html doc as string
+            **kwargs_bs: kwargs sent to BeautifulSoup
+
+        example override:
+
+            from metadata_parser import MetadataParser
+
+            class MyParser(MetadataParser):
+                def make_soup(self, html, **kwargs_bs):
+                    doc = BeautifulSoup(html, **kwargs_bs)
+                    return doc
+        """
+        try:
+            doc = BeautifulSoup(html, "lxml", **kwargs_bs)
+        except Exception as exc:
+            if __debug__:
+                log.debug("`BeautifulSoup` could not parse with `lxml`")
+            doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
+        return doc
+
     def parse(self, html, html_encoding=None, support_malformed=None):
         """
         parses submitted `html`
@@ -1719,18 +1746,24 @@ class MetadataParser(object):
                     # on Python2, if we're given a string, not unicode, it may have an encoding.
                     if isinstance(html, str):
                         kwargs_bs["from_encoding"] = self.response.encoding
-            except:
+            except Exception as exc:
+                # just ignore this detection
                 pass
+
             if self.force_doctype:
                 html = REGEX_doctype.sub("<!DOCTYPE html>", html)
+
             try:
-                try:
-                    doc = BeautifulSoup(html, "lxml", **kwargs_bs)
-                except:
-                    doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
-            except:
+                doc = self.make_soup(html, **kwargs_bs)
+            except Exception as exc:
+                if __debug__:
+                    log.info("Could not make soup of HTML: %s", exc)
                 raise NotParsable(
                     "could not parse into BeautifulSoup", metadataParser=self
+                )
+            if not isinstance(doc, BeautifulSoup):
+                raise NotParsable(
+                    "did not parse into BeautifulSoup", metadataParser=self
                 )
         else:
             doc = html
@@ -1768,9 +1801,9 @@ class MetadataParser(object):
                 )
             except (AttributeError, KeyError):
                 pass
-            except:
+            except Exception as exc:
                 if __debug__:
-                    log.debug("Ran into a serious error parsing `og`")
+                    log.debug("Ran into a serious error parsing `og`: %s", exc)
                 pass
 
         twitters = doc_searchpath.findAll("meta", attrs={"name": RE_prefix_twitter})
@@ -1877,7 +1910,7 @@ class MetadataParser(object):
         for m in meta:
             try:
                 k = None  # metadata key
-                l = None  # metadata-label
+                lbl = None  # metadata-label
                 v = None  # metadata-value
                 attrs = m.attrs
                 # _k = k-candidate
@@ -1887,15 +1920,15 @@ class MetadataParser(object):
                         break
 
                 if k:
-                    l = attrs[k].strip()
+                    lbl = attrs[k].strip()
                     if "content" in attrs:
                         v = attrs["content"]
                     elif "value" in attrs:
                         v = attrs["value"]
-                    if (v is None) and (k == "name") and (l == "charset"):
+                    if (v is None) and (k == "name") and (lbl == "charset"):
                         v = attrs["charset"]
                     if v is not None:
-                        if (len(l) > 3) and (l[:3].lower() in ("dc:", "dc.")):
+                        if (len(lbl) > 3) and (lbl[:3].lower() in ("dc:", "dc.")):
                             _dc_formatted = {"content": v}
                             if "lang" in attrs:
                                 _dc_formatted["lang"] = attrs["lang"]
@@ -1903,13 +1936,13 @@ class MetadataParser(object):
                                 _dc_formatted["scheme"] = attrs["scheme"]
                             self.parsed_result._add_discovered(
                                 _target_container="dc",
-                                _target_key=l[3:],
+                                _target_key=lbl[3:],
                                 _raw_value=v,
                                 _formatted_value=_dc_formatted,
                             )
                         else:
                             self.parsed_result._add_discovered(
-                                _target_container="meta", _target_key=l, _raw_value=v
+                                _target_container="meta", _target_key=lbl, _raw_value=v
                             )
                 elif k is None:
                     if "charset" in attrs:
@@ -2015,7 +2048,7 @@ class MetadataParser(object):
         if canonical[0:2] == "//":
             field = "canonical"
             if field in self.schemeless_fields_upgradeable:
-                value = self.upgrade_schemeless_url(canonical, field=field)
+                canonical = self.upgrade_schemeless_url(canonical, field=field)
 
         if require_public_global:
             if url_fallback is None:
@@ -2085,7 +2118,7 @@ class MetadataParser(object):
         if og[0:2] == "//":
             field = "og:url"
             if field in self.schemeless_fields_upgradeable:
-                value = self.upgrade_schemeless_url(og, field=field)
+                og = self.upgrade_schemeless_url(og, field=field)
 
         if require_public_global:
             if url_fallback is None:

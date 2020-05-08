@@ -4,6 +4,10 @@
 0.10.3rc (unreleased)
 	updated docs on bad data
 	black formatting
+	added pyproject.toml
+	moved BeautifulSoup generation into it's own method, so anyone can subclass to customize
+		:fixes: https://github.com/jvanasco/metadata_parser/issues/25
+	some internal variable changes thanks to flake8
 
 0.10.2
 	added some docs on encoding
