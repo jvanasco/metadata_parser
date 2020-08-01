@@ -269,3 +269,8 @@ Notes
 ======
 
 when building on python3, a `static` toplevel directory may be needed
+
+Related projects
+=================
+
+- `htmlmetadata <https://github.com/NightMachinary/htmlmetadata>`_ is a CLI app for extracting metadata. It's about 10x faster than `metadata_parser`, but it doesn't handle the edge cases this library does.
