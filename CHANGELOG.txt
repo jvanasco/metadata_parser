@@ -3,6 +3,10 @@
 
 0.10.4
 	UNRELEASED
+	black via pre-commit
+	* upgraded black; 20.8b1
+	* integrated with pre-commit
+
 
 0.10.3
 	updated docs on bad data

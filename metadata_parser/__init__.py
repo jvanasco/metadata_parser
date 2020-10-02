@@ -395,9 +395,9 @@ def is_parsed_valid_url(
     parsed, require_public_netloc=True, allow_localhosts=True, http_only=True
 ):
     """returns bool
-        `http_only`
-            defaults True
-            requires http or https for the scheme
+    `http_only`
+        defaults True
+        requires http or https for the scheme
     """
     assert isinstance(parsed, ParseResult)
     if __debug__:

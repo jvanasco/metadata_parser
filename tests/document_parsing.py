@@ -238,9 +238,9 @@ def _docs_test_parser(test_names, cached_urlparser):
 
 class TestHtmlDocument(unittest.TestCase):
     """
-        python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_relative
-        python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_absolute
-        python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__bad
+    python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_relative
+    python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__good_absolute
+    python -m unittest tests.document_parsing.TestHtmlDocument.test_get_discrete_url__bad
     """
 
     def test_get_discrete_url__good_relative(self):

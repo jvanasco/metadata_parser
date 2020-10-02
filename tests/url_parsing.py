@@ -332,8 +332,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
     """
 
     def test_upgrade_local_a(self):
-        """
-        """
+        """"""
         url = "https://example.com/nested/A.html"
         rel_canonical = "/nested/B.html"
         rel_expected = "https://example.com/nested/B.html"
@@ -343,8 +342,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_local_b(self):
-        """
-        """
+        """"""
         url = "https://example.com/nested/A.html"
         rel_canonical = "B.html"
         rel_expected = "https://example.com/nested/B.html"
@@ -354,8 +352,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_local_bb(self):
-        """
-        """
+        """"""
         url = "https://example.com/nested/A.html"
         rel_canonical = "path/to/B.html"
         rel_expected = "https://example.com/nested/path/to/B.html"
@@ -365,8 +362,7 @@ class TestDocumentCanonicalsRelative(unittest.TestCase, _DocumentCanonicalsMixin
         self.assertEqual(parsed_url, rel_expected)
 
     def test_upgrade_local_c(self):
-        """
-        """
+        """"""
         url = "https://example.com/nested/A.html"
         rel_canonical = "/B.html"
         rel_expected = "https://example.com/B.html"
