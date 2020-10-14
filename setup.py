@@ -7,6 +7,24 @@ with open(
 ) as v_file:
     VERSION = re.compile(r'.*__VERSION__ = "(.*?)"', re.S).match(v_file.read()).group(1)
 
+requires = (
+    [
+        "BeautifulSoup4",
+        "requests>=2.19.1",
+        "requests-toolbelt>=0.8.0",
+        "six",
+    ],
+)
+tests_require = [
+    "httpbin",
+    "pytest",
+    "pytest-httpbin",
+    "responses",
+    "tldextract",
+]
+testing_extras = tests_require
+
+
 # go
 setup(
     name="metadata_parser",
@@ -30,13 +48,11 @@ setup(
     include_package_data=True,
     packages=find_packages(exclude=["tests.private", "tests.private.*"]),
     zip_safe=False,
-    install_requires=[
-        "BeautifulSoup4",
-        "requests>=2.19.1",
-        "requests-toolbelt>=0.8.0",
-        "six",
-    ],
-    tests_require=["httpbin", "pytest", "pytest-httpbin", "requests", "responses"],
+    install_requires=requires,
+    tests_require=tests_require,
+    extras_require={
+        "testing": testing_extras,
+    },
     entry_points="""
       # -*- Entry points: -*-
       """,
