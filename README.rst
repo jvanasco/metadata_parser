@@ -1,3 +1,5 @@
+![Python package](https://github.com/jvanasco/metadata_parser/workflows/Python%20package/badge.svg)
+
 MetadataParser is a python module for pulling metadata out of web documents.
 
 It requires BeautifulSoup , and was largely based on Erik River's opengraph module ( https://github.com/erikriver/opengraph ).
