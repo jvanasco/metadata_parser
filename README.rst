@@ -1,4 +1,4 @@
-![Python package](https://github.com/jvanasco/metadata_parser/workflows/Python%20package/badge.svg)
+Build Status: ![Python package](https://github.com/jvanasco/metadata_parser/workflows/Python%20package/badge.svg)
 
 MetadataParser is a python module for pulling metadata out of web documents.
 
