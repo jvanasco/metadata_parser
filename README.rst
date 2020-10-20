@@ -1,10 +1,13 @@
+MetadataParser
+==============
+
 Build Status: ![Python package](https://github.com/jvanasco/metadata_parser/workflows/Python%20package/badge.svg)
 
-MetadataParser is a python module for pulling metadata out of web documents.
+MetadataParser is a Python module for pulling metadata out of web documents.
 
 It requires BeautifulSoup , and was largely based on Erik River's opengraph module ( https://github.com/erikriver/opengraph ).
 
-I needed something more aggressive than Erik's module , so had to fork.
+I needed something more aggressive than Erik's module, so had to fork.
 
 
 Installation
@@ -33,7 +36,7 @@ Notes
 =====
 
 1. This requires BeautifulSoup 4.
-2. For speed, it will instantiate a BeautifulSoup parser with lxml , and fall back to 'none' (the internal pure python) if it can't load lxml
+2. For speed, it will instantiate a BeautifulSoup parser with lxml , and fall back to 'none' (the internal pure Python) if it can't load lxml
 3. URL Validation is not RFC compliant, but tries to be "Real World" compliant
 
 * It is HIGHLY recommended that you install lxml for usage.  It is considerably faster.  Considerably faster. *
@@ -279,4 +282,4 @@ The above options will support parsing common malformed options.  Currently this
 Notes
 =====
 
-when building on python3, a `static` toplevel directory may be needed
+when building on Python3, a `static` toplevel directory may be needed
