@@ -7,6 +7,14 @@ with open(
 ) as v_file:
     VERSION = re.compile(r'.*__VERSION__ = "(.*?)"', re.S).match(v_file.read()).group(1)
 
+long_description = (
+    description
+) = "A module to parse metadata out of urls and html documents"
+try:
+    long_description = open("README.rst").read() + "\n"
+except:
+    pass
+
 requires = (
     [
         "BeautifulSoup4",
@@ -22,15 +30,14 @@ tests_require = [
     "responses",
     "tldextract",
 ]
-testing_extras = tests_require
-
+testing_extras = tests_require + []
 
 # go
 setup(
     name="metadata_parser",
     version=VERSION,
-    description="A module to parse metadata out of urls and html documents",
-    long_description=open("README.rst").read() + "\n",
+    description=description,
+    long_description=long_description,
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",

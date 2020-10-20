@@ -22,7 +22,7 @@ This is not required, but it is better.  On earlier versions it is possible to h
 
 
 Features
-=============
+========
 
 * it pulls as much metadata out of a document as possible
 * you can set a 'strategy' for finding metadata (i.e. only accept opengraph or page attributes)
@@ -30,7 +30,8 @@ Features
 * logging is verbose, but nested under `__debug__` statements, so it is compiled away when PYTHONOPTIMIZE is set
 
 Notes
-=============
+=====
+
 1. This requires BeautifulSoup 4.
 2. For speed, it will instantiate a BeautifulSoup parser with lxml , and fall back to 'none' (the internal pure python) if it can't load lxml
 3. URL Validation is not RFC compliant, but tries to be "Real World" compliant
@@ -39,9 +40,12 @@ Notes
 
 You should also use a very recent version of lxml.  I've had problems with segfaults on some versions < 2.3.x ; i would suggest using the most recent 3.x if possible.
 
-The default 'strategy' is to look in this order:
+The default 'strategy' is to look in this order::
 
     og,dc,meta,page
+
+Which stands for the following::
+
     og = OpenGraph
     dc = DublinCore
     meta = metadata
@@ -49,7 +53,7 @@ The default 'strategy' is to look in this order:
 
 You can specify a strategy as a comma-separated list of the above.
 
-The only 2 page elements currently supported are:
+The only 2 page elements currently supported are::
 
     <title>VALUE</title> -> metadata['page']['title']
     <link rel="canonical" href="VALUE"> -> metadata['page']['link']
@@ -58,7 +62,7 @@ The only 2 page elements currently supported are:
 
 The MetadataParser object also wraps some convenience functions , which can be used otherwise , that are designed to turn alleged urls into well formed urls.
 
-For example, you may pull a page:
+For example, you may pull a page::
 
     http://www.example.com/path/to/file.html
 
@@ -69,9 +73,8 @@ This package will try to 'remount' the canonical url to the absolute url of "htt
 This all happens under-the-hood, and is honestly really useful when dealing with indexers and spiders.
 
 
-
 URL Validation
-=================
+==============
 
 "Real World" URL validation is enabled by default.  This is not RFC compliant.
 
@@ -80,15 +83,21 @@ There are a few gaps in the RFCs that allow for "odd behavior".  Just about any 
 The differences:
 
 * If an entirely numeric ip address is encountered, it is assumed to be a dot-notation IPV4 and it is checked to have the right amount of valid octets.
-    The default behavior is to invalidate these hosts:
+
+    The default behavior is to invalidate these hosts::
+
         http://256.256.256.256
         http://999.999.999.999.999
+
     According to RFCs those are valid hostnames that would fail as "IP Addresses" but pass as "Domain Names".  However in the real world, one would never encounter domain names like those.
 
 * The only non-domain hostname that is allowed, is "localhost"
-    The default behavior is to invalidate  these hosts :
+
+    The default behavior is to invalidate these hosts ::
+
         http://example
         http://examplecom
+
     Those are considered to be valid hosts, and might exist on a local network or custom hosts file.  However, they are not part of the public internet.
 
 Although this behavior breaks RFCs, it greatly reduces the number of "False Positives" generated when analyzing internet pages.  If you want to include bad data, you can submit a kwarg to `MetadataParser.__init__`
@@ -101,35 +110,32 @@ This library tries to safeguard against a few common situations.
 
 # Encoded URIs and relative urls
 
-Most website publishers will define an image as a URL
+Most website publishers will define an image as a URL::
 
     <meta property="og:image" content="http://example.com/image.jpg" />
 
-Some will define an image as an encoded URI
+Some will define an image as an encoded URI::
 
     <meta property="og:image" content="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNM+Q8AAc0BZX6f84gAAAAASUVORK5CYII=" />
 
-By default, the `get_metadata_link()` method can be used to ensure a valid link is extracted from the metadata payload
+By default, the `get_metadata_link()` method can be used to ensure a valid link is extracted from the metadata payload::
 
     >>> import metadata_parser
     >>> page = metadata_parser.MetadataParser(url="http://www.example.com")
     >>> print page.get_metadata_link('image')
 
-This method accepts a kwarg `allow_encoded_uri` (default False) which will return the image without further processing:
+This method accepts a kwarg `allow_encoded_uri` (default False) which will return the image without further processing::
 
     >>> print page.get_metadata_link('image', allow_encoded_uri=True)
 
-Similarly, if a url is local...
+Similarly, if a url is local::
 
     <meta property="og:image" content="/image.jpg" />
 
-
-The `get_metadata_link` method will automatically upgrade it onto the domain:
+The `get_metadata_link` method will automatically upgrade it onto the domain::
 
     >>> print page.get_metadata_link('image')
     http://example.com/image.jpg
-
-
 
 # Poorly Constructed Canonical URLs
 
@@ -139,7 +145,7 @@ By default `MetadataParser` is constructed with `require_public_netloc=True` and
 
 This will require somewhat valid 'public' network locations in the url.
 
-For example, these will all be valid URLs:
+For example, these will all be valid URLs::
 
     http://example.com
     http://1.2.3.4
@@ -147,34 +153,34 @@ For example, these will all be valid URLs:
     http://127.0.0.1
     http://0.0.0.0
 
-If these known 'localhost' urls are not wanted, they can be filtered out with `allow_localhosts=False`
+If these known 'localhost' urls are not wanted, they can be filtered out with `allow_localhosts=False`::
 
     http://localhost
     http://127.0.0.1
     http://0.0.0.0
 
-There are two convenience methods that can be used to get a canonical url or calculate the effective url:
+There are two convenience methods that can be used to get a canonical url or calculate the effective url::
 
 * MetadataParser.get_discrete_url
 * MetadataParser.get_metadata_link
 
 These both accept an argument `require_public_global`, which defaults to `True`.
 
-Assuming we have the following content on the url `http://example.com/path/to/foo`
+Assuming we have the following content on the url `http://example.com/path/to/foo`::
 
     <link rel="canonical" href="http://localhost:8000/alt-path/to/foo">
 
-By default, versions 0.9.0 and later will detect 'localhost:8000' as an improper canonical url, and remount the local part "/alt-path/to/foo" onto the domain that served the file.  The vast majority of times this 'behavior' has been encountered, this is the intended canonical.
+By default, versions 0.9.0 and later will detect 'localhost:8000' as an improper canonical url, and remount the local part "/alt-path/to/foo" onto the domain that served the file.  The vast majority of times this 'behavior' has been encountered, this is the intended canonical::
 
     print page.get_discrete_url()
     >>> http://example.com/alt-path/to/foo
 
-In contrast, versions 0.8.3 and earlier will not catch this situation.
+In contrast, versions 0.8.3 and earlier will not catch this situation::
 
     print page.get_discrete_url()
     >>> http://localhost:8000/alt-path/to/foo
 
-In order to preserve the earlier behavior, just submit `require_public_global=False`
+In order to preserve the earlier behavior, just submit `require_public_global=False`::
 
     print page.get_discrete_url(require_public_global=False)
     >>> http://localhost:8000/alt-path/to/foo
@@ -187,13 +193,17 @@ Many CMS systems (and developers) create malformed content or incorrect document
 
 There are two arguments that can help you analyze this data:
 
-* `MetadataParser(..., force_doctype=True, ...)`
+* force_doctype::
 
-    `force_doctype=True` will try to replace the identified doctype with "html" via regex.  This will often make the input data usable by BS4.
+    `MetadataParser(..., force_doctype=True, ...)`
 
-* `MetadataParser(..., search_head_only=False, ...)`
+`force_doctype=True` will try to replace the identified doctype with "html" via regex.  This will often make the input data usable by BS4.
 
-    `search_head_only=False` will not limit the search path to the "<head>" element. This will have a slight performance hit and will incorporate data from CMS/User content, not just templates/Site-Operators.
+* search_head_only::
+
+    `MetadataParser(..., search_head_only=False, ...)`
+
+`search_head_only=False` will not limit the search path to the "<head>" element. This will have a slight performance hit and will incorporate data from CMS/User content, not just templates/Site-Operators.
 
 
 WARNING
@@ -208,7 +218,7 @@ Version 0.9.19 Breaking Changes
 Issue #12 exposed some flaws in the existing package
 
 1. `MetadataParser.get_metadatas` replaces `MetadataParser.get_metadata`
------------------------
+------------------------------------------------------------------------
 
 Until version 0.9.19, the recommended way to get metadata was to use `get_metadata` which will either return a string (or None).
 
@@ -217,23 +227,23 @@ Starting with version 0.9.19, the recommended way to get metadata is to use `get
 This change was made because the library incorrectly stored a single metadata key value when there were duplicates.
 
 2. The `ParsedResult` payload stores mixed content and tracks it's version
------------------------
+==------------------------------------------------------------------------
 
 Many users (including the maintainer) archive the parsed metadata. After testing a variety of payloads with an all-list format and a mixed format (string or list), a mixed format had a much smaller payload size with a negligible performance hit. A new `_v` attribute tracks the payload version.  In the future, payloads without a `_v` attribute will be interpreted as the pre-versioning format.
 
 3. `DublinCore` payloads might be a dict
------------------------
+----------------------------------------
 
 Tests were added to handle dublincore data. An extra attribute may be needed to properly represent the payload, so always returning a dict with at least a name+content (and possibly `lang` or `scheme` is the best approach.
 
 
 
 Usage
-==============
+=====
 
 Until version `0.9.19`, the recommended way to get metadata was to use `get_metadata` which will return a string (or None):
 
-**From an URL**
+**From an URL**::
 
     >>> import metadata_parser
     >>> page = metadata_parser.MetadataParser(url="http://www.example.com")
@@ -242,7 +252,7 @@ Until version `0.9.19`, the recommended way to get metadata was to use `get_meta
     >>> print page.get_metadatas('title', strategy=['og',])
     >>> print page.get_metadatas('title', strategy=['page', 'og', 'dc',])
 
-**From HTML**
+**From HTML**::
 
     >>> HTML = """<here>"""
     >>> page = metadata_parser.MetadataParser(html=HTML)
@@ -253,21 +263,20 @@ Until version `0.9.19`, the recommended way to get metadata was to use `get_meta
 
 
 Malformed Data
-======================
+==============
 
-It is very common to find malformed data. As of version `0.9.20` the following methods should be used to allow malformed presentation:
+It is very common to find malformed data. As of version `0.9.20` the following methods should be used to allow malformed presentation::
 
     >>> page = metadata_parser.MetadataParser(html=HTML, support_malformed=True)
 
-or
+or::
 
     >>> parsed = page.parse(html=html, support_malformed=True)
     >>> parsed = page.parse(html=html, support_malformed=False)
 
-The above options will support parsing common malformed options.  Currently this only looks at alternate (improper) ways of producing twitter tags, but may be expanded
-
+The above options will support parsing common malformed options.  Currently this only looks at alternate (improper) ways of producing twitter tags, but may be expanded.
 
 Notes
-======
+=====
 
 when building on python3, a `static` toplevel directory may be needed
