@@ -1670,7 +1670,6 @@ class MetadataParser(object):
                         self.is_redirect = True
                 except Exception as exc2:
                     pass
-            log.error("NotParsableFetchError | %s", error)
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                 " attribute of this error.",
