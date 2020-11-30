@@ -1,19 +1,17 @@
 from setuptools import setup, find_packages
 import os, re
 
+HERE = os.path.abspath(os.path.dirname(__file__))
+
 # store version in the init.py
-with open(
-    os.path.join(os.path.dirname(__file__), "metadata_parser", "__init__.py")
-) as v_file:
+with open(os.path.join(HERE, "metadata_parser", "__init__.py")) as v_file:
     VERSION = re.compile(r'.*__VERSION__ = "(.*?)"', re.S).match(v_file.read()).group(1)
 
 long_description = (
     description
 ) = "A module to parse metadata out of urls and html documents"
-try:
-    long_description = open("README.rst").read() + "\n"
-except:
-    pass
+with open(os.path.join(HERE, "README.rst")) as fp:
+    long_description = fp.read()
 
 requires = (
     [

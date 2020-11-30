@@ -111,7 +111,8 @@ Handling Bad URLs and Encoded URIs
 
 This library tries to safeguard against a few common situations.
 
-# Encoded URIs and relative urls
+Encoded URIs and relative urls
+------------------------------
 
 Most website publishers will define an image as a URL::
 
@@ -140,7 +141,8 @@ The `get_metadata_link` method will automatically upgrade it onto the domain::
     >>> print page.get_metadata_link('image')
     http://example.com/image.jpg
 
-# Poorly Constructed Canonical URLs
+Poorly Constructed Canonical URLs
+---------------------------------
 
 Many website publishers implement canonical URLs incorrectly.  This package tries to fix that.
 
