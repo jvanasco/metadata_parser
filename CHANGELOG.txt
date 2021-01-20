@@ -1,6 +1,14 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.10.5
+	migrated 'types.txt' out of distribution; it remains in github source
+	merged PR#34 which addresses Issue#32; change log level of error
+	updated some log lines with the url
+	introduced some new log lines
+	added `METADATA_PARSER__DISABLE_TLDEXTRACT` env
+
+
 0.10.4
 	* black via pre-commit
 	* upgraded black; 20.8b1
@@ -25,7 +33,7 @@
 	now tracking in ParsedResult: encoding
 		ParsedResult.metadata['_internal']['encoding'] = resp.encoding.lower() if resp.encoding else None
 	`.parse` now accepts `html_encoding`
-	refactored url fetching to use context managers 
+	refactored url fetching to use context managers
 	refactored url fetching to only insert our hooks when needed
 	adjusted test harness to close socket connections
 
@@ -60,7 +68,7 @@
 	** `MetadataParser.schemeless_fields_upgradeable` is a tuple of the fields which can be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
 		The defaults are:
 			'image',
-			'og:image', 'og:image:url', 'og:audio', 'og:video', 
+			'og:image', 'og:image:url', 'og:audio', 'og:video',
 			'og:image:secure_url', 'og:audio:secure_url', 'og:video:secure_url',		
 	** `MetadataParser.schemeless_fields_disallow` is a tuple of the fields which can not be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
 		The defaults are:
@@ -109,7 +117,7 @@
         `MetadataParser.get_url_opengraph`
         `MetadataParser.get_discrete_url`
       This functionality will try to recode canonical urls with unicode data into percent-encoded streams
-      
+
 0.9.15
     * Python3 support returned
 
@@ -142,7 +150,7 @@
     * inspecting `requests` errors for a response and using it if possible
     * this will now try to validate urls if the `tldextract` library is present.
       this feature can be disabled with a global toggle
-        
+
             import metadata_parser
             metadata_parser.USE_TLDEXTRACT = False
 
@@ -168,7 +176,7 @@
     * added 'metadata_parser.NotParsableRedirect' class. if allow_redirects is False, a detected redirect will raise this if missing a Location.
     * added `requests_session` argument to `MetadataParser`
     * starting to use httpbin for some tests
-    * detecting JSON documents 
+    * detecting JSON documents
     * extended NotParseable exceptions with the MetadataParser instance as `metadataParser`
     * added `only_parse_http_ok` which defaults to True (legacy).  submitting False will allow non-http200 responses to be parsed.
     * shuffled `fetch_url` logic around. it will now process more data before a potential error.
@@ -179,10 +187,10 @@
     * fixed opengraph minimum check
     * added `MetadataParser.is_redirect_unique`
     * added `DummyResponse.history`
-    
+
 0.9.5
     * failing to load a document into BeautifulSoup will now catch the BS error and raise NotParsable
-    
+
 0.9.4
     * created `MetadataParser.get_url_canonical`
     * created `MetadataParser.get_url_opengraph`
@@ -203,7 +211,7 @@
 0.9.0
     - This has a default behavior change regarding `get_discrete_url()` .
     - `is_parsed_valid_url()` did not correctly handle `require_public_netloc=True`, and would allow for `localhost` values to pass
-    - new kwarg `allow_localhosts` added to 
+    - new kwarg `allow_localhosts` added to
         * is_parsed_valid_url
         * is_url_valid
         * url_to_absolute_url
@@ -234,9 +242,9 @@
 
 0.8.0
     this bump introduces 2 new arguments and some changed behavior:
-    
+
     - `search_head_only=None`.  previously the meta/og/etc data was only searched in the document head (where expected as per HTML specs).
-      after indexing millions of pages, many appeared to implement this incorrectly of have html that is so off specification that 
+      after indexing millions of pages, many appeared to implement this incorrectly of have html that is so off specification that
       parsing libraries can't correctly read it (for example, Twitter.com).
       This is currently implemented to default from None to True, but future versions will default to `False`.
       This is marked for a future default of `search_head_only=False`

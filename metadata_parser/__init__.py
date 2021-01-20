@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 # ------------------------------------------------------------------------------
 
 
-__VERSION__ = "0.10.4"
+__VERSION__ = "0.10.5"
 
 
 # ------------------------------------------------------------------------------
@@ -31,12 +31,22 @@ from bs4 import BeautifulSoup
 import requests
 from requests_toolbelt.utils.deprecated import get_encodings_from_content
 
-try:
-    import tldextract
 
-    USE_TLDEXTRACT = True
-except ImportError:
-    USE_TLDEXTRACT = False
+_DISABLE_TLDEXTRACT = bool(
+    int(os.environ.get("METADATA_PARSER__DISABLE_TLDEXTRACT", "0"))
+)
+USE_TLDEXTRACT = None
+if not _DISABLE_TLDEXTRACT:
+    try:
+        import tldextract
+
+        USE_TLDEXTRACT = True
+    except ImportError:
+        log.debug(
+            "tldextract is not available on this system. medatadata_parser recommends installing tldextract"
+        )
+        USE_TLDEXTRACT = False
+
 import six
 
 # python 2/3 compat
@@ -63,12 +73,15 @@ ENCODING_FALLBACK = os.environ.get("METADATA_PARSER__ENCODING_FALLBACK", "ISO-88
 DUMMY_URL = os.environ.get(
     "METADATA_PARSER__DUMMY_URL", "http://example.com/index.html"
 )
+"""
+# currently not used
 MAX_CONNECTIONTIME = int(
     os.environ.get("METADATA_PARSER__MAX_CONNECTIONTIME", 20)
 )  # in seconds
-MAX_FILEIZE = int(
-    os.environ.get("METADATA_PARSER__MAX_FILEIZE", 2 ** 19)
+MAX_FILESIZE = int(
+    os.environ.get("METADATA_PARSER__MAX_FILESIZE", 2 ** 19)
 )  # bytes; this is .5MB
+"""
 
 # peername hacks
 # these are in the stdlib
@@ -932,7 +945,7 @@ class ParsedResult(object):
                     if strategy in self.strategy:
                         strategy = [strategy]
                     else:
-                        raise ValueError("invalid strategy")
+                        raise ValueError("invalid strategy: %s" % strategy)
         if strategy is None:
             strategy = self.strategy
         return strategy
@@ -1502,6 +1515,9 @@ class MetadataParser(object):
                     if url_fext in self.only_parse_file_extensions:
                         pass
                     else:
+                        log.error(
+                            "NotParsable | %s | unknown filetype, request", (self.url,)
+                        )
                         raise NotParsable(
                             "I don't know what this file is", metadataParser=self
                         )
@@ -1620,12 +1636,14 @@ class MetadataParser(object):
                 if resp.status_code in (301, 302, 307, 308):
                     header_location = resp.headers.get("location")
                     if header_location:
+                        log.error("RedirectDetected | %s", (self.url,))
                         raise RedirectDetected(
                             location=header_location,
                             code=resp.status_code,
                             response=resp,
                             metadataParser=self,
                         )
+                    log.error("NotParsableRedirect | %s", (self.url,))
                     raise NotParsableRedirect(
                         message="Status Code is redirect, but missing header",
                         code=resp.status_code,
@@ -1633,6 +1651,10 @@ class MetadataParser(object):
                     )
 
             if only_parse_http_ok and resp.status_code != 200:
+                log.error(
+                    "NotParsableFetchError | %s | status_code: %s",
+                    (self.url, resp.status_code),
+                )
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
                     code=resp.status_code,
@@ -1647,10 +1669,12 @@ class MetadataParser(object):
                 content_type = [i.strip() for i in content_type.split(";")]
                 content_type = content_type[0].lower()
                 if content_type == "application/json":
+                    log.error("NotParsableJson | %s", (self.url,))
                     raise NotParsableJson("JSON header detected", metadataParser=self)
             if ((content_type is None) or (content_type != "text/html")) and (
                 not force_parse_invalid_content_type
             ):
+                log.error("NotParsable | %s | unknown filetype, response", (self.url,))
                 raise NotParsable(
                     "I don't know what type of file this is! "
                     "content-type:'[%s]" % content_type,
@@ -1670,7 +1694,7 @@ class MetadataParser(object):
                         self.is_redirect = True
                 except Exception as exc2:
                     pass
-            log.info("NotParsableFetchError | %s", error)
+            log.error("NotParsableFetchError | %s | `requests`: %s", (self.url, error))
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                 " attribute of this error.",
@@ -1756,12 +1780,12 @@ class MetadataParser(object):
             try:
                 doc = self.make_soup(html, **kwargs_bs)
             except Exception as exc:
-                if __debug__:
-                    log.info("Could not make soup of HTML: %s", exc)
+                log.error("Could not make soup of HTML: %s", exc)
                 raise NotParsable(
                     "could not parse into BeautifulSoup", metadataParser=self
                 )
             if not isinstance(doc, BeautifulSoup):
+                log.error("Did not make soup of HTML, made %s" % type(doc))
                 raise NotParsable(
                     "did not parse into BeautifulSoup", metadataParser=self
                 )
@@ -1775,6 +1799,7 @@ class MetadataParser(object):
         # let's ensure that we have a real document...
         if not doc or not doc.html:
             if self.raise_on_invalid:
+                log.error("InvalidDocument | no object")
                 raise InvalidDocument("missing `doc` or `doc.html`")
             return
 
@@ -1787,6 +1812,7 @@ class MetadataParser(object):
         if self.search_head_only:
             if not doc.html.head:
                 if self.raise_on_invalid:
+                    log.error("InvalidDocument | no head")
                     raise InvalidDocument("missing `doc.html.head`")
                 return
             doc_searchpath = doc.html.head
