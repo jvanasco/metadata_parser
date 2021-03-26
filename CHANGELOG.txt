@@ -1,9 +1,10 @@
 1.0
     1.0 will be a complete api overhaul
 
+
 0.10.5
+	packaging fixes
 	migrated 'types.txt' out of distribution; it remains in github source
-	merged PR#34 which addresses Issue#32; change log level of error
 	updated some log lines with the url
 	introduced some new log lines
 	added `METADATA_PARSER__DISABLE_TLDEXTRACT` env

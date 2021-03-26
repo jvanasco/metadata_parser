@@ -42,7 +42,7 @@ if not _DISABLE_TLDEXTRACT:
 
         USE_TLDEXTRACT = True
     except ImportError:
-        log.debug(
+        log.info(
             "tldextract is not available on this system. medatadata_parser recommends installing tldextract"
         )
         USE_TLDEXTRACT = False
