@@ -8,6 +8,7 @@
 	updated some log lines with the url
 	introduced some new log lines
 	added `METADATA_PARSER__DISABLE_TLDEXTRACT` env
+	merged, but reverted PR#34 which addresses Issue#32
 
 
 0.10.4
