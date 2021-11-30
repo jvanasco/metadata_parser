@@ -1,32 +1,14 @@
 # -*- coding=utf-8 -*-
 
-import metadata_parser
-
-try:
-    from urllib.parse import urlparse
-
-    # from urllib.parse import urlencode
-except ImportError:
-    from urlparse import urlparse
-
-    # from urllib import urlencode
-
+# stdlib
 import unittest
 
-import six
+# local
+import metadata_parser
+from ._compat import PY2
+from ._compat import urlparse
 
-
-if False:
-    import logging
-
-    l = logging.getLogger()
-    l2 = logging.getLogger("metadata_parser")
-    l.setLevel(logging.DEBUG)
-    l2.setLevel(logging.DEBUG)
-
-    ch = logging.StreamHandler()
-    l.addHandler(ch)
-    l2.addHandler(ch)
+# ==============================================================================
 
 
 URLS_VALID = [
@@ -412,7 +394,7 @@ class TestFixUnicodeUrls(unittest.TestCase):
         for (raw, expected) in _test_pairs:
             cleaned = metadata_parser.fix_unicode_url(raw)
             self.assertEqual(cleaned, expected)
-            if six.PY2:
+            if PY2:
                 cleaned = metadata_parser.fix_unicode_url(
                     raw.decode("utf-8"), encoding="utf-8"
                 ).encode("utf-8")
@@ -428,7 +410,7 @@ class TestFixUnicodeUrls(unittest.TestCase):
         for (raw, expected) in _test_pairs:
             cleaned = metadata_parser.fix_unicode_url(raw)
             self.assertEqual(cleaned, expected)
-            if six.PY2:
+            if PY2:
                 cleaned = metadata_parser.fix_unicode_url(
                     raw.decode("utf-8"), encoding="utf-8"
                 ).encode("utf-8")
@@ -443,23 +425,23 @@ class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
     def test_no_args__good(self):
         url = "https://example.com/nested/A.html"
         rel_canonical = "/B.html"
-        rel_expected = "https://example.com/B.html"
+        rel_expected = "https://example.com/B.html"  # noqa: F841
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
-        parsed_url = parsed.get_discrete_url()
+        parsed_url = parsed.get_discrete_url()  # noqa: F841
 
     def test_og_first__good(self):
         url = "https://example.com/nested/A.html"
         rel_canonical = "/B.html"
-        rel_expected = "https://example.com/B.html"
+        rel_expected = "https://example.com/B.html"  # noqa: F841
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
-        parsed_url = parsed.get_discrete_url(og_first=True)
+        parsed_url = parsed.get_discrete_url(og_first=True)  # noqa: F841
 
     def test_og_first_canonical_first__bad(self):
         url = "https://example.com/nested/A.html"
         rel_canonical = "/B.html"
-        rel_expected = "https://example.com/B.html"
+        rel_expected = "https://example.com/B.html"  # noqa: F841
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         self.assertRaises(
@@ -469,7 +451,7 @@ class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
     def test_canonical_first__bad(self):
         url = "https://example.com/nested/A.html"
         rel_canonical = "/B.html"
-        rel_expected = "https://example.com/B.html"
+        rel_expected = "https://example.com/B.html"  # noqa: F841
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
         self.assertRaises(ValueError, parsed.get_discrete_url, canonical_first=True)
@@ -477,7 +459,9 @@ class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
     def test_canonical_first__good(self):
         url = "https://example.com/nested/A.html"
         rel_canonical = "/B.html"
-        rel_expected = "https://example.com/B.html"
+        rel_expected = "https://example.com/B.html"  # noqa: F841
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
-        parsed_url = parsed.get_discrete_url(og_first=False, canonical_first=True)
+        parsed_url = parsed.get_discrete_url(
+            og_first=False, canonical_first=True
+        )  # noqa: F841

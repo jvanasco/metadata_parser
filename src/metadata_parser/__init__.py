@@ -1,61 +1,46 @@
-import logging
-
-log = logging.getLogger(__name__)
-
-
-# ------------------------------------------------------------------------------
-
-
-__VERSION__ = "0.10.5"
-
-
-# ------------------------------------------------------------------------------
-
-
 # stdlib
-import cgi
+import _socket  # noqa: I100,I201  # peername hack, see below
+import cgi  # noqa: I100,I201
 import collections
 import datetime
+import logging
 import os
 import re
+import socket  # peername hack, see below
 import unicodedata
 import warnings
 
 if __debug__:
     # only used for testing. turn off in most production env with -o flags
-    import pdb
-    import pprint
+    import pdb  # noqa: F401
+    import pprint  # noqa: F401
 
 # pypi
 from bs4 import BeautifulSoup
 import requests
 from requests_toolbelt.utils.deprecated import get_encodings_from_content
 
-
-_DISABLE_TLDEXTRACT = bool(
-    int(os.environ.get("METADATA_PARSER__DISABLE_TLDEXTRACT", "0"))
-)
-USE_TLDEXTRACT = None
-if not _DISABLE_TLDEXTRACT:
-    try:
-        import tldextract
-
-        USE_TLDEXTRACT = True
-    except ImportError:
-        log.info(
-            "tldextract is not available on this system. medatadata_parser recommends installing tldextract"
-        )
-        USE_TLDEXTRACT = False
-
-import six
-
 # python 2/3 compat
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.parse import urlunparse
+from six import PY2
+from six import PY3
+from six import text_type
 from six.moves.urllib.parse import ParseResult
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import unquote as url_unquote
-from six import text_type
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlunparse
+
+
+# ==============================================================================
+
+
+__VERSION__ = "0.10.6"
+
+
+# ------------------------------------------------------------------------------
+
+
+log = logging.getLogger(__name__)
 
 
 def warn_future(message):
@@ -69,12 +54,14 @@ def warn_user(message):
 # ------------------------------------------------------------------------------
 
 # defaults
-ENCODING_FALLBACK = os.environ.get("METADATA_PARSER__ENCODING_FALLBACK", "ISO-8859-1")
 DUMMY_URL = os.environ.get(
     "METADATA_PARSER__DUMMY_URL", "http://example.com/index.html"
 )
+ENCODING_FALLBACK = os.environ.get("METADATA_PARSER__ENCODING_FALLBACK", "ISO-8859-1")
+TESTING = bool(int(os.environ.get("METADATA_PARSER__TESTING", "0")))
+
 """
-# currently not used
+# currently unused
 MAX_CONNECTIONTIME = int(
     os.environ.get("METADATA_PARSER__MAX_CONNECTIONTIME", 20)
 )  # in seconds
@@ -83,11 +70,30 @@ MAX_FILESIZE = int(
 )  # bytes; this is .5MB
 """
 
+# ------------------------------------------------------------------------------
+
+_DISABLE_TLDEXTRACT = bool(
+    int(os.environ.get("METADATA_PARSER__DISABLE_TLDEXTRACT", "0"))
+)
+USE_TLDEXTRACT = None
+if not _DISABLE_TLDEXTRACT:
+    try:
+        import tldextract
+
+        USE_TLDEXTRACT = True
+    except ImportError:
+        log.info(
+            "tldextract is not available on this system. "
+            "medatadata_parser recommends installing tldextract"
+        )
+        USE_TLDEXTRACT = False
+
+# ------------------------------------------------------------------------------
+
+
 # peername hacks
-# these are in the stdlib
+# only use for these stdlib packages
 # eventually will not be needed thanks to upstream changes in `requests`
-import _socket
-import socket
 
 try:
     _compatible_sockets = (_socket.socket, socket._socketobject)
@@ -97,64 +103,14 @@ except AttributeError:
 
 # ------------------------------------------------------------------------------
 
-
 # regex library
 
+RE_ALL_NUMERIC = re.compile(r"^[\d\.]+$")
 RE_bad_title = re.compile(
     r"""(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I
 )
-
-
-REGEX_doctype = re.compile(r"^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
-
-RE_whitespace = re.compile(r"\s+")
-
-
-PARSE_SAFE_FILES = (
-    "html",
-    "txt",
-    "json",
-    "htm",
-    "xml",
-    "php",
-    "asp",
-    "aspx",
-    "ece",
-    "xhtml",
-    "cfm",
-    "cgi",
-)
-
-RE_prefix_opengraph = re.compile(r"^og")
-RE_prefix_twitter = re.compile(r"^twitter")
-RE_prefix_rel_img_src = re.compile("^image_src$", re.I)
 RE_canonical = re.compile("^canonical$", re.I)
-RE_shortlink = re.compile("^shortlink$", re.I)
-
-# based on DJANGO
-# https://github.com/django/django/blob/master/django/core/validators.py
-# not testing ipv6 right now, because rules are needed for ensuring they
-# are correct
-RE_VALID_NETLOC = re.compile(
-    r"(?:" r"(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})" r"|"  # ...or ipv4
-    #  r'(?P<ipv6>\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
-    #  r'|'
-    r"(?P<localhost>localhost)"  # localhost...
-    r"|"
-    r"(?P<domain>([A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?))"  # domain...
-    r"(?P<port>:\d+)?"  # optional port
-    r")",
-    re.IGNORECASE,
-)
-
-
-# these aren't on the public internet
-PRIVATE_HOSTNAMES = ("localhost", "127.0.0.1", "0.0.0.0")
-
-
-RE_PORT = re.compile(r"^" r"(?P<main>.+)" r":" r"(?P<port>\d+)" r"$", re.IGNORECASE)
-
-
+RE_doctype = re.compile(r"^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
 RE_DOMAIN_NAME = re.compile(
     r"""(^
             (?:
@@ -173,12 +129,13 @@ RE_DOMAIN_NAME = re.compile(
         $)""",
     re.VERBOSE | re.IGNORECASE,
 )
-
 RE_IPV4_ADDRESS = re.compile(
     r"^(\d{1,3})\.(\d{1,3}).(\d{1,3}).(\d{1,3})$"  # grab 4 octets
 )
-
-RE_ALL_NUMERIC = re.compile(r"^[\d\.]+$")
+RE_PORT = re.compile(r"^" r"(?P<main>.+)" r":" r"(?P<port>\d+)" r"$", re.IGNORECASE)
+RE_prefix_opengraph = re.compile(r"^og")
+RE_prefix_rel_img_src = re.compile("^image_src$", re.I)
+RE_prefix_twitter = re.compile(r"^twitter")
 
 # we may need to test general validity of url components
 RE_rfc3986_valid_characters = re.compile(
@@ -202,6 +159,63 @@ What is valid in the RFC?
     a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%
 """
 
+RE_shortlink = re.compile("^shortlink$", re.I)
+RE_whitespace = re.compile(r"\s+")
+
+# based on DJANGO
+# https://github.com/django/django/blob/master/django/core/validators.py
+# not testing ipv6 right now, because rules are needed for ensuring they
+# are correct
+RE_VALID_NETLOC = re.compile(
+    r"(?:" r"(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})" r"|"  # ...or ipv4
+    #  r'(?P<ipv6>\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
+    #  r'|'
+    r"(?P<localhost>localhost)"  # localhost...
+    r"|"
+    r"(?P<domain>([A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?))"  # domain...
+    r"(?P<port>:\d+)?"  # optional port
+    r")",
+    re.IGNORECASE,
+)
+
+# ------------------------------------------------------------------------------
+
+# globals library
+
+FIELDS_REQUIRE_HTTPS = (
+    "og:image:secure_url",
+    "og:audio:secure_url",
+    "og:video:secure_url",
+    # the following are just alternate representations of og: items
+    "image:secure_url",
+    "audio:secure_url",
+    "video:secure_url",
+)
+PARSE_SAFE_FILES = (
+    "html",
+    "txt",
+    "json",
+    "htm",
+    "xml",
+    "php",
+    "asp",
+    "aspx",
+    "ece",
+    "xhtml",
+    "cfm",
+    "cgi",
+)
+# these aren't on the public internet
+PRIVATE_HOSTNAMES = (
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+)
+SCHEMELESS_FIELDS_DISALLOW = (
+    "canonical",
+    "og:url",
+)
+
 """
 these fields can be upgraded to the current scheme if no scheme is detected
 notes:
@@ -217,16 +231,6 @@ SCHEMELESS_FIELDS_UPGRADEABLE = (
     "og:audio:secure_url",
     "og:video:secure_url",
 )
-FIELDS_REQUIRE_HTTPS = (
-    "og:image:secure_url",
-    "og:audio:secure_url",
-    "og:video:secure_url",
-    # the following are just alternate representations of og: items
-    "image:secure_url",
-    "audio:secure_url",
-    "video:secure_url",
-)
-SCHEMELESS_FIELDS_DISALLOW = ("canonical", "og:url")
 
 
 # ------------------------------------------------------------------------------
@@ -238,11 +242,11 @@ def encode_ascii(text):
     """
     if not text:
         text = ""
-    if six.PY2:
+    if PY2:
         # text = unicode(text)
         text = text_type(text)
     normalized = unicodedata.normalize("NFKD", text).encode("ascii", "ignore")
-    if six.PY3:
+    if PY3:
         normalized = normalized.decode("utf-8", "ignore")
     return normalized
 
@@ -324,7 +328,7 @@ def get_response_peername(resp):
                 if not isinstance(sock, _compatible_sockets):
                     raise AllowableError()
                 return sock
-            except Exception as e:  # noqa
+            except Exception as e:  # noqa: F841
                 pass
         return None
 
@@ -347,7 +351,7 @@ def response_peername__hook(resp, *args, **kwargs):
 
 def safe_sample(source):
     _sample = source[:1024]
-    if six.PY3:
+    if PY3:
         # this block can cause an error on PY3 depending on where the data came
         # from such as what the source is (from a request vs a document/test)
         # thanks, @keyz182 for the PR/investigation https://github.com/jvanasco/metadata_parser/pull/16
@@ -569,7 +573,7 @@ def fix_unicode_url(url, encoding=None, urlparser=urlparse):
     for _idx in [2]:  # 2=path, 3=params, 4=queryparams, 5fragment
         try:
             candidate[_idx] = parsed[_idx]
-            if six.PY2:
+            if PY2:
                 if encoding:
                     candidate[_idx] = parsed[_idx].encode(encoding)
             candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
@@ -1578,7 +1582,7 @@ class MetadataParser(object):
                         timeout=requests_timeout,
                         stream=True,
                     )
-                except requests.exceptions.ChunkedEncodingError as exc:
+                except requests.exceptions.ChunkedEncodingError as exc:  # noqa: F841
                     # some servers drop a connection on the bad user-agent
                     if not url_headers:
                         raise
@@ -1692,7 +1696,7 @@ class MetadataParser(object):
                     self.peername = get_response_peername(self.response)
                     if self.response.history:
                         self.is_redirect = True
-                except Exception as exc2:
+                except Exception as exc2:  # noqa: F841
                     pass
             log.error("NotParsableFetchError | %s | `requests`: %s", (self.url, error))
             raise NotParsableFetchError(
@@ -1742,7 +1746,7 @@ class MetadataParser(object):
         """
         try:
             doc = BeautifulSoup(html, "lxml", **kwargs_bs)
-        except Exception as exc:
+        except Exception as exc:  # noqa: F841
             if __debug__:
                 log.debug("`BeautifulSoup` could not parse with `lxml`")
             doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
@@ -1766,16 +1770,16 @@ class MetadataParser(object):
             kwargs_bs = {}
             # todo: use html_encoding
             try:
-                if six.PY2:
+                if PY2:
                     # on Python2, if we're given a string, not unicode, it may have an encoding.
                     if isinstance(html, str):
                         kwargs_bs["from_encoding"] = self.response.encoding
-            except Exception as exc:
+            except Exception as exc:  # noqa: F841
                 # just ignore this detection
                 pass
 
             if self.force_doctype:
-                html = REGEX_doctype.sub("<!DOCTYPE html>", html)
+                html = RE_doctype.sub("<!DOCTYPE html>", html)
 
             try:
                 doc = self.make_soup(html, **kwargs_bs)
@@ -1979,8 +1983,9 @@ class MetadataParser(object):
                         )
             except AttributeError:
                 pass
-        # pprint.pprint(self.parsed_result.__dict__)
-        # pdb.set_trace()
+        if TESTING:
+            pprint.pprint(self.parsed_result.__dict__)
+            # pdb.set_trace()
 
     def get_url_scheme(self):
         """try to determine the scheme"""

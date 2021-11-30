@@ -2,6 +2,9 @@
     1.0 will be a complete api overhaul
 
 
+0.10.6
+	style cleanup
+
 0.10.5
 	packaging fixes
 	migrated 'types.txt' out of distribution; it remains in github source

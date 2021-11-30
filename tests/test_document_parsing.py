@@ -1,11 +1,11 @@
+# stdlib
+import os
+import unittest
+
+# local
 import metadata_parser
 
-import unittest
-import os
-
-if __debug__:
-    # used when writing tests
-    import pprint
+# ==============================================================================
 
 
 # this bit lets us run the tests directly during development
