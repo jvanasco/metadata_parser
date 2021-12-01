@@ -1983,9 +1983,11 @@ class MetadataParser(object):
                         )
             except AttributeError:
                 pass
-        if TESTING:
-            pprint.pprint(self.parsed_result.__dict__)
-            # pdb.set_trace()
+        # optimize this away on cpython production servers
+        if __debug__:
+            if TESTING:
+                pprint.pprint(self.parsed_result.__dict__)
+                # pdb.set_trace()
 
     def get_url_scheme(self):
         """try to determine the scheme"""
