@@ -1,13 +1,23 @@
-from setuptools import setup
-from setuptools import find_packages
+# stdlib
 import os
 import re
+
+# pypi
+from setuptools import find_packages
+from setuptools import setup
+
+# ==============================================================================
+
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 
 # store version in the init.py
-with open(os.path.join(HERE, "src", "metadata_parser", "__init__.py")) as v_file:
-    VERSION = re.compile(r'.*__VERSION__ = "(.*?)"', re.S).match(v_file.read()).group(1)
+with open(
+    os.path.join(HERE, "src", "metadata_parser", "__init__.py")
+) as v_file:  # noqa: E501
+    VERSION = (
+        re.compile(r'.*__VERSION__ = "(.*?)"', re.S).match(v_file.read()).group(1)
+    )  # noqa: E501
 
 long_description = (
     description

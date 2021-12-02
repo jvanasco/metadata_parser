@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
 
 # stdlib
-import sys
 import unittest
 
 # pypi
 import requests
 import responses
-import six
 
 # local
-import metadata_parser
 from metadata_parser import derive_encoding__hook
-
+from ._compat import PY2
 
 # ==============================================================================
 
@@ -52,7 +49,7 @@ class TestMockedResponse(unittest.TestCase):
                 _content_type = "text/html"
                 if _header:
                     _content_type = "text/html; charset=%s" % _header
-                if six.PY2:
+                if PY2:
                     _body_char = _body_char.decode("utf-8")
                 _body = u"<html><head></head><body>%s</body></html>" % _body_char
                 rsps.add(
@@ -67,7 +64,7 @@ class TestMockedResponse(unittest.TestCase):
             # set up the meta tests
             for url in URLS_META.keys():
                 (_header, _expected, _body_char) = URLS_META[url]
-                if six.PY2:
+                if PY2:
                     _body_char = _body_char.decode("utf-8")
                 _body = u"<html><head></head><body>%s</body></html>" % _body_char
                 if _header:

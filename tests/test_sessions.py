@@ -1,18 +1,13 @@
 # stdlib
-import pdb
-import pprint
-import sys
-import traceback
 import unittest
 
 # pypi
-import requests
 from httpbin import app as httpbin_app
 import pytest_httpbin.serve
+import requests
 
-# our package
+# local
 import metadata_parser
-
 
 # ==============================================================================
 
@@ -56,7 +51,7 @@ class TestSessionsHttpBin(unittest.TestCase):
             # `stop()` wil shutdown the server, but it will not `close()` any
             # lingering sockets. this explicitly does that.
             self.httpbin_server._server.socket.close()
-        except:
+        except Exception as exc:  # noqa: F841
             pass
 
     def test_no_session(self):

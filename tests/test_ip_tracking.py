@@ -1,5 +1,10 @@
-import metadata_parser
+# stdlib
 import unittest
+
+# local
+import metadata_parser
+
+# ==============================================================================
 
 
 class TestIpLookups(unittest.TestCase):
