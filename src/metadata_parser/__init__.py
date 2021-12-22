@@ -328,7 +328,7 @@ def get_response_peername(resp):
                 if not isinstance(sock, _compatible_sockets):
                     raise AllowableError()
                 return sock
-            except Exception as e:  # noqa: F841
+            except Exception:
                 pass
         return None
 
@@ -1696,7 +1696,7 @@ class MetadataParser(object):
                     self.peername = get_response_peername(self.response)
                     if self.response.history:
                         self.is_redirect = True
-                except Exception as exc2:  # noqa: F841
+                except Exception:
                     pass
             log.error("NotParsableFetchError | %s | `requests`: %s", (self.url, error))
             raise NotParsableFetchError(

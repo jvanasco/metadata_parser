@@ -462,6 +462,6 @@ class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
         rel_expected = "https://example.com/B.html"  # noqa: F841
         html_doc = self._MakeOne(rel_canonical)
         parsed = metadata_parser.MetadataParser(url=url, html=html_doc)
-        parsed_url = parsed.get_discrete_url(
+        parsed_url = parsed.get_discrete_url(  # noqa: F841
             og_first=False, canonical_first=True
-        )  # noqa: F841
+        )
