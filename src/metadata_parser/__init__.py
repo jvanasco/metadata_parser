@@ -1176,6 +1176,9 @@ class MetadataParser(object):
     schemeless_fields_upgradeable = SCHEMELESS_FIELDS_UPGRADEABLE
     schemeless_fields_disallow = SCHEMELESS_FIELDS_DISALLOW
 
+    _content_types_parse = ("text/html",)
+    _content_types_noparse = ("application/json",)
+
     def __init__(
         self,
         url=None,
@@ -1665,22 +1668,40 @@ class MetadataParser(object):
                     metadataParser=self,
                 )
 
+            # scoping; default to None
             content_type = None
+
+            # pull the content_type from the headers
             if "content-type" in resp.headers:
                 content_type = resp.headers["content-type"]
                 # content type can have a character encoding in it...
                 # the encoding may have been used
                 content_type = [i.strip() for i in content_type.split(";")]
                 content_type = content_type[0].lower()
+
+            # exit quickly for content_types known to be NotParsable
+            if content_type in self._content_types_noparse:
                 if content_type == "application/json":
                     log.error("NotParsableJson | %s", (self.url,))
-                    raise NotParsableJson("JSON header detected", metadataParser=self)
-            if ((content_type is None) or (content_type != "text/html")) and (
-                not force_parse_invalid_content_type
-            ):
+                    raise NotParsableJson(
+                        "JSON header detected",
+                        metadataParser=self,
+                    )
+                log.error("NotParsable | %s", (self.url,))
+                raise NotParsable(
+                    "NotParseable document detected! "
+                    "content-type:'[%s]" % content_type,
+                    metadataParser=self,
+                )
+
+            # if we don't have a content-type, let's try to do the right thing
+            if (
+                (content_type is None)
+                or (content_type not in self._content_types_parse)
+            ) and (not force_parse_invalid_content_type):
                 log.error("NotParsable | %s | unknown filetype, response", (self.url,))
                 raise NotParsable(
-                    "I don't know what type of file this is! "
+                    "I don't know how to parse this type of file! "
                     "content-type:'[%s]" % content_type,
                     metadataParser=self,
                 )
