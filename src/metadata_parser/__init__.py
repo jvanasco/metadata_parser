@@ -1523,10 +1523,12 @@ class MetadataParser(object):
                         pass
                     else:
                         log.error(
-                            "NotParsable | %s | unknown filetype, request", (self.url,)
+                            "NotParsable | %s | unknown filetype, request",
+                            self.url,
                         )
                         raise NotParsable(
-                            "I don't know what this file is", metadataParser=self
+                            "I don't know what this file is",
+                            metadataParser=self,
                         )
 
         # borrowing some ideas from
@@ -1643,14 +1645,14 @@ class MetadataParser(object):
                 if resp.status_code in (301, 302, 307, 308):
                     header_location = resp.headers.get("location")
                     if header_location:
-                        log.error("RedirectDetected | %s", (self.url,))
+                        log.error("RedirectDetected | %s", self.url)
                         raise RedirectDetected(
                             location=header_location,
                             code=resp.status_code,
                             response=resp,
                             metadataParser=self,
                         )
-                    log.error("NotParsableRedirect | %s", (self.url,))
+                    log.error("NotParsableRedirect | %s", self.url)
                     raise NotParsableRedirect(
                         message="Status Code is redirect, but missing header",
                         code=resp.status_code,
@@ -1660,7 +1662,8 @@ class MetadataParser(object):
             if only_parse_http_ok and resp.status_code != 200:
                 log.error(
                     "NotParsableFetchError | %s | status_code: %s",
-                    (self.url, resp.status_code),
+                    self.url,
+                    resp.status_code,
                 )
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
@@ -1682,12 +1685,12 @@ class MetadataParser(object):
             # exit quickly for content_types known to be NotParsable
             if content_type in self._content_types_noparse:
                 if content_type == "application/json":
-                    log.error("NotParsableJson | %s", (self.url,))
+                    log.error("NotParsableJson | %s", self.url)
                     raise NotParsableJson(
                         "JSON header detected",
                         metadataParser=self,
                     )
-                log.error("NotParsable | %s", (self.url,))
+                log.error("NotParsable | %s", self.url)
                 raise NotParsable(
                     "NotParseable document detected! "
                     "content-type:'[%s]" % content_type,
@@ -1699,7 +1702,7 @@ class MetadataParser(object):
                 (content_type is None)
                 or (content_type not in self._content_types_parse)
             ) and (not force_parse_invalid_content_type):
-                log.error("NotParsable | %s | unknown filetype, response", (self.url,))
+                log.error("NotParsable | %s | unknown filetype, response", self.url)
                 raise NotParsable(
                     "I don't know how to parse this type of file! "
                     "content-type:'[%s]" % content_type,
@@ -1719,7 +1722,11 @@ class MetadataParser(object):
                         self.is_redirect = True
                 except Exception:
                     pass
-            log.error("NotParsableFetchError | %s | `requests`: %s", (self.url, error))
+            log.error(
+                "NotParsableFetchError | %s | `requests`: %s",
+                self.url,
+                error,
+            )
             raise NotParsableFetchError(
                 message="Error with `requests` library.  Inspect the `raised`"
                 " attribute of this error.",
