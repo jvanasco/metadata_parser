@@ -3,7 +3,22 @@
 
 
 0.10.6 | UNRELEASED
-	style cleanup
+	* a test-suite for an application leveraging `metadata_parser` experienced
+	  some issues due to changes in the Responses package used to mock tests.
+	  to better faciliate against that, a new change were made:
+	  
+	  MetadataParser now has 2 subclassable attributes for items that should
+	  or should not be parsed:
+	  
+		+    _content_types_parse = ("text/html",)
+		+    _content_types_noparse = ("application/json",)
+	
+	Previously, these values were hardcoded into the logic.	  
+
+	* some error log messages were reformatted for clarity
+	* some error log messages were incorrectly reformatted by black
+	
+	* style cleanup
 
 0.10.5
 	packaging fixes
