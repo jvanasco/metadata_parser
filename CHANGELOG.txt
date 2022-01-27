@@ -2,133 +2,149 @@
     1.0 will be a complete api overhaul
 
 
-0.10.6 | UNRELEASED
-	* a test-suite for an application leveraging `metadata_parser` experienced
-	  some issues due to changes in the Responses package used to mock tests.
-	  to better faciliate against that, a new change were made:
-	  
-	  MetadataParser now has 2 subclassable attributes for items that should
-	  or should not be parsed:
-	  
-		+    _content_types_parse = ("text/html",)
-		+    _content_types_noparse = ("application/json",)
-	
-	Previously, these values were hardcoded into the logic.	  
+0.11.0 | UNRELEASED
 
-	* some error log messages were reformatted for clarity
-	* some error log messages were incorrectly reformatted by black
-	
-	* style cleanup
+  * BREAKING CHANGES
+    Due to the following breaking changes, the version was bumped to 0.11.0
+    * `MetadataParser.fetch_url` now returns a third item.
+      
+  * COMPATIBLE CHANGES
+    The following changes are backwards compatible to the 0.10.x releases
+    * a test-suite for an application leveraging `metadata_parser` experienced
+      some issues due to changes in the Responses package used to mock tests.
+      to better faciliate against that, a new change were made:
+
+      MetadataParser now has 2 subclassable attributes for items that should
+      or should not be parsed:
+
+        +    _content_types_parse = ("text/html",)
+        +    _content_types_noparse = ("application/json",)
+
+      Previously, these values were hardcoded into the logic.     
+    * some error log messages were reformatted for clarity
+    * some error log messages were incorrectly reformatted by black
+    * added logging for NotParseable situations involving redirects
+    * added a `.response` attribute to NotParsable errors to help debug
+      redirects
+    * added a new ResponseHistory class to track redirects
+      * it is computed and returned during `MetadataParser.fetch_url`
+      * `MetadataParser.parse(` optionally accepts it, and will stash
+        it into ParsedResult
+      * `ParsedResult` 
+        * ResponseHistory is not stashed in the metadata stash, but a new namespace
+        * `.response_history` will either be `ResponseHistory` or None
+    * improving docstrings
+    * style cleanup
 
 0.10.5
-	packaging fixes
-	migrated 'types.txt' out of distribution; it remains in github source
-	updated some log lines with the url
-	introduced some new log lines
-	added `METADATA_PARSER__DISABLE_TLDEXTRACT` env
-	merged, but reverted PR#34 which addresses Issue#32
+    packaging fixes
+    migrated 'types.txt' out of distribution; it remains in github source
+    updated some log lines with the url
+    introduced some new log lines
+    added `METADATA_PARSER__DISABLE_TLDEXTRACT` env
+    merged, but reverted PR#34 which addresses Issue#32
 
 
 0.10.4
-	* black via pre-commit
-	* upgraded black; 20.8b1
-	* integrated with pre-commit
-	* github actions and tox
-	* several test files were not in git!
+    * black via pre-commit
+    * upgraded black; 20.8b1
+    * integrated with pre-commit
+    * github actions and tox
+    * several test files were not in git!
 
 0.10.3
-	updated docs on bad data
-	black formatting
-	added pyproject.toml
-	moved BeautifulSoup generation into it's own method, so anyone can subclass to customize
-		:fixes: https://github.com/jvanasco/metadata_parser/issues/25
-	some internal variable changes thanks to flake8
+    updated docs on bad data
+    black formatting
+    added pyproject.toml
+    moved BeautifulSoup generation into it's own method, so anyone can subclass to customize
+        :fixes: https://github.com/jvanasco/metadata_parser/issues/25
+    some internal variable changes thanks to flake8
 
 0.10.2
-	added some docs on encoding
+    added some docs on encoding
 
 0.10.1
-	clarifying some inline docs
-	BREAKING CHANGE: `fetch_url` now returns a tuple of `(html, encoding)
-	now tracking in ParsedResult: encoding
-		ParsedResult.metadata['_internal']['encoding'] = resp.encoding.lower() if resp.encoding else None
-	`.parse` now accepts `html_encoding`
-	refactored url fetching to use context managers
-	refactored url fetching to only insert our hooks when needed
-	adjusted test harness to close socket connections
+    clarifying some inline docs
+    BREAKING CHANGE: `fetch_url` now returns a tuple of `(html, encoding)
+    now tracking in ParsedResult: encoding
+        ParsedResult.metadata['_internal']['encoding'] = resp.encoding.lower() if resp.encoding else None
+    `.parse` now accepts `html_encoding`
+    refactored url fetching to use context managers
+    refactored url fetching to only insert our hooks when needed
+    adjusted test harness to close socket connections
 
 0.10.0
-	better Python3 support by using the six library
+    better Python3 support by using the six library
 
 0.9.23
-	added tests for url entities
-	better grabbing of the charset
-	better grabbing of some edge cases
+    added tests for url entities
+    better grabbing of the charset
+    better grabbing of some edge cases
 
 0.9.22
-	removed internal calls to the deprecated `get_metadata`, replacing them with `get_metadatas`.
-	this will avoid emitting a deprecation warning, allowing users to migrate more easily
+    removed internal calls to the deprecated `get_metadata`, replacing them with `get_metadatas`.
+    this will avoid emitting a deprecation warning, allowing users to migrate more easily
 
 0.9.21
-	* requests_toolbelt is now required
-	** this is to solve PR#16 / Issue#21
-	** the toolbelt and built-in versions of get_encodings_from_content required different workarounds
-	* the output of urlparse is now cached onto the parser instance.
-	** perhaps this will be global cache in the future
-	* MetadataParser now accepts `cached_urlparser`
-	** default: True
-	   options: True: use a instance of UrlParserCacheable(maxitems=30)
-			  : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
-			  : None/False/0 - use native urlparse
-			  : other truthy values - use as a custom urlparse
+    * requests_toolbelt is now required
+    ** this is to solve PR#16 / Issue#21
+    ** the toolbelt and built-in versions of get_encodings_from_content required different workarounds
+    * the output of urlparse is now cached onto the parser instance.
+    ** perhaps this will be global cache in the future
+    * MetadataParser now accepts `cached_urlparser`
+    ** default: True
+       options: True: use a instance of UrlParserCacheable(maxitems=30)
+              : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
+              : None/False/0 - use native urlparse
+              : other truthy values - use as a custom urlparse
 
-	* addressing issue #17 (https://github.com/jvanasco/metadata_parser/issues/17) where `get_link_` logic does not handle schemeless urls.
-	** `MetadataParser.get_metadata_link` will now try to upgrade schemeless links (e.g. urls that start with "//")
-	** `MetadataParser.get_metadata_link` will now check values against `FIELDS_REQUIRE_HTTPS` in certain situations to see if the value is valid for http
-	** `MetadataParser.schemeless_fields_upgradeable` is a tuple of the fields which can be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
-		The defaults are:
-			'image',
-			'og:image', 'og:image:url', 'og:audio', 'og:video',
-			'og:image:secure_url', 'og:audio:secure_url', 'og:video:secure_url',		
-	** `MetadataParser.schemeless_fields_disallow` is a tuple of the fields which can not be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
-		The defaults are:
-			'canonical',
-			'og:url',
-	** `MetadataParser.get_url_scheme()` is a new method to expose the scheme of the active url
-	** `MetadataParser.upgrade_schemeless_url()` is a new method to upgrade schemeless links
-		it accepts two arguments: url and field(optional)
-		if present, the field is checked against the package tuple FIELDS_REQUIRE_HTTPS to see if the value is valid for http
-			'og:image:secure_url',
-			'og:audio:secure_url',
-			'og:video:secure_url',
+    * addressing issue #17 (https://github.com/jvanasco/metadata_parser/issues/17) where `get_link_` logic does not handle schemeless urls.
+    ** `MetadataParser.get_metadata_link` will now try to upgrade schemeless links (e.g. urls that start with "//")
+    ** `MetadataParser.get_metadata_link` will now check values against `FIELDS_REQUIRE_HTTPS` in certain situations to see if the value is valid for http
+    ** `MetadataParser.schemeless_fields_upgradeable` is a tuple of the fields which can be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
+        The defaults are:
+            'image',
+            'og:image', 'og:image:url', 'og:audio', 'og:video',
+            'og:image:secure_url', 'og:audio:secure_url', 'og:video:secure_url',        
+    ** `MetadataParser.schemeless_fields_disallow` is a tuple of the fields which can not be upgradeable. this defaults to a package definition, but can be changed on a per-parser bases.
+        The defaults are:
+            'canonical',
+            'og:url',
+    ** `MetadataParser.get_url_scheme()` is a new method to expose the scheme of the active url
+    ** `MetadataParser.upgrade_schemeless_url()` is a new method to upgrade schemeless links
+        it accepts two arguments: url and field(optional)
+        if present, the field is checked against the package tuple FIELDS_REQUIRE_HTTPS to see if the value is valid for http
+            'og:image:secure_url',
+            'og:audio:secure_url',
+            'og:video:secure_url',
 
 0.9.20
-	* support for deprecated `twitter:label` and `twitter:data` metatags, which use "value" instead of "content".
-	* new param to `__init__` and `parse`: `support_malformed` (default `None`).
-	  if true, will support malformed parsing (such as consulting "value" instead of "content".
-	  functionality extended from PR #13 (https://github.com/jvanasco/metadata_parser/pull/13) from https://github.com/amensouissi
+    * support for deprecated `twitter:label` and `twitter:data` metatags, which use "value" instead of "content".
+    * new param to `__init__` and `parse`: `support_malformed` (default `None`).
+      if true, will support malformed parsing (such as consulting "value" instead of "content".
+      functionality extended from PR #13 (https://github.com/jvanasco/metadata_parser/pull/13) from https://github.com/amensouissi
 
 0.9.19
-	* addressing https://github.com/jvanasco/metadata_parser/issues/12
-		on pages with duplicate metadata keys, additional elements are ignored
-		when parsing the document, duplicate data was not kept.
-	* `MetadataParser.get_metadata` will always return a single string (or none)
-	* `MetadataParser.get_metadatas` has been introduced. this will always return an array.
-	* the internal parsed_metadata store will now store data in a mix of arrays and strings, keeping it backwards compatible
-	* This new version benches slightly slower because of the mixed format but preserves a smaller footprint.
-	* the parsed result now contains a version record for tracking the format `_v`.
-	* standardized single/double quoting
-	* cleaned up some line
-	* the library will try to coerce strategy= arguments into the right format
-	* when getting dublin core data, the result could either be a string of a dict.  there's no good way to handle this.
-	* added tests for encoders
-	* greatly expanded tests
-	
+    * addressing https://github.com/jvanasco/metadata_parser/issues/12
+        on pages with duplicate metadata keys, additional elements are ignored
+        when parsing the document, duplicate data was not kept.
+    * `MetadataParser.get_metadata` will always return a single string (or none)
+    * `MetadataParser.get_metadatas` has been introduced. this will always return an array.
+    * the internal parsed_metadata store will now store data in a mix of arrays and strings, keeping it backwards compatible
+    * This new version benches slightly slower because of the mixed format but preserves a smaller footprint.
+    * the parsed result now contains a version record for tracking the format `_v`.
+    * standardized single/double quoting
+    * cleaned up some line
+    * the library will try to coerce strategy= arguments into the right format
+    * when getting dublin core data, the result could either be a string of a dict.  there's no good way to handle this.
+    * added tests for encoders
+    * greatly expanded tests
+    
 0.9.18
-	* removed a stray debug line
+    * removed a stray debug line
 
 0.9.17
-	* added `retry_dropped_without_headers` option
+    * added `retry_dropped_without_headers` option
 
 0.9.16
     * added `fix_unicode_url()`

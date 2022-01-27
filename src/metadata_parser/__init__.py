@@ -34,7 +34,7 @@ from six.moves.urllib.parse import urlunparse
 # ==============================================================================
 
 
-__VERSION__ = "0.10.6"
+__VERSION__ = "0.11.0"
 
 
 # ------------------------------------------------------------------------------
@@ -734,11 +734,19 @@ class InvalidDocument(Exception):
 
 
 class NotParsable(Exception):
-    def __init__(self, message="", raised=None, code=None, metadataParser=None):
+    def __init__(
+        self,
+        message="",
+        raised=None,
+        code=None,
+        metadataParser=None,
+        response=None,
+    ):
         self.message = message
         self.raised = raised
         self.code = code
         self.metadataParser = metadataParser
+        self.response = response
 
     def __str__(self):
         return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
@@ -850,6 +858,38 @@ class DummyResponse(object):
 # ------------------------------------------------------------------------------
 
 
+class ResponseHistory(object):
+    history = None
+
+    def __init__(self, resp):
+        """
+        :param resp: A :class:`requests.Response` object to compute history of
+        :type resp: class:`requests.Response`
+        """
+        _history = []
+        if resp.history:
+            for _rh in resp.history:
+                _history.append((_rh.status_code, _rh.url))
+        _history.append((resp.status_code, resp.url))
+        self.history = _history
+
+    def log(self, prefix="ResponseHistory", logger=log.error):
+        """
+        :param prefix: Prefix for logging, defaults to "ResponseHistory"
+        :type prefix: str
+        :param logger: default `log.error`
+        :type logger: logging stream
+        """
+        for _idx, _history in enumerate(self.history):
+            logger(
+                "%s | %s | %s : %s ",
+                prefix,
+                _idx,
+                _history[0],  # status_code
+                _history[1],  # url
+            )
+
+
 class UrlParserCacheable(object):
     """
     class for caching calls to urlparse
@@ -858,10 +898,18 @@ class UrlParserCacheable(object):
     """
 
     def __init__(self, maxitems=30):
+        """
+        :param maxitems: maximum items to cache, default 30
+        :type maxitems: int, optional
+        """
         self.cache = collections.OrderedDict()
         self.maxitems = maxitems
 
     def urlparse(self, url):
+        """
+        :param url: url to parse
+        :type url: str
+        """
         if url not in self.cache:
             self.cache[url] = urlparse(url)
             if len(self.cache) > self.maxitems:
@@ -885,6 +933,7 @@ class ParsedResult(object):
 
     metadata = None
     soup = None
+    response_history = None  # only stashing `ResponseHistory` if we have it
     _version = 1  # version tracking
 
     og_minimum_requirements = ["title", "type", "image", "url"]
@@ -1301,6 +1350,8 @@ class MetadataParser(object):
                        : None/False/0 - use native urlparse
                        : other truthy values - use as a custom urlparse
         """
+        if __debug__:
+            log.debug("MetadataParser.__init__(%s)", url)
         if url is not None:
             url = url.strip()
         self.parsed_result = ParsedResult()
@@ -1348,6 +1399,7 @@ class MetadataParser(object):
         self.support_malformed = support_malformed
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
+        _response_history = None  # scoping, should this be supported as a pass-in?
         if html is not None:
             # mock a response
             # if `html_encoding` was provided as a kwarg, it becomes the encoding
@@ -1370,7 +1422,7 @@ class MetadataParser(object):
                 if defer_fetch:
 
                     def deferred_fetch():
-                        (html, html_encoding) = self.fetch_url(
+                        (html, html_encoding, _response_history) = self.fetch_url(
                             url_data=url_data,
                             url_headers=url_headers,
                             retry_dropped_without_headers=retry_dropped_without_headers,
@@ -1379,12 +1431,13 @@ class MetadataParser(object):
                             html,
                             html_encoding=html_encoding,
                             support_malformed=support_malformed,
+                            response_history=_response_history,
                         )
                         return
 
                     self.deferred_fetch = deferred_fetch
                     return
-                (html, html_encoding) = self.fetch_url(
+                (html, html_encoding, _response_history) = self.fetch_url(
                     url_data=url_data,
                     url_headers=url_headers,
                     retry_dropped_without_headers=retry_dropped_without_headers,
@@ -1392,9 +1445,13 @@ class MetadataParser(object):
             else:
                 # our html should always be unicode coming from `requests`
                 html = u""
+
         if html:
             self.parse(
-                html, html_encoding=html_encoding, support_malformed=support_malformed
+                html,
+                html_encoding=html_encoding,
+                support_malformed=support_malformed,
+                response_history=_response_history,
             )
 
     # --------------------------------------------------------------------------
@@ -1496,6 +1553,8 @@ class MetadataParser(object):
             retry_dropped_without_headers=None
                 if true, will retry_dropped_without_headers
         """
+        if __debug__:
+            log.error("MetadataParser.fetch_url(%s)", self.url)
         # should we even download/parse this?
         force_parse = force_parse if force_parse is not None else self.force_parse
         force_parse_invalid_content_type = (
@@ -1541,7 +1600,8 @@ class MetadataParser(object):
         # that fucks things up.
         url = self.url.split("#")[0]
 
-        resp = None
+        # scoping for return values
+        html = html_encoding = response_history = None
         try:
             # requests gives us unicode and the correct encoding, yay
             allow_redirects = (
@@ -1626,6 +1686,7 @@ class MetadataParser(object):
             else:
                 self.is_redirect = False
                 self.is_redirect_unique = False
+            response_history = ResponseHistory(resp)
 
             # lowercase all of the HTTP headers for comparisons per RFC 2616
             self.response_headers = dict(
@@ -1665,10 +1726,14 @@ class MetadataParser(object):
                     self.url,
                     resp.status_code,
                 )
+                # log the history if it's there
+                response_history.log(prefix="NotParsableFetchError History")
+
                 raise NotParsableFetchError(
                     message="Status Code is not 200",
                     code=resp.status_code,
                     metadataParser=self,
+                    response=resp,
                 )
 
             # scoping; default to None
@@ -1734,7 +1799,7 @@ class MetadataParser(object):
                 metadataParser=self,
             )
 
-        return (html, html_encoding)
+        return (html, html_encoding, response_history)
 
     def absolute_url(self, link=None):
         """
@@ -1780,19 +1845,33 @@ class MetadataParser(object):
             doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
         return doc
 
-    def parse(self, html, html_encoding=None, support_malformed=None):
+    def parse(
+        self,
+        html,
+        html_encoding=None,
+        support_malformed=None,
+        response_history=None,
+    ):
         """
         parses submitted `html`
 
-        args:
-            html
-            html_encoding - not currently used
+        :param html: html document
+        :type html: str
+        :param html_encoding: html document encoding
+        :type html_encoding: str, optional
+        :param support_malformed: should malformed html be supported?
+        :type support_malformed: bool, optional
+        :param response_history: history of the url fetch_url
+        :type response_history: class:`ResponseHistory`, optional
         """
         support_malformed = (
             support_malformed
             if support_malformed is not None
             else self.support_malformed
         )
+
+        # stash this if we have it
+        self.parsed_result.response_history = response_history
 
         if not isinstance(html, BeautifulSoup):
             kwargs_bs = {}
