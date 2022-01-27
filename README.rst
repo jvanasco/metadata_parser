@@ -7,9 +7,38 @@ Build Status: |build_status|
 
 MetadataParser is a Python module for pulling metadata out of web documents.
 
-It requires BeautifulSoup , and was largely based on Erik River's
-`opengraph module <https://github.com/erikriver/opengraph>`_. Something more
-aggressive than Erik's module was needed, so this project was started.
+It requires `BeautifulSoup` for parsing. `Requests` is required for installation
+at this time, but not for operation. Additional functionality is automatically
+enabled if the `tldextract` project is installed, but can be disabled by
+setting an environment variable.
+
+This project has been used in production for many years, and has successfully
+parsed billions of documents.
+
+
+Versioning, Pinning, and Support
+================================
+
+This project is using a Semantic Versioning release schedule,
+with a {MAJOR}.{MINOR}.{PATCH} format.
+
+Users are advised to pin their installations to "metadata_parser<{MINOR +1}"
+
+For example:
+
+* if the current release is: `0.10.6`
+* the advised pin is:  `metadata_parser<0.11`
+
+PATCH releases will usually be bug fixes and new features that support backwards compatibility with Public Methods.  Private Methods are not guaranteed to be
+backwards compatible.
+
+MINOR releases are triggered when there is a breaking change to Public Methods.
+Once a new MINOR release is triggered, first-party support for the previous MINOR
+release is EOL (end of life). PRs for previous releases are welcome, but giving
+them proper attention is not guaranteed.
+
+The current MAJOR release is `0`.
+A `1` MAJOR release is planned, and will have an entirely different structure and API.
 
 
 Installation
@@ -392,3 +421,7 @@ Notes
 =====
 
 when building on Python3, a ``static`` toplevel directory may be needed
+
+This library was originally based on Erik River's
+`opengraph module <https://github.com/erikriver/opengraph>`_. Something more
+aggressive than Erik's module was needed, so this project was started.
