@@ -1523,7 +1523,7 @@ class MetadataParser(object):
                         pass
                     else:
                         log.error(
-                            "NotParsable | %s | unknown filetype, request",
+                            "NotParsable | %s | unknown filetype, request: ",
                             self.url,
                         )
                         raise NotParsable(
@@ -1702,7 +1702,7 @@ class MetadataParser(object):
                 (content_type is None)
                 or (content_type not in self._content_types_parse)
             ) and (not force_parse_invalid_content_type):
-                log.error("NotParsable | %s | unknown filetype, response", self.url)
+                log.error("NotParsable | %s | unknown filetype, response: ", self.url)
                 raise NotParsable(
                     "I don't know how to parse this type of file! "
                     "content-type:'[%s]" % content_type,
