@@ -30,6 +30,11 @@ from six.moves.urllib.parse import unquote as url_unquote
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
 
+# conditional imports
+if PY2:
+    from backports.html import unescape as html_unescape
+else:
+    from html import unescape as html_unescape
 
 # ==============================================================================
 
@@ -249,6 +254,14 @@ def encode_ascii(text):
     if PY3:
         normalized = normalized.decode("utf-8", "ignore")
     return normalized
+
+
+def decode_html(text):
+    """
+    helper function to decode text that has both HTML and non-ascii characters
+    """
+    text = encode_ascii(html_unescape(text))
+    return text
 
 
 # ------------------------------------------------------------------------------
@@ -936,6 +949,8 @@ class ParsedResult(object):
     response_history = None  # only stashing `ResponseHistory` if we have it
     _version = 1  # version tracking
 
+    default_encoder = None
+
     og_minimum_requirements = ["title", "type", "image", "url"]
     twitter_sections = ["card", "title", "site", "description"]
     strategy = ["og", "dc", "meta", "page", "twitter"]
@@ -1019,21 +1034,32 @@ class ParsedResult(object):
         pairing (key/value - without a scheme/language) or the first element if no
         simple match exists.
 
-        args:
-            field
+        :param field:
+          The field to retrieve
+        :type field: str
 
-        kwargs:
-            strategy=None
-                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
-            encoder=None
-                a function, such as `encode_ascii`, to encode values.
-                a valid `encoder` accepts one(1) arg.
+        :param strategy:
+          Where to search for the metadata. such as 'all' or
+          iterable like ['og', 'dc', 'meta', 'page', 'twitter', ]
+        :type strategy: string or list
+
+        :param encoder:
+          a function, such as `encode_ascii`, to encode values before returning.
+          a valid `encoder` accepts one(1) arg.
+          if a `default_encoder` is registered, the string "raw" will disable it.
+        :type encoder:
+          function or "raw"
         """
         warn_future(
             """`get_metadata` returns a string and is being deprecated"""
             """in favor of `get_metadatas` which returns a list."""
         )
         strategy = self._coerce_strategy(strategy)
+
+        if encoder is None:
+            encoder = self.default_encoder
+        elif encoder == "raw":
+            encoder = None
 
         def _lookup(store):
             if field in self.metadata[store]:
@@ -1060,6 +1086,7 @@ class ParsedResult(object):
                 return val
             return None
 
+        # `_coerce_strategy` ensured a compliant strategy
         if type(strategy) is list:
             for store in strategy:
                 if store in self.metadata:
@@ -1067,8 +1094,7 @@ class ParsedResult(object):
                     if val is not None:
                         return val
             return None
-
-        if strategy == "all":
+        elif strategy == "all":
             rval = {}
             for store in self.metadata:
                 if store == "_v":
@@ -1089,17 +1115,28 @@ class ParsedResult(object):
         This method replaced the legacy method `get_metadatas`.
         This method will always return a list.
 
-        args:
-            field
+        :param field:
+          The field to retrieve
+        :type field: str
 
-        kwargs:
-            strategy=None
-                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
-            encoder=None
-                a function, such as `encode_ascii`, to encode values.
-                a valid `encoder` accepts one(1) arg.
+        :param strategy:
+          Where to search for the metadata. such as 'all' or
+          iterable like ['og', 'dc', 'meta', 'page', 'twitter', ]
+        :type strategy: string or list
+
+        :param encoder:
+          a function, such as `encode_ascii`, to encode values before returning.
+          a valid `encoder` accepts one(1) arg.
+          if a `default_encoder` is registered, the string "raw" will disable it.
+        :type encoder:
+          function or "raw"
         """
         strategy = self._coerce_strategy(strategy)
+
+        if encoder is None:
+            encoder = self.default_encoder
+        elif encoder == "raw":
+            encoder = None
 
         def _lookup(store):
             if field in self.metadata[store]:
@@ -1111,6 +1148,7 @@ class ParsedResult(object):
                 return val
             return None
 
+        # `_coerce_strategy` ensured a compliant strategy
         if type(strategy) is list:
             for store in strategy:
                 if store in self.metadata:
@@ -1118,8 +1156,7 @@ class ParsedResult(object):
                     if val is not None:
                         return val
             return None
-
-        if strategy == "all":
+        elif strategy == "all":
             rval = {}
             for store in self.metadata:
                 if store == "_v":
@@ -1215,6 +1252,7 @@ class MetadataParser(object):
     requests_session = None
     derive_encoding = None
     default_encoding = None
+    default_encoder = None
     support_malformed = None
 
     # allow for the beautiful_soup to be saved
@@ -1252,6 +1290,7 @@ class MetadataParser(object):
         derive_encoding=True,
         html_encoding=None,
         default_encoding=None,
+        default_encoder=None,
         retry_dropped_without_headers=None,
         support_malformed=None,
         cached_urlparser=True,
@@ -1334,6 +1373,9 @@ class MetadataParser(object):
             `derive_encoding`:
                 default: True
                 if True, will try to pull encoding from the content
+            `default_encoder`:
+                default: None
+                Register a default encoder with the parsed result
             `default_encoding`
                 default: None
                 per-parser default
@@ -1399,6 +1441,9 @@ class MetadataParser(object):
         self.support_malformed = support_malformed
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
+        if default_encoder is not None:
+            self.default_encoder = default_encoder
+            self.parsed_result.default_encoder = default_encoder
         _response_history = None  # scoping, should this be supported as a pass-in?
         if html is not None:
             # mock a response

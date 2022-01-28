@@ -34,6 +34,8 @@
         * ResponseHistory is not stashed in the metadata stash, but a new namespace
         * `.response_history` will either be `ResponseHistory` or None
     * improving docstrings
+    * added `decode_html` helper
+    * extended MetadataParser to allow registration of a defcault_encoder for results
     * style cleanup
 
 0.10.5

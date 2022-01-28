@@ -293,41 +293,101 @@ class TestHtmlDocument(unittest.TestCase):
             raise ValueError(errors)
 
 
-class TestFakedPayloads(unittest.TestCase):
+class TestEncoders(unittest.TestCase):
     """
-    python -m unittest tests.document_parsing.TestFakedPayloads
+    python -munittest tests.test_document_parsing.TestEncoders
     """
 
-    _data_a = {
-        "raw": u"""Example line with\xa0unicode whitespace.""",
-        "ascii": """Example line with unicode whitespace.""",
-    }
-    _data_b = {
-        "raw": u"""Example line with\xc2\xa0unicode chars.""",
-        "ascii": """Example line withA unicode chars.""",
+    _data = {
+        "unicode_whitespace": {
+            "raw": u"""Example line with\xa0unicode whitespace.""",
+            "ascii": """Example line with unicode whitespace.""",
+        },
+        "unicode_chars": {
+            "raw": u"""Example line with\xc2\xa0unicode chars.""",
+            "ascii": """Example line withA unicode chars.""",
+        },
+        "decode_html_encoder": {
+            "html": u"""<html><head><meta name="description" content="Foo&amp;nbsp;Bar, &amp;quot;Biz Bang Bash.&amp;quot;"/></head></html>""",
+            "parsed": u"Foo&nbsp;Bar, &quot;Biz Bang Bash.&quot;",
+            "decoded": u'Foo Bar, "Biz Bang Bash."',
+        },
     }
 
-    def _make_a(self):
+    def _make_raw(self, data_option):
+        # create a parsed result, and inject raw data.
+        # data coming through beautifulsoup will be parsed differently
         parsed = metadata_parser.MetadataParser()
-        parsed.metadata["meta"]["title"] = self._data_a["raw"]
+        parsed.metadata["meta"]["title"] = self._data[data_option]["raw"]
         return parsed
 
-    def _make_b(self):
-        parsed = metadata_parser.MetadataParser()
-        parsed.metadata["meta"]["title"] = self._data_b["raw"]
+    def _make_html(self, data_option, default_encoder=None):
+        # data coming through beautifulsoup is parsed by that library
+        parsed = metadata_parser.MetadataParser(
+            html=self._data[data_option]["html"],
+            force_doctype=True,
+            default_encoder=default_encoder,
+        )
         return parsed
 
-    def test_a(self):
-        parsed = self._make_a()
+    def test_unicode_whitespace(self):
+        parsed = self._make_raw("unicode_whitespace")
         # title_raw = parsed.get_metadata('title')
         title_ascii = parsed.get_metadata("title", encoder=metadata_parser.encode_ascii)
-        self.assertEqual(title_ascii, self._data_a["ascii"])
+        self.assertEqual(title_ascii, self._data["unicode_whitespace"]["ascii"])
 
-    def test_b(self):
-        parsed = self._make_b()
+    def test_unicode_chars(self):
+        parsed = self._make_raw("unicode_chars")
         # title_raw = parsed.get_metadata('title')
         title_ascii = parsed.get_metadata("title", encoder=metadata_parser.encode_ascii)
-        self.assertEqual(title_ascii, self._data_b["ascii"])
+        self.assertEqual(title_ascii, self._data["unicode_chars"]["ascii"])
+
+    def test_decode_html_encoder(self):
+        parsed = self._make_html("decode_html_encoder")
+        parsed_description = parsed.get_metadata("description")
+
+        decoded_direct = metadata_parser.decode_html(parsed_description)
+        self.assertEqual(decoded_direct, self._data["decode_html_encoder"]["decoded"])
+
+        decoded_decoder = parsed.get_metadata(
+            "description", encoder=metadata_parser.decode_html
+        )
+        self.assertEqual(decoded_decoder, self._data["decode_html_encoder"]["decoded"])
+
+    def test_default_encoder(self):
+        """
+        ensure the default decoder is invoked
+        """
+        parsed_with_default = self._make_html(
+            "decode_html_encoder", default_encoder=metadata_parser.decode_html
+        )
+        parsed_no_default = self._make_html("decode_html_encoder")
+
+        # does the default_decoder work?
+        decoded_default = parsed_with_default.get_metadata("description")
+        self.assertEqual(decoded_default, self._data["decode_html_encoder"]["decoded"])
+
+        # does the no decoder work as expected?
+        not_decoded = parsed_no_default.get_metadata("description")
+        self.assertEqual(not_decoded, self._data["decode_html_encoder"]["parsed"])
+
+        # can we override the default_decoder to get RAW?
+        decoded_override = parsed_with_default.get_metadata(
+            "description", encoder="raw"
+        )
+        self.assertEqual(decoded_override, self._data["decode_html_encoder"]["parsed"])
+
+        # can we override the default_decoder to get something else?
+        self.assertNotEqual(
+            self._data["decode_html_encoder"]["parsed"],
+            self._data["decode_html_encoder"]["parsed"].upper(),
+        )
+        decoded_override = parsed_with_default.get_metadata(
+            "description", encoder=lambda x: x.upper()
+        )
+        self.assertEqual(
+            decoded_override, self._data["decode_html_encoder"]["parsed"].upper()
+        )
 
 
 class TestDocumentParsing(unittest.TestCase):

@@ -1,6 +1,7 @@
 # stdlib
 import os
 import re
+import sys
 
 # pypi
 from setuptools import find_packages
@@ -25,14 +26,15 @@ long_description = (
 with open(os.path.join(HERE, "README.rst")) as fp:
     long_description = fp.read()
 
-requires = (
-    [
-        "BeautifulSoup4",
-        "requests>=2.19.1",
-        "requests-toolbelt>=0.8.0",
-        "six",
-    ],
-)
+requires = [
+    "BeautifulSoup4",
+    "requests>=2.19.1",
+    "requests-toolbelt>=0.8.0",
+    "six",
+]
+if sys.version_info.major == 2:
+    requires.append("backports.html")
+
 tests_require = [
     "httpbin",
     "pytest",
