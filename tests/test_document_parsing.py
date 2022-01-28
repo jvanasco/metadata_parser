@@ -378,6 +378,7 @@ class TestEncoders(unittest.TestCase):
         self.assertEqual(decoded_override, self._data["decode_html_encoder"]["parsed"])
 
         # can we override the default_decoder to get something else?
+        # ensure these 2 aren't equal, otherwise the next bit doesn't really test!
         self.assertNotEqual(
             self._data["decode_html_encoder"]["parsed"],
             self._data["decode_html_encoder"]["parsed"].upper(),
