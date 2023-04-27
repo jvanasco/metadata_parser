@@ -30,7 +30,6 @@ requires = [
     "BeautifulSoup4",
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
-    "six",
 ]
 if sys.version_info.major == 2:
     requires.append("backports.html")
@@ -41,6 +40,8 @@ tests_require = [
     "pytest-httpbin",
     "responses",
     "tldextract",
+    "types-beautifulsoup4",
+    "types-requests",
 ]
 testing_extras = tests_require + []
 
@@ -53,8 +54,13 @@ setup(
     classifiers=[
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Text Processing :: Markup :: HTML",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
@@ -68,6 +74,7 @@ setup(
         where="src",
     ),
     package_dir={"": "src"},
+    package_data={"metadata_parser": ["py.typed"]},
     include_package_data=True,
     zip_safe=False,
     install_requires=requires,
