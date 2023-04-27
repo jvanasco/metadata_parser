@@ -42,6 +42,7 @@ tests_require = [
     "tldextract",
     "types-beautifulsoup4",
     "types-requests",
+    "werkzeug<2.1.0",  # httpbin compat issue
 ]
 testing_extras = tests_require + []
 
