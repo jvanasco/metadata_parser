@@ -3,11 +3,22 @@ import _socket  # noqa: I100,I201  # peername hack, see below
 import cgi  # noqa: I100,I201
 import collections
 import datetime
+from html import unescape as html_unescape
 import logging
 import os
 import re
 import socket  # peername hack, see below
+import typing
+from typing import Callable
+from typing import Iterable
+from typing import Optional
+from typing import Union
 import unicodedata
+from urllib.parse import ParseResult
+from urllib.parse import quote as url_quote
+from urllib.parse import unquote as url_unquote
+from urllib.parse import urlparse
+from urllib.parse import urlunparse
 import warnings
 
 if __debug__:
@@ -17,29 +28,16 @@ if __debug__:
 
 # pypi
 from bs4 import BeautifulSoup
+from bs4 import Tag as _bs4_Tag  # typing
 import requests
-from requests_toolbelt.utils.deprecated import get_encodings_from_content
+from requests.structures import CaseInsensitiveDict
+from requests_toolbelt.utils.deprecated import get_encodings_from_content  # type: ignore[import]
 
-# python 2/3 compat
-from six import PY2
-from six import PY3
-from six import text_type
-from six.moves.urllib.parse import ParseResult
-from six.moves.urllib.parse import quote as url_quote
-from six.moves.urllib.parse import unquote as url_unquote
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.parse import urlunparse
-
-# conditional imports
-if PY2:
-    from backports.html import unescape as html_unescape
-else:
-    from html import unescape as html_unescape
 
 # ==============================================================================
 
 
-__VERSION__ = "0.11.0"
+__VERSION__ = "0.12.0dev"
 
 
 # ------------------------------------------------------------------------------
@@ -48,11 +46,11 @@ __VERSION__ = "0.11.0"
 log = logging.getLogger(__name__)
 
 
-def warn_future(message):
+def warn_future(message: str) -> None:
     warnings.warn(message, FutureWarning, stacklevel=2)
 
 
-def warn_user(message):
+def warn_user(message: str) -> None:
     warnings.warn(message, UserWarning, stacklevel=2)
 
 
@@ -99,11 +97,13 @@ if not _DISABLE_TLDEXTRACT:
 # peername hacks
 # only use for these stdlib packages
 # eventually will not be needed thanks to upstream changes in `requests`
-
 try:
-    _compatible_sockets = (_socket.socket, socket._socketobject)
+    _compatible_sockets: tuple = (
+        _socket.socket,
+        socket._socketobject,  # type: ignore[attr-defined]
+    )
 except AttributeError:
-    _compatible_sockets = (_socket.socket,)
+    _compatible_sockets: tuple = (_socket.socket,)  # type: ignore[no-redef]
 
 
 # ------------------------------------------------------------------------------
@@ -241,22 +241,18 @@ SCHEMELESS_FIELDS_UPGRADEABLE = (
 # ------------------------------------------------------------------------------
 
 
-def encode_ascii(text):
+def encode_ascii(text: str) -> str:
     """
     helper function to force ascii; some edge-cases have unicode line breaks in titles/etc.
     """
     if not text:
         text = ""
-    if PY2:
-        # text = unicode(text)
-        text = text_type(text)
-    normalized = unicodedata.normalize("NFKD", text).encode("ascii", "ignore")
-    if PY3:
-        normalized = normalized.decode("utf-8", "ignore")
-    return normalized
+    _as_bytes = unicodedata.normalize("NFKD", text).encode("ascii", "ignore")
+    _as_str = _as_bytes.decode("utf-8", "ignore")
+    return _as_str
 
 
-def decode_html(text):
+def decode_html(text: str) -> str:
     """
     helper function to decode text that has both HTML and non-ascii characters
     """
@@ -267,12 +263,14 @@ def decode_html(text):
 # ------------------------------------------------------------------------------
 
 
-def get_encoding_from_headers(headers):
+def get_encoding_from_headers(headers: CaseInsensitiveDict) -> Optional[str]:
     """
     Returns encodings from given HTTP Header Dict.
 
     :param headers: dictionary to extract encoding from.
     :rtype: str
+
+    `requests.get("http://example.com").headers` should be `requests.structures.CaseInsensitiveDict`
 
     ----------------------------------------------------------------------------
 
@@ -306,14 +304,16 @@ def get_encoding_from_headers(headers):
 # ------------------------------------------------------------------------------
 
 
-def get_response_peername(resp):
+def get_response_peername(resp: requests.Response) -> Optional[str]:
     """
     used to get the peername (ip+port) data from the request
     if a socket is found, caches this onto the request object
 
     IMPORTANT. this must happen BEFORE any content is consumed.
+
+    `response` is really `requests.models.Response`
     """
-    if not isinstance(resp, requests.models.Response):
+    if not isinstance(resp, requests.Response):
         # raise AllowableError("Not a HTTPResponse")
         log.debug("Not a HTTPResponse | %s", resp)
         return None
@@ -349,31 +349,31 @@ def get_response_peername(resp):
     if sock:
         # only cache if we have a sock
         # we may want/need to call again
-        resp._mp_peername = sock.getpeername()
-        return resp._mp_peername
+        resp._mp_peername = sock.getpeername()  # type: ignore[attr-defined]
+        return resp._mp_peername  # type: ignore[attr-defined]
     return None
 
 
 # ------------------------------------------------------------------------------
 
 
-def response_peername__hook(resp, *args, **kwargs):
+def response_peername__hook(resp: requests.Response, *args, **kwargs) -> None:
     get_response_peername(resp)
     # do not return anything
 
 
-def safe_sample(source):
-    _sample = source[:1024]
-    if PY3:
+def safe_sample(source: typing.AnyStr) -> bytes:
+    if isinstance(source, bytes):
+        _sample = source[:1024]
+    else:
         # this block can cause an error on PY3 depending on where the data came
         # from such as what the source is (from a request vs a document/test)
         # thanks, @keyz182 for the PR/investigation https://github.com/jvanasco/metadata_parser/pull/16
-        if not isinstance(source, bytes):
-            _sample = (source.encode())[:1024]
+        _sample = (source.encode())[:1024]
     return _sample
 
 
-def derive_encoding__hook(resp, *args, **kwargs):
+def derive_encoding__hook(resp: requests.Response, *args, **kwargs) -> None:
     """
     a note about `requests`
 
@@ -386,25 +386,30 @@ def derive_encoding__hook(resp, *args, **kwargs):
     body. This hook exists because users in certain regions may expect the
     servers to not follow RFC and for the default encoding to be different.
     """
-    resp._encoding_fallback = ENCODING_FALLBACK
+    resp._encoding_fallback = ENCODING_FALLBACK  # type: ignore[attr-defined]
     # modified version, returns `None` if no charset available
-    resp._encoding_headers = get_encoding_from_headers(resp.headers)
-    resp._encoding_content = None
-    if not resp._encoding_headers and resp.content:
+    resp._encoding_headers = get_encoding_from_headers(resp.headers)  # type: ignore[attr-defined]
+    resp._encoding_content = None  # type: ignore[attr-defined]
+    if not resp._encoding_headers and resp.content:  # type: ignore[attr-defined]
         # html5 spec requires a meta-charset in the first 1024 bytes
         _sample = safe_sample(resp.content)
-        resp._encoding_content = get_encodings_from_content(_sample)
-    if resp._encoding_content:
-        resp.encoding = resp._encoding_content[0]  # it's a list
+        resp._encoding_content = get_encodings_from_content(_sample)  # type: ignore[attr-defined]
+    if resp._encoding_content:  # type: ignore[attr-defined]
+        # it's a list
+        resp.encoding = resp._encoding_content[0]  # type: ignore[attr-defined]
     else:
-        resp.encoding = resp._encoding_headers or resp._encoding_fallback
+        resp.encoding = resp._encoding_headers or resp._encoding_fallback  # type: ignore[attr-defined]
     # do not return anything
 
 
 # ------------------------------------------------------------------------------
 
 
-def is_hostname_valid(hostname, allow_localhosts=True, require_public_netloc=False):
+def is_hostname_valid(
+    hostname: str,
+    allow_localhosts: bool = True,
+    require_public_netloc: bool = False,
+) -> bool:
     if hostname.lower() in PRIVATE_HOSTNAMES:
         if not allow_localhosts:
             return False
@@ -422,8 +427,11 @@ def is_hostname_valid(hostname, allow_localhosts=True, require_public_netloc=Fal
 
 
 def is_parsed_valid_url(
-    parsed, require_public_netloc=True, allow_localhosts=True, http_only=True
-):
+    parsed: ParseResult,
+    require_public_netloc: Optional[bool] = True,
+    allow_localhosts: Optional[bool] = True,
+    http_only: Optional[bool] = True,
+) -> bool:
     """returns bool
     `http_only`
         defaults True
@@ -462,45 +470,48 @@ def is_parsed_valid_url(
 
         # this can be a fast check..
         # note this is done AFTER we clean up a potential port grouping
-        if __debug__:
-            log.debug(" validating against PRIVATE_HOSTNAMES")
-        if _hostname.lower() in PRIVATE_HOSTNAMES:
+        if _hostname:
             if __debug__:
-                log.debug(" matched PRIVATE_HOSTNAMES")
-            if allow_localhosts:
-                return True
-            return False
+                log.debug(" validating against PRIVATE_HOSTNAMES")
+            if _hostname.lower() in PRIVATE_HOSTNAMES:
+                if __debug__:
+                    log.debug(" matched PRIVATE_HOSTNAMES")
+                if allow_localhosts:
+                    return True
+                return False
 
         _netloc_groudict = _netloc_match.groupdict()
         if _netloc_groudict["ipv4"] is not None:
-            octets = RE_IPV4_ADDRESS.match(_hostname)
-            if octets:
-                if __debug__:
-                    log.debug(" validating against ipv4")
-                for g in octets.groups():
-                    g = int(g)
-                    if int(g) > 255:
-                        if __debug__:
-                            log.debug(" invalid ipv4; encountered an octect > 255")
-                        return False
-                if __debug__:
-                    log.debug(" valid ipv4")
-                return True
+            if _hostname:
+                octets = RE_IPV4_ADDRESS.match(_hostname)
+                if octets:
+                    if __debug__:
+                        log.debug(" validating against ipv4")
+                    for g in octets.groups():
+                        g = int(g)
+                        if int(g) > 255:
+                            if __debug__:
+                                log.debug(" invalid ipv4; encountered an octect > 255")
+                            return False
+                    if __debug__:
+                        log.debug(" valid ipv4")
+                    return True
             if __debug__:
                 log.debug(" invalid ipv4")
             return False
         else:
-            if _hostname == "localhost":
-                if __debug__:
-                    log.debug(" localhost!")
-                return False
-            if RE_ALL_NUMERIC.match(_hostname):
-                if __debug__:
-                    log.debug(
-                        " This only has numeric characters. "
-                        "this is probably a fake or typo ip address."
-                    )
-                return False
+            if _hostname:
+                if _hostname == "localhost":
+                    if __debug__:
+                        log.debug(" localhost!")
+                    return False
+                if RE_ALL_NUMERIC.match(_hostname):
+                    if __debug__:
+                        log.debug(
+                            " This only has numeric characters. "
+                            "this is probably a fake or typo ip address."
+                        )
+                    return False
             if _port:
                 try:
                     _port = int(_port)
@@ -512,22 +523,23 @@ def is_parsed_valid_url(
                     if __debug__:
                         log.debug(" _port is not an int")
                     return False
-            if USE_TLDEXTRACT:
-                _extracted = tldextract.extract(_hostname)
-                if not _extracted.registered_domain:
-                    return False
-                return True
-            if RE_DOMAIN_NAME.match(_hostname):
-                if __debug__:
-                    log.debug(" valid public domain name format")
-                return True
+            if _hostname:
+                if USE_TLDEXTRACT:
+                    _extracted = tldextract.extract(_hostname)
+                    if not _extracted.registered_domain:
+                        return False
+                    return True
+                if RE_DOMAIN_NAME.match(_hostname):
+                    if __debug__:
+                        log.debug(" valid public domain name format")
+                    return True
         if __debug__:
             log.debug(" this appears to be invalid")
         return False
     return True
 
 
-def is_parsed_valid_relative(parsed):
+def is_parsed_valid_relative(parsed: ParseResult) -> bool:
     """returns bool"""
     assert isinstance(parsed, ParseResult)
     if parsed.path and not any((parsed.scheme, parsed.hostname)):
@@ -535,7 +547,10 @@ def is_parsed_valid_relative(parsed):
     return False
 
 
-def parsed_to_relative(parsed, parsed_fallback=None):
+def parsed_to_relative(
+    parsed: ParseResult,
+    parsed_fallback: Optional[str] = None,
+) -> str:
     """turns a parsed url into a full relative path"""
     assert isinstance(parsed, ParseResult)
     _path = parsed.path
@@ -560,7 +575,11 @@ def parsed_to_relative(parsed, parsed_fallback=None):
     return _path
 
 
-def fix_unicode_url(url, encoding=None, urlparser=urlparse):
+def fix_unicode_url(
+    url: str,
+    encoding: Optional[str] = None,
+    urlparser: Callable = urlparse,
+) -> str:
     """
     some cms systems will put unicode in their canonical url
     this is not allowed by rfc.
@@ -586,20 +605,20 @@ def fix_unicode_url(url, encoding=None, urlparser=urlparse):
     for _idx in [2]:  # 2=path, 3=params, 4=queryparams, 5fragment
         try:
             candidate[_idx] = parsed[_idx]
-            if PY2:
-                if encoding:
-                    candidate[_idx] = parsed[_idx].encode(encoding)
             candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
         except Exception as exc:
             log.debug("fix_unicode_url failure: %s | %s | %s", url, encoding, exc)
             return url
-    candidate = urlunparse(candidate)
-    return candidate
+    _url = urlunparse(candidate)
+    return _url
 
 
 def is_url_valid(
-    url, require_public_netloc=None, allow_localhosts=None, urlparser=urlparse
-):
+    url: str,
+    require_public_netloc: Optional[bool] = None,
+    allow_localhosts: Optional[bool] = None,
+    urlparser: Callable = urlparse,
+) -> bool:
     """
     tries to parse a url. if valid returns `ParseResult`
     (boolean eval is True); if invalid returns `False`
@@ -622,12 +641,12 @@ def is_url_valid(
 
 
 def url_to_absolute_url(
-    url_test,
-    url_fallback=None,
-    require_public_netloc=None,
-    allow_localhosts=None,
-    urlparser=urlparse,
-):
+    url_test: str,
+    url_fallback: Optional[str] = None,
+    require_public_netloc: Optional[bool] = None,
+    allow_localhosts: Optional[bool] = None,
+    urlparser: Callable = urlparse,
+) -> Optional[str]:
     """
     returns an "absolute url" if we have one.
     if we don't, it tries to fix the current url based on the fallback
@@ -653,7 +672,7 @@ def url_to_absolute_url(
     # quickly correct for some dumb mistakes
     if isinstance(url_test, str):
         if url_test.lower() in ("http://", "https://"):
-            url_test = None
+            url_test = None  # type: ignore[assignment]
 
     # if we don't have a test url or fallback, we can't generate an absolute
     if not url_test and not url_fallback:
@@ -739,21 +758,21 @@ def url_to_absolute_url(
 
 
 class InvalidDocument(Exception):
-    def __init__(self, message=""):
+    def __init__(self, message: str = ""):
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "InvalidDocument: %s" % (self.message)
 
 
 class NotParsable(Exception):
     def __init__(
         self,
-        message="",
-        raised=None,
-        code=None,
-        metadataParser=None,
-        response=None,
+        message: str = "",
+        raised: Optional[requests.exceptions.RequestException] = None,
+        code: Optional[int] = None,
+        metadataParser: Optional["MetadataParser"] = None,
+        response: Optional[requests.Response] = None,
     ):
         self.message = message
         self.raised = raised
@@ -761,19 +780,19 @@ class NotParsable(Exception):
         self.metadataParser = metadataParser
         self.response = response
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
 
 
 class NotParsableJson(NotParsable):
-    def __str__(self):
+    def __str__(self) -> str:
         return "NotParsableJson: %s | %s | %s" % (self.message, self.code, self.raised)
 
 
 class NotParsableRedirect(NotParsable):
     """Raised if a redirect is detected, but there is no Location header."""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "NotParsableRedirect: %s | %s | %s" % (
             self.message,
             self.code,
@@ -782,7 +801,7 @@ class NotParsableRedirect(NotParsable):
 
 
 class NotParsableFetchError(NotParsable):
-    def __str__(self):
+    def __str__(self) -> str:
         return "NotParsableFetchError: %s | %s | %s" % (
             self.message,
             self.code,
@@ -804,7 +823,13 @@ class RedirectDetected(Exception):
     ``response``: actual response object
     """
 
-    def __init__(self, location="", code=None, response=None, metadataParser=None):
+    def __init__(
+        self,
+        location: str = "",
+        code: Optional[int] = None,
+        response: Optional[requests.Response] = None,
+        metadataParser: Optional["MetadataParser"] = None,
+    ):
         self.location = location
         self.code = code
         self.response = response
@@ -820,33 +845,33 @@ class DummyResponse(object):
     and html data
     """
 
-    text = None
-    url = None
-    status_code = None
-    encoding = None
-    elapsed_seconds = None
-    history = None
-    headers = None
-    content = None
-    default_encoding = None
+    text: Optional[str] = None
+    url: Optional[str] = None
+    status_code: Optional[int] = None
+    encoding: Optional[str] = None
+    elapsed_seconds: float = 0
+    history: Optional["ResponseHistory"] = None
+    headers: Optional[CaseInsensitiveDict] = None
+    content: Optional[Union[str, bytes]] = None
+    default_encoding: Optional[str] = None
 
     def __init__(
         self,
-        text="",
-        url=DUMMY_URL,
-        status_code=200,
-        encoding=None,
-        elapsed_seconds=0,
-        headers=None,
-        content=None,
-        derive_encoding=None,
-        default_encoding=None,
+        text: str = "",
+        url: str = DUMMY_URL,
+        status_code: int = 200,
+        encoding: Optional[str] = None,
+        elapsed_seconds: float = 0,
+        headers: Optional[CaseInsensitiveDict] = None,
+        content: Optional[typing.AnyStr] = None,
+        derive_encoding: Optional[bool] = None,
+        default_encoding: Optional[str] = None,
     ):
         self.text = text
         self.url = url
         self.status_code = status_code
         self.elapsed = datetime.timedelta(0, elapsed_seconds)
-        self.headers = headers if headers is not None else {}
+        self.headers = headers if headers is not None else CaseInsensitiveDict()
         self.content = content
 
         # start `encoding` block
@@ -872,9 +897,9 @@ class DummyResponse(object):
 
 
 class ResponseHistory(object):
-    history = None
+    history: Optional[Iterable] = None
 
-    def __init__(self, resp):
+    def __init__(self, resp: requests.Response):
         """
         :param resp: A :class:`requests.Response` object to compute history of
         :type resp: class:`requests.Response`
@@ -886,21 +911,26 @@ class ResponseHistory(object):
         _history.append((resp.status_code, resp.url))
         self.history = _history
 
-    def log(self, prefix="ResponseHistory", logger=log.error):
+    def log(
+        self,
+        prefix: str = "ResponseHistory",
+        logger: Callable = log.error,
+    ) -> None:
         """
         :param prefix: Prefix for logging, defaults to "ResponseHistory"
         :type prefix: str
         :param logger: default `log.error`
         :type logger: logging stream
         """
-        for _idx, _history in enumerate(self.history):
-            logger(
-                "%s | %s | %s : %s ",
-                prefix,
-                _idx,
-                _history[0],  # status_code
-                _history[1],  # url
-            )
+        if self.history:
+            for _idx, _history in enumerate(self.history):
+                logger(
+                    "%s | %s | %s : %s ",
+                    prefix,
+                    _idx,
+                    _history[0],  # status_code
+                    _history[1],  # url
+                )
 
 
 class UrlParserCacheable(object):
@@ -910,7 +940,10 @@ class UrlParserCacheable(object):
     this simply manipulates a dict
     """
 
-    def __init__(self, maxitems=30):
+    cache: collections.OrderedDict
+    maxitems: int
+
+    def __init__(self, maxitems: int = 30):
         """
         :param maxitems: maximum items to cache, default 30
         :type maxitems: int, optional
@@ -918,7 +951,7 @@ class UrlParserCacheable(object):
         self.cache = collections.OrderedDict()
         self.maxitems = maxitems
 
-    def urlparse(self, url):
+    def urlparse(self, url: str) -> ParseResult:
         """
         :param url: url to parse
         :type url: str
@@ -944,16 +977,17 @@ class ParsedResult(object):
     readme/docs are not necessarily installed locally.
     """
 
-    metadata = None
-    soup = None
-    response_history = None  # only stashing `ResponseHistory` if we have it
-    _version = 1  # version tracking
+    metadata: dict
+    soup: BeautifulSoup
+    response_history: Optional[
+        ResponseHistory
+    ] = None  # only stashing `ResponseHistory` if we have it
+    _version: int = 1  # version tracking
+    default_encoder: Optional[Callable] = None
 
-    default_encoder = None
-
-    og_minimum_requirements = ["title", "type", "image", "url"]
-    twitter_sections = ["card", "title", "site", "description"]
-    strategy = ["og", "dc", "meta", "page", "twitter"]
+    og_minimum_requirements: list = ["title", "type", "image", "url"]
+    twitter_sections: list = ["card", "title", "site", "description"]
+    strategy: Union[list, str] = ["og", "dc", "meta", "page", "twitter"]
 
     def __init__(self):
         self.metadata = {
@@ -967,15 +1001,19 @@ class ParsedResult(object):
         }
 
     @property
-    def metadata_version(self):
+    def metadata_version(self) -> Optional[int]:
         return self.metadata.get("_v", None)
 
     @property
-    def metadata_encoding(self):
+    def metadata_encoding(self) -> Optional[str]:
         return self.metadata.get("_internal", {}).get("encoding", None)
 
     def _add_discovered(
-        self, _target_container, _target_key, _raw_value, _formatted_value=None
+        self,
+        _target_container_key: str,
+        _target_key: str,
+        _raw_value: str,
+        _formatted_value: Optional[Union[str, dict]] = None,
     ):
         """
         unified function to add data.
@@ -985,7 +1023,7 @@ class ParsedResult(object):
         """
         if _formatted_value is None:
             _formatted_value = _raw_value.strip()
-        _target_container = self.metadata[_target_container]
+        _target_container = self.metadata[_target_container_key]
         if _target_key not in _target_container:
             _target_container[_target_key] = _formatted_value
         else:
@@ -1001,7 +1039,7 @@ class ParsedResult(object):
                 if _formatted_value not in _target_container[_target_key]:
                     _target_container[_target_key].append(_formatted_value)
 
-    def _coerce_strategy(self, strategy=None):
+    def _coerce_strategy(self, strategy: Union[list, str, None] = None):
         """normalize a strategy into a valid option"""
         if strategy:
             if type(strategy) is not list:
@@ -1018,7 +1056,12 @@ class ParsedResult(object):
             strategy = self.strategy
         return strategy
 
-    def get_metadata(self, field, strategy=None, encoder=None):
+    def get_metadata(
+        self,
+        field: str,
+        strategy: Union[list, str, None] = None,
+        encoder: Optional[Callable] = None,
+    ):
         """
         legacy. DEPRECATED.
         looks for the field in various stores.  defaults to the core
@@ -1106,7 +1149,12 @@ class ParsedResult(object):
 
         return None
 
-    def get_metadatas(self, field, strategy=None, encoder=None):
+    def get_metadatas(
+        self,
+        field,
+        strategy: Union[list, str, None] = None,
+        encoder: Optional[Callable] = None,
+    ):
         """
         looks for the field in various stores.  defaults to the core
         strategy, though you may specify a certain item.  if you search for
@@ -1252,11 +1300,8 @@ class MetadataParser(object):
     requests_session = None
     derive_encoding = None
     default_encoding = None
-    default_encoder = None
+    default_encoder: Optional[Callable] = None
     support_malformed = None
-
-    # allow for the beautiful_soup to be saved
-    soup = None
 
     # this has a per-parser default tuple
     # it can be upgraded manually
@@ -1268,13 +1313,13 @@ class MetadataParser(object):
 
     def __init__(
         self,
-        url=None,
-        html=None,
-        strategy=None,
+        url: Optional[str] = None,
+        html: Optional[str] = None,
+        strategy: Union[list, str, None] = None,
         url_data=None,
         url_headers=None,
-        force_parse=False,
-        ssl_verify=True,
+        force_parse: bool = False,
+        ssl_verify: bool = True,
         only_parse_file_extensions=None,
         force_parse_invalid_content_type=False,
         require_public_netloc=True,
@@ -1290,7 +1335,7 @@ class MetadataParser(object):
         derive_encoding=True,
         html_encoding=None,
         default_encoding=None,
-        default_encoder=None,
+        default_encoder: Optional[Callable] = None,
         retry_dropped_without_headers=None,
         support_malformed=None,
         cached_urlparser=True,
@@ -1419,7 +1464,7 @@ class MetadataParser(object):
         self.ssl_verify = ssl_verify
         self.force_doctype = force_doctype
         self.response = None
-        self.response_headers = {}
+        self.response_headers: dict = {}
         self.require_public_netloc = require_public_netloc
         self.allow_localhosts = allow_localhosts
         self.requests_timeout = requests_timeout
@@ -1480,7 +1525,7 @@ class MetadataParser(object):
                         )
                         return
 
-                    self.deferred_fetch = deferred_fetch
+                    self.deferred_fetch = deferred_fetch  # type: ignore[method-assign]
                     return
                 (html, html_encoding, _response_history) = self.fetch_url(
                     url_data=url_data,
@@ -1489,7 +1534,7 @@ class MetadataParser(object):
                 )
             else:
                 # our html should always be unicode coming from `requests`
-                html = u""
+                html = ""
 
         if html:
             self.parse(
@@ -1521,13 +1566,23 @@ class MetadataParser(object):
         # deprecating in 1.0
         return self.parsed_result.soup
 
-    def get_metadata(self, field, strategy=None, encoder=None):
+    def get_metadata(
+        self,
+        field,
+        strategy: Union[list, str, None] = None,
+        encoder: Optional[Callable] = None,
+    ):
         # deprecating in 1.0; operate on the result instead
         return self.parsed_result.get_metadata(
             field, strategy=strategy, encoder=encoder
         )
 
-    def get_metadatas(self, field, strategy=None, encoder=None):
+    def get_metadatas(
+        self,
+        field,
+        strategy: Union[list, str, None] = None,
+        encoder: Optional[Callable] = None,
+    ):
         # deprecating in 1.0; operate on the result instead
         return self.parsed_result.get_metadatas(
             field, strategy=strategy, encoder=encoder
@@ -1892,10 +1947,10 @@ class MetadataParser(object):
 
     def parse(
         self,
-        html,
-        html_encoding=None,
-        support_malformed=None,
-        response_history=None,
+        html: str,
+        html_encoding: Optional[str] = None,
+        support_malformed: Optional[bool] = None,
+        response_history: Optional[ResponseHistory] = None,
     ):
         """
         parses submitted `html`
@@ -1919,17 +1974,8 @@ class MetadataParser(object):
         self.parsed_result.response_history = response_history
 
         if not isinstance(html, BeautifulSoup):
-            kwargs_bs = {}
+            kwargs_bs: dict = {}
             # todo: use html_encoding
-            try:
-                if PY2:
-                    # on Python2, if we're given a string, not unicode, it may have an encoding.
-                    if isinstance(html, str):
-                        kwargs_bs["from_encoding"] = self.response.encoding
-            except Exception as exc:  # noqa: F841
-                # just ignore this detection
-                pass
-
             if self.force_doctype:
                 html = RE_doctype.sub("<!DOCTYPE html>", html)
 
@@ -1960,7 +2006,7 @@ class MetadataParser(object):
             return
 
         # set the searchpath
-        doc_searchpath = doc.html
+        doc_searchpath: _bs4_Tag = doc.html  # bs4.element.Tag
 
         # shortcut
         parsed_result = self.parsed_result
@@ -1971,13 +2017,13 @@ class MetadataParser(object):
                     log.error("InvalidDocument | no head")
                     raise InvalidDocument("missing `doc.html.head`")
                 return
-            doc_searchpath = doc.html.head
+            doc_searchpath = doc.html.head  # bs4.element.Tag
 
         ogs = doc_searchpath.findAll("meta", attrs={"property": RE_prefix_opengraph})
         for og in ogs:
             try:
                 parsed_result._add_discovered(
-                    _target_container="og",
+                    _target_container_key="og",
                     _target_key=og["property"][3:],
                     _raw_value=og["content"],
                 )
@@ -2016,24 +2062,28 @@ class MetadataParser(object):
                     continue
 
                 parsed_result._add_discovered(
-                    _target_container="twitter", _target_key=_key, _raw_value=_val
+                    _target_container_key="twitter", _target_key=_key, _raw_value=_val
                 )
 
             except (AttributeError, KeyError):
                 pass
 
         # pull the text off the title
-        try:
-            _title_text = doc_searchpath.title.text
-            if _title_text is not None:
-                _title_text = _title_text.strip()
-            if len(_title_text) > self.LEN_MAX_TITLE:
-                _title_text = _title_text[: self.LEN_MAX_TITLE]
-            parsed_result._add_discovered(
-                _target_container="page", _target_key="title", _raw_value=_title_text
-            )
-        except AttributeError:
-            pass
+        if doc_searchpath:
+            try:
+                if doc_searchpath.title is not None:
+                    _title_text = doc_searchpath.title.text
+                    if _title_text is not None:
+                        _title_text = _title_text.strip()
+                    if len(_title_text) > self.LEN_MAX_TITLE:
+                        _title_text = _title_text[: self.LEN_MAX_TITLE]
+                    parsed_result._add_discovered(
+                        _target_container_key="page",
+                        _target_key="title",
+                        _raw_value=_title_text,
+                    )
+            except AttributeError:
+                pass
 
         # is there an image_src?
         images = doc.findAll("link", attrs={"rel": RE_prefix_rel_img_src})
@@ -2043,12 +2093,16 @@ class MetadataParser(object):
             if image.has_attr("href"):
                 _img_url = image["href"]
                 parsed_result._add_discovered(
-                    _target_container="page", _target_key="image", _raw_value=_img_url
+                    _target_container_key="page",
+                    _target_key="image",
+                    _raw_value=_img_url,
                 )
             elif image.has_attr("content"):
                 _img_url = image["content"]
                 parsed_result._add_discovered(
-                    _target_container="page", _target_key="image", _raw_value=_img_url
+                    _target_container_key="page",
+                    _target_key="image",
+                    _raw_value=_img_url,
                 )
             else:
                 pass
@@ -2061,12 +2115,16 @@ class MetadataParser(object):
             if canonical.has_attr("href"):
                 _link = canonical["href"]
                 parsed_result._add_discovered(
-                    _target_container="page", _target_key="canonical", _raw_value=_link
+                    _target_container_key="page",
+                    _target_key="canonical",
+                    _raw_value=_link,
                 )
             elif canonical.has_attr("content"):
                 _link = canonical["content"]
                 parsed_result._add_discovered(
-                    _target_container="page", _target_key="canonical", _raw_value=_link
+                    _target_container_key="page",
+                    _target_key="canonical",
+                    _raw_value=_link,
                 )
             else:
                 pass
@@ -2077,12 +2135,16 @@ class MetadataParser(object):
             if shortlink.has_attr("href"):
                 _link = shortlink["href"]
                 parsed_result._add_discovered(
-                    _target_container="page", _target_key="shortlink", _raw_value=_link
+                    _target_container_key="page",
+                    _target_key="shortlink",
+                    _raw_value=_link,
                 )
             elif shortlink.has_attr("content"):
                 _link = shortlink["content"]
                 parsed_result._add_discovered(
-                    _target_container="page", _target_key="shortlink", _raw_value=_link
+                    _target_container_key="page",
+                    _target_key="shortlink",
+                    _raw_value=_link,
                 )
             else:
                 pass
@@ -2117,19 +2179,21 @@ class MetadataParser(object):
                             if "scheme" in attrs:
                                 _dc_formatted["scheme"] = attrs["scheme"]
                             self.parsed_result._add_discovered(
-                                _target_container="dc",
+                                _target_container_key="dc",
                                 _target_key=lbl[3:],
                                 _raw_value=v,
                                 _formatted_value=_dc_formatted,
                             )
                         else:
                             self.parsed_result._add_discovered(
-                                _target_container="meta", _target_key=lbl, _raw_value=v
+                                _target_container_key="meta",
+                                _target_key=lbl,
+                                _raw_value=v,
                             )
                 elif k is None:
                     if "charset" in attrs:
                         self.parsed_result._add_discovered(
-                            _target_container="meta",
+                            _target_container_key="meta",
                             _target_key="charset",
                             _raw_value=attrs["charset"],
                         )
@@ -2152,7 +2216,7 @@ class MetadataParser(object):
                 return parsed.scheme
         return None
 
-    def upgrade_schemeless_url(self, url, field=None):
+    def upgrade_schemeless_url(self, url: str, field: Optional[str] = None):
         """
         urls can appear in html 3 ways:
 
@@ -2175,7 +2239,11 @@ class MetadataParser(object):
                 url = "%s:%s" % (scheme, url)
         return url
 
-    def get_fallback_url(self, require_public_netloc=True, allow_localhosts=True):
+    def get_fallback_url(
+        self,
+        require_public_netloc: bool = True,
+        allow_localhosts: bool = True,
+    ):
         for _fallback_candndiate in (self.url_actual, self.url):
             if not _fallback_candndiate:
                 continue
@@ -2195,7 +2263,10 @@ class MetadataParser(object):
     # --------------------------------------------------------------------------
 
     def get_url_canonical(
-        self, require_public_global=True, url_fallback=None, allow_unicode_url=True
+        self,
+        require_public_global: bool = True,
+        url_fallback: Optional[str] = None,
+        allow_unicode_url: bool = True,
     ):
         """
         this was originally part of `get_discrete_url`
@@ -2266,7 +2337,10 @@ class MetadataParser(object):
         return canonical
 
     def get_url_opengraph(
-        self, require_public_global=True, url_fallback=None, allow_unicode_url=True
+        self,
+        require_public_global: bool = True,
+        url_fallback: Optional[str] = None,
+        allow_unicode_url: bool = True,
     ):
         """
         this was originally part of `get_discrete_url`
@@ -2339,10 +2413,10 @@ class MetadataParser(object):
 
     def get_discrete_url(
         self,
-        og_first=True,
-        canonical_first=False,
-        require_public_global=True,
-        allow_unicode_url=True,
+        og_first: bool = True,
+        canonical_first: bool = False,
+        require_public_global: bool = True,
+        allow_unicode_url: bool = True,
     ):
         """
         convenience method.
@@ -2394,7 +2468,11 @@ class MetadataParser(object):
     # --------------------------------------------------------------------------
 
     def get_metadata_link(
-        self, field, strategy=None, allow_encoded_uri=False, require_public_global=True
+        self,
+        field: str,
+        strategy: Union[list, str, None] = None,
+        allow_encoded_uri: bool = False,
+        require_public_global: bool = True,
     ):
         """sometimes links are bad; this tries to fix them.  most useful for meta images
 
@@ -2474,18 +2552,19 @@ class MetadataParser(object):
             allow_localhosts=_allow_localhosts,
             urlparser=self.urlparse,
         )
-        if is_url_valid(
-            value_fixed,
-            require_public_netloc=_require_public_netloc,
-            allow_localhosts=_allow_localhosts,
-            urlparser=self.urlparse,
-        ):
-            # last check on the field...
-            # only needed here, because we're using the url_fallback
-            if field in FIELDS_REQUIRE_HTTPS:
-                parsed_fixed_url = self.urlparse(value_fixed)
-                if parsed_fixed_url.scheme != "https":
-                    return None
-            return value_fixed
+        if value_fixed:
+            if is_url_valid(
+                value_fixed,
+                require_public_netloc=_require_public_netloc,
+                allow_localhosts=_allow_localhosts,
+                urlparser=self.urlparse,
+            ):
+                # last check on the field...
+                # only needed here, because we're using the url_fallback
+                if field in FIELDS_REQUIRE_HTTPS:
+                    parsed_fixed_url = self.urlparse(value_fixed)
+                    if parsed_fixed_url.scheme != "https":
+                        return None
+                return value_fixed
 
         return None
