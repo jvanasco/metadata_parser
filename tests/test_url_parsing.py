@@ -2,11 +2,10 @@
 
 # stdlib
 import unittest
+from urllib.parse import urlparse
 
 # local
 import metadata_parser
-from ._compat import PY2
-from ._compat import urlparse
 
 # ==============================================================================
 
@@ -391,14 +390,9 @@ class TestFixUnicodeUrls(unittest.TestCase):
                 "https://example.com/2017/12/abcdefg%C3%BChijklmnop?a=%20foo",
             ),
         )
-        for (raw, expected) in _test_pairs:
+        for raw, expected in _test_pairs:
             cleaned = metadata_parser.fix_unicode_url(raw)
             self.assertEqual(cleaned, expected)
-            if PY2:
-                cleaned = metadata_parser.fix_unicode_url(
-                    raw.decode("utf-8"), encoding="utf-8"
-                ).encode("utf-8")
-                self.assertEqual(cleaned, expected)
 
     def test_fix_unicode_path_leave_unicode_kwargs(self):
         _test_pairs = (
@@ -407,14 +401,9 @@ class TestFixUnicodeUrls(unittest.TestCase):
                 "https://example.com/2017/12/abcdefg%C3%BChijklmnop?a=%20foo&b=ü",
             ),
         )
-        for (raw, expected) in _test_pairs:
+        for raw, expected in _test_pairs:
             cleaned = metadata_parser.fix_unicode_url(raw)
             self.assertEqual(cleaned, expected)
-            if PY2:
-                cleaned = metadata_parser.fix_unicode_url(
-                    raw.decode("utf-8"), encoding="utf-8"
-                ).encode("utf-8")
-                self.assertEqual(cleaned, expected)
 
 
 class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
