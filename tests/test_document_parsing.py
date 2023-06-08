@@ -300,17 +300,17 @@ class TestEncoders(unittest.TestCase):
 
     _data = {
         "unicode_whitespace": {
-            "raw": u"""Example line with\xa0unicode whitespace.""",
+            "raw": """Example line with\xa0unicode whitespace.""",
             "ascii": """Example line with unicode whitespace.""",
         },
         "unicode_chars": {
-            "raw": u"""Example line with\xc2\xa0unicode chars.""",
+            "raw": """Example line with\xc2\xa0unicode chars.""",
             "ascii": """Example line withA unicode chars.""",
         },
         "decode_html_encoder": {
-            "html": u"""<html><head><meta name="description" content="Foo&amp;nbsp;Bar, &amp;quot;Biz Bang Bash.&amp;quot;"/></head></html>""",
-            "parsed": u"Foo&nbsp;Bar, &quot;Biz Bang Bash.&quot;",
-            "decoded": u'Foo Bar, "Biz Bang Bash."',
+            "html": """<html><head><meta name="description" content="Foo&amp;nbsp;Bar, &amp;quot;Biz Bang Bash.&amp;quot;"/></head></html>""",
+            "parsed": "Foo&nbsp;Bar, &quot;Biz Bang Bash.&quot;",
+            "decoded": 'Foo Bar, "Biz Bang Bash."',
         },
     }
 
@@ -685,7 +685,7 @@ class TestDocumentParsing(unittest.TestCase):
         dc_subject = parsed.metadata["dc"]["Subject"]
         self.assertIs(type(dc_subject), list)
         self.assertEqual(len(dc_subject), len(dcSubjectsExpected))
-        for (idx, _expected) in enumerate(dc_subject):
+        for idx, _expected in enumerate(dc_subject):
             self.assertIs(type(dc_subject[idx]), dict)
             self.assertEqual(
                 len(dc_subject[idx].keys()), len(dcSubjectsExpected[idx].keys())
@@ -785,7 +785,7 @@ class TestDocumentParsing(unittest.TestCase):
         dc_mixed_candidates = parsed.metadata["dc"]["TestMixedCandidates2a"]
         self.assertIs(type(dc_mixed_candidates), list)
         self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2aExpected))
-        for (idx, _expected) in enumerate(dc_mixed_candidates):
+        for idx, _expected in enumerate(dc_mixed_candidates):
             self.assertIs(type(dc_mixed_candidates[idx]), dict)
             self.assertEqual(
                 len(dc_mixed_candidates[idx].keys()),
@@ -831,7 +831,7 @@ class TestDocumentParsing(unittest.TestCase):
         dc_mixed_candidates = parsed.metadata["dc"]["TestMixedCandidates2b"]
         self.assertIs(type(dc_mixed_candidates), list)
         self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2bExpected))
-        for (idx, _expected) in enumerate(dc_mixed_candidates):
+        for idx, _expected in enumerate(dc_mixed_candidates):
             self.assertIs(type(dc_mixed_candidates[idx]), dict)
             self.assertEqual(
                 len(dc_mixed_candidates[idx].keys()),
