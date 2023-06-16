@@ -12,6 +12,7 @@ import typing
 from typing import Callable
 from typing import Iterable
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import Union
 import unicodedata
 from urllib.parse import ParseResult
@@ -21,18 +22,20 @@ from urllib.parse import urlparse
 from urllib.parse import urlunparse
 import warnings
 
+# pypi
+from bs4 import BeautifulSoup
+import requests
+from requests.structures import CaseInsensitiveDict
+from requests_toolbelt.utils.deprecated import get_encodings_from_content
+
+if TYPE_CHECKING:
+    from bs4 import Tag as _bs4_Tag
+
+
 if __debug__:
     # only used for testing. turn off in most production env with -o flags
     import pdb  # noqa: F401
     import pprint  # noqa: F401
-
-# pypi
-from bs4 import BeautifulSoup
-from bs4 import Tag as _bs4_Tag  # typing
-import requests
-from requests.structures import CaseInsensitiveDict
-from requests_toolbelt.utils.deprecated import get_encodings_from_content  # type: ignore[import]
-
 
 # ==============================================================================
 
@@ -2006,7 +2009,7 @@ class MetadataParser(object):
             return
 
         # set the searchpath
-        doc_searchpath: _bs4_Tag = doc.html  # bs4.element.Tag
+        doc_searchpath: "_bs4_Tag" = doc.html  # bs4.element.Tag
 
         # shortcut
         parsed_result = self.parsed_result
