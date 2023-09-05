@@ -11,6 +11,7 @@ import socket  # peername hack, see below
 import typing
 from typing import Callable
 from typing import Iterable
+from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Union
@@ -40,7 +41,7 @@ if __debug__:
 # ==============================================================================
 
 
-__VERSION__ = "0.12.0"
+__VERSION__ = "0.12.1"
 
 
 # ------------------------------------------------------------------------------
@@ -75,6 +76,9 @@ MAX_FILESIZE = int(
     os.environ.get("METADATA_PARSER__MAX_FILESIZE", 2 ** 19)
 )  # bytes; this is .5MB
 """
+
+
+TYPES_RESPONSE = Union["DummyResponse", requests.Response]
 
 # ------------------------------------------------------------------------------
 
@@ -307,7 +311,7 @@ def get_encoding_from_headers(headers: CaseInsensitiveDict) -> Optional[str]:
 # ------------------------------------------------------------------------------
 
 
-def get_response_peername(resp: requests.Response) -> Optional[str]:
+def get_response_peername(resp: TYPES_RESPONSE) -> Optional[str]:
     """
     used to get the peername (ip+port) data from the request
     if a socket is found, caches this onto the request object
@@ -315,10 +319,15 @@ def get_response_peername(resp: requests.Response) -> Optional[str]:
     IMPORTANT. this must happen BEFORE any content is consumed.
 
     `response` is really `requests.models.Response`
+
+    This will UPGRADE the response object to have the following attribute:
+
+        * _mp_peername
     """
-    if not isinstance(resp, requests.Response):
+    if not isinstance(resp, requests.Response) and not isinstance(resp, DummyResponse):
         # raise AllowableError("Not a HTTPResponse")
-        log.debug("Not a HTTPResponse | %s", resp)
+        log.debug("Not a supported HTTPResponse | %s", resp)
+        log.debug("-> received a type of: %s", type(resp))
         return None
 
     if hasattr(resp, "_mp_peername"):
@@ -352,20 +361,20 @@ def get_response_peername(resp: requests.Response) -> Optional[str]:
     if sock:
         # only cache if we have a sock
         # we may want/need to call again
-        resp._mp_peername = sock.getpeername()  # type: ignore[attr-defined]
-        return resp._mp_peername  # type: ignore[attr-defined]
+        resp._mp_peername = sock.getpeername()  # type: ignore [union-attr]
+        return resp._mp_peername  # type: ignore [union-attr]
     return None
 
 
 # ------------------------------------------------------------------------------
 
 
-def response_peername__hook(resp: requests.Response, *args, **kwargs) -> None:
+def response_peername__hook(resp: TYPES_RESPONSE, *args, **kwargs) -> None:
     get_response_peername(resp)
     # do not return anything
 
 
-def safe_sample(source: typing.AnyStr) -> bytes:
+def safe_sample(source: Union[str, bytes]) -> bytes:
     if isinstance(source, bytes):
         _sample = source[:1024]
     else:
@@ -376,7 +385,7 @@ def safe_sample(source: typing.AnyStr) -> bytes:
     return _sample
 
 
-def derive_encoding__hook(resp: requests.Response, *args, **kwargs) -> None:
+def derive_encoding__hook(resp: TYPES_RESPONSE, *args, **kwargs) -> None:
     """
     a note about `requests`
 
@@ -389,19 +398,24 @@ def derive_encoding__hook(resp: requests.Response, *args, **kwargs) -> None:
     body. This hook exists because users in certain regions may expect the
     servers to not follow RFC and for the default encoding to be different.
     """
-    resp._encoding_fallback = ENCODING_FALLBACK  # type: ignore[attr-defined]
+    if TYPE_CHECKING:
+        assert hasattr(resp, "_encoding_fallback")
+        assert hasattr(resp, "_encoding_content")
+        assert hasattr(resp, "_encoding_headers")
+
+    resp._encoding_fallback = ENCODING_FALLBACK
     # modified version, returns `None` if no charset available
-    resp._encoding_headers = get_encoding_from_headers(resp.headers)  # type: ignore[attr-defined]
-    resp._encoding_content = None  # type: ignore[attr-defined]
-    if not resp._encoding_headers and resp.content:  # type: ignore[attr-defined]
+    resp._encoding_headers = get_encoding_from_headers(resp.headers)
+    resp._encoding_content = None
+    if not resp._encoding_headers and resp.content:
         # html5 spec requires a meta-charset in the first 1024 bytes
         _sample = safe_sample(resp.content)
-        resp._encoding_content = get_encodings_from_content(_sample)  # type: ignore[attr-defined]
-    if resp._encoding_content:  # type: ignore[attr-defined]
+        resp._encoding_content = get_encodings_from_content(_sample)
+    if resp._encoding_content:
         # it's a list
-        resp.encoding = resp._encoding_content[0]  # type: ignore[attr-defined]
+        resp.encoding = resp._encoding_content[0]
     else:
-        resp.encoding = resp._encoding_headers or resp._encoding_fallback  # type: ignore[attr-defined]
+        resp.encoding = resp._encoding_headers or resp._encoding_fallback
     # do not return anything
 
 
@@ -644,7 +658,7 @@ def is_url_valid(
 
 
 def url_to_absolute_url(
-    url_test: str,
+    url_test: Optional[str],
     url_fallback: Optional[str] = None,
     require_public_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
@@ -675,7 +689,7 @@ def url_to_absolute_url(
     # quickly correct for some dumb mistakes
     if isinstance(url_test, str):
         if url_test.lower() in ("http://", "https://"):
-            url_test = None  # type: ignore[assignment]
+            url_test = None
 
     # if we don't have a test url or fallback, we can't generate an absolute
     if not url_test and not url_fallback:
@@ -775,7 +789,7 @@ class NotParsable(Exception):
         raised: Optional[requests.exceptions.RequestException] = None,
         code: Optional[int] = None,
         metadataParser: Optional["MetadataParser"] = None,
-        response: Optional[requests.Response] = None,
+        response: Optional[TYPES_RESPONSE] = None,
     ):
         self.message = message
         self.raised = raised
@@ -830,7 +844,7 @@ class RedirectDetected(Exception):
         self,
         location: str = "",
         code: Optional[int] = None,
-        response: Optional[requests.Response] = None,
+        response: Optional[TYPES_RESPONSE] = None,
         metadataParser: Optional["MetadataParser"] = None,
     ):
         self.location = location
@@ -853,8 +867,8 @@ class DummyResponse(object):
     status_code: Optional[int] = None
     encoding: Optional[str] = None
     elapsed_seconds: float = 0
-    history: Optional["ResponseHistory"] = None
-    headers: Optional[CaseInsensitiveDict] = None
+    history: List
+    headers: CaseInsensitiveDict
     content: Optional[Union[str, bytes]] = None
     default_encoding: Optional[str] = None
 
@@ -875,6 +889,7 @@ class DummyResponse(object):
         self.status_code = status_code
         self.elapsed = datetime.timedelta(0, elapsed_seconds)
         self.headers = headers if headers is not None else CaseInsensitiveDict()
+        self.history = []
         self.content = content
 
         # start `encoding` block
@@ -902,7 +917,7 @@ class DummyResponse(object):
 class ResponseHistory(object):
     history: Optional[Iterable] = None
 
-    def __init__(self, resp: requests.Response):
+    def __init__(self, resp: TYPES_RESPONSE):
         """
         :param resp: A :class:`requests.Response` object to compute history of
         :type resp: class:`requests.Response`

@@ -1,4 +1,5 @@
 # stdlib
+from typing import Dict
 import os
 import unittest
 
@@ -20,7 +21,7 @@ CACHED_FILESYSTEM_DOCUMENTS = {}
 
 doc_base = """<html><head>%(head)s</head><body></body></html>"""
 
-docs = {
+docs: Dict = {
     "good-canonical-absolute": {
         "url-real": """http://example.com""",
         "head": {

@@ -2,6 +2,9 @@
     1.0 will be a complete api overhaul
 
 
+0.12.1
+    * typing
+
 0.12.0
     * drop python 2.7
     * initial typing support
