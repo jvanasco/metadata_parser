@@ -4,6 +4,8 @@
 
 0.12.1
     * typing
+    * added `METADATA_PARSER_FUTURE` environment variable
+        `export METADATA_PARSER_FUTURE=1` to enable
 
 0.12.0
     * drop python 2.7

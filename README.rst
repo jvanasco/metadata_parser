@@ -40,6 +40,10 @@ them proper attention is not guaranteed.
 The current MAJOR release is `0`.
 A `1` MAJOR release is planned, and will have an entirely different structure and API.
 
+Future deprecations will raise warnings.
+
+By populating the following environment variable, future deprecations will raise exceptions:
+    export METADATA_PARSER_FUTURE=1
 
 Installation
 =============
