@@ -19,7 +19,9 @@ from typing import Tuple
 from typing import TYPE_CHECKING
 from typing import Union
 import unicodedata
+from urllib.parse import _ResultMixinStr  # what happens if you decode
 from urllib.parse import ParseResult
+from urllib.parse import ParseResultBytes
 from urllib.parse import quote as url_quote
 from urllib.parse import unquote as url_unquote
 from urllib.parse import urlparse
@@ -454,7 +456,7 @@ def is_hostname_valid(
 
 
 def is_parsed_valid_url(
-    parsed: ParseResult,
+    parsed: Union[ParseResult, ParseResultBytes, _ResultMixinStr],
     require_public_netloc: Optional[bool] = True,
     allow_localhosts: Optional[bool] = True,
     http_only: Optional[bool] = True,
@@ -464,6 +466,8 @@ def is_parsed_valid_url(
         defaults True
         requires http or https for the scheme
     """
+    if isinstance(parsed, ParseResultBytes):
+        parsed = parsed.decode()
     assert isinstance(parsed, ParseResult)
     if __debug__:
         log.debug("is_parsed_valid_url = %s", parsed)

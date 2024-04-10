@@ -2,6 +2,8 @@
 
 # stdlib
 import unittest
+from urllib.parse import ParseResult
+from urllib.parse import ParseResultBytes
 from urllib.parse import urlparse
 
 # local
@@ -454,3 +456,23 @@ class TestArgsExceptions(unittest.TestCase, _DocumentCanonicalsMixin):
         parsed_url = parsed.get_discrete_url(  # noqa: F841
             og_first=False, canonical_first=True
         )
+
+
+class TestCommands(unittest.TestCase, _DocumentCanonicalsMixin):
+    """
+    python -m unittest tests.url_parsing.TestCommands
+    """
+
+    def test_is_parsed_valid_url__string(self):
+        url = "https://example.com/A.html"
+        parsed = urlparse(url)
+        self.assertIsInstance(parsed, ParseResult)
+        is_valid = metadata_parser.is_parsed_valid_url(parsed)
+        self.assertTrue(is_valid)
+
+    def test_is_parsed_valid_url__bytes(self):
+        url = b"https://example.com/A.html"
+        parsed = urlparse(url)
+        self.assertIsInstance(parsed, ParseResultBytes)
+        is_valid = metadata_parser.is_parsed_valid_url(parsed)
+        self.assertTrue(is_valid)

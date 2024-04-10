@@ -1,4 +1,5 @@
 # stdlib
+from typing import Optional
 import unittest
 
 # pypi
@@ -74,10 +75,14 @@ class TestSessionsHttpBin(unittest.TestCase):
         num_redirects = 4
         url = self.httpbin_server.url + "/redirect/%s" % num_redirects
         with SessionRedirect() as s:
+            page: Optional[metadata_parser.MetadataParser]
             try:
                 page = metadata_parser.MetadataParser(url=url, requests_session=s)
             except metadata_parser.NotParsableJson as e:
                 page = e.metadataParser
+            # typing scope
+            assert page is not None
+            assert page.response is not None
             # we end on get
             self.assertEqual(page.response.url, self.httpbin_server.url + "/get")
             # the session should have checked the following responses: redirects + final

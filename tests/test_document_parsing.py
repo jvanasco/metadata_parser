@@ -1,6 +1,6 @@
 # stdlib
-from typing import Dict
 import os
+from typing import Dict
 import unittest
 
 # local
@@ -148,7 +148,7 @@ docs: Dict = {
 
 
 def encoder_capitalizer(decoded):
-    if type(decoded) == dict:
+    if type(decoded) is dict:
         return {k.upper(): v.upper() for k, v in decoded.items()}
     return decoded.upper()
 
@@ -525,11 +525,15 @@ class TestDocumentParsing(unittest.TestCase):
         """this tests simple.html to have certain fields"""
         html = """<html><head></head><body>body</body></html>"""
         parsed = metadata_parser.MetadataParser(url=None, html=html)
+        # typing scope
+        assert parsed.response is not None
         self.assertEqual(parsed.response.encoding, "ISO-8859-1")
 
     def test_encoding_declared(self):
         html = """<html><head><meta charset="UTF-8"></head><body>body</body></html>"""
         parsed = metadata_parser.MetadataParser(url=None, html=html)
+        # typing scope
+        assert parsed.response is not None
         self.assertEqual(parsed.response.encoding, "UTF-8")
 
     def test_complex_html(self):
@@ -561,6 +565,7 @@ class TestDocumentParsing(unittest.TestCase):
         _computed_link = parsed.get_metadata_link("image", strategy=["og"])
         assert _computed_link == "https://www.example.com/meta/property=og:image"
         _all_og_images = parsed.get_metadatas("og:image")
+        assert _all_og_images is not None
         assert len(_all_og_images) == 3
         assert "https://www.example.com/meta/property=og:image" in _all_og_images
         # bs4 cleans up the ampersand internally into an entity, but prints it deserialized by default
