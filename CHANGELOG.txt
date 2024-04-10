@@ -2,6 +2,12 @@
     1.0 will be a complete api overhaul
 
 
+0.12.1
+    * typing
+    * added `METADATA_PARSER_FUTURE` environment variable
+        `export METADATA_PARSER_FUTURE=1` to enable
+    * is_parsed_valid_url can accept a ParseResultBytes object now
+
 0.12.0
     * drop python 2.7
     * initial typing support

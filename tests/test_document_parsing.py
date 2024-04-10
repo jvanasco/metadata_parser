@@ -1,5 +1,6 @@
 # stdlib
 import os
+from typing import Dict
 import unittest
 
 # local
@@ -20,7 +21,7 @@ CACHED_FILESYSTEM_DOCUMENTS = {}
 
 doc_base = """<html><head>%(head)s</head><body></body></html>"""
 
-docs = {
+docs: Dict = {
     "good-canonical-absolute": {
         "url-real": """http://example.com""",
         "head": {
@@ -147,7 +148,7 @@ docs = {
 
 
 def encoder_capitalizer(decoded):
-    if type(decoded) == dict:
+    if type(decoded) is dict:
         return {k.upper(): v.upper() for k, v in decoded.items()}
     return decoded.upper()
 
@@ -524,11 +525,15 @@ class TestDocumentParsing(unittest.TestCase):
         """this tests simple.html to have certain fields"""
         html = """<html><head></head><body>body</body></html>"""
         parsed = metadata_parser.MetadataParser(url=None, html=html)
+        # typing scope
+        assert parsed.response is not None
         self.assertEqual(parsed.response.encoding, "ISO-8859-1")
 
     def test_encoding_declared(self):
         html = """<html><head><meta charset="UTF-8"></head><body>body</body></html>"""
         parsed = metadata_parser.MetadataParser(url=None, html=html)
+        # typing scope
+        assert parsed.response is not None
         self.assertEqual(parsed.response.encoding, "UTF-8")
 
     def test_complex_html(self):
@@ -560,6 +565,7 @@ class TestDocumentParsing(unittest.TestCase):
         _computed_link = parsed.get_metadata_link("image", strategy=["og"])
         assert _computed_link == "https://www.example.com/meta/property=og:image"
         _all_og_images = parsed.get_metadatas("og:image")
+        assert _all_og_images is not None
         assert len(_all_og_images) == 3
         assert "https://www.example.com/meta/property=og:image" in _all_og_images
         # bs4 cleans up the ampersand internally into an entity, but prints it deserialized by default
@@ -1185,6 +1191,82 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata_link("thumbnail-3", strategy=["meta"]), None
+        )
+
+        # this should error!
+        with self.assertRaises(ValueError) as cm:
+            parsed.get_metadatas("canonical", strategy=["all"])
+        self.assertEqual(
+            cm.exception.args[0], 'Submit "all" as a `str`, not in a `list`.'
+        )
+
+        # ok, now test the return types
+        # some behavior was changed in the .7 release
+
+        # get_metadata - single section
+        self.assertEqual(
+            parsed.get_metadata("canonical", strategy=["page"]),
+            "http://example.com/meta/rel=canonical",
+        )
+        self.assertEqual(parsed.get_metadata("canonical", strategy=["meta"]), None)
+        self.assertEqual(
+            parsed.get_metadata("canonical", strategy="all"),
+            {"page": "http://example.com/meta/rel=canonical"},
+        )
+
+        # get_metadatas - single section
+        self.assertEqual(
+            parsed.get_metadatas("canonical", strategy=["page"]),
+            [
+                "http://example.com/meta/rel=canonical",
+            ],
+        )
+        self.assertEqual(parsed.get_metadatas("canonical", strategy=["meta"]), None)
+        self.assertEqual(
+            parsed.get_metadatas("canonical", strategy="all"),
+            {
+                "page": [
+                    "http://example.com/meta/rel=canonical",
+                ]
+            },
+        )
+
+        # get_metadata - multiple section
+        self.assertEqual(
+            parsed.get_metadata("description", strategy=["meta"]), "meta.description"
+        )
+        self.assertEqual(
+            parsed.get_metadata("description", strategy="all"),
+            {
+                "og": "meta.property=og:description",
+                "meta": "meta.description",
+                "twitter": "meta.name=twitter:description",
+            },
+        )
+        # get_metadatas - multiple section
+        self.assertEqual(
+            parsed.get_metadatas("description", strategy=["meta"]), ["meta.description"]
+        )
+        self.assertEqual(
+            parsed.get_metadatas("description", strategy="all"),
+            {
+                "og": [
+                    "meta.property=og:description",
+                ],
+                "meta": [
+                    "meta.description",
+                ],
+                "twitter": ["meta.name=twitter:description"],
+            },
+        )
+
+        # multiple candidates!
+        self.assertEqual(
+            parsed.get_metadata("keywords", strategy=["meta"]), "meta.keywords:1"
+        )
+        self.assertEqual(
+            parsed.get_metadatas("keywords", strategy=["meta"]),
+            ["meta.keywords:1", "meta.keywords:2"],
         )
 
     def test_malformed_twitter(self):
