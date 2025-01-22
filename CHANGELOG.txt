@@ -1,6 +1,13 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.12.2
+    * Support Python 3.13 via `legacy-cgi` package.
+      Thank you, https://github.com/Dryusdan.
+      See:
+        https://github.com/jvanasco/metadata_parser/pull/44
+        https://github.com/jvanasco/metadata_parser/issues/43
+    * updated pre-commit-config 
 
 0.12.1
     * typing

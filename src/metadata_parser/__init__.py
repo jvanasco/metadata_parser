@@ -188,7 +188,9 @@ RE_whitespace = re.compile(r"\s+")
 # not testing ipv6 right now, because rules are needed for ensuring they
 # are correct
 RE_VALID_NETLOC = re.compile(
-    r"(?:" r"(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})" r"|"  # ...or ipv4
+    r"(?:"
+    r"(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+    r"|"  # ...or ipv4
     #  r'(?P<ipv6>\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
     #  r'|'
     r"(?P<localhost>localhost)"  # localhost...
@@ -1008,9 +1010,9 @@ class ParsedResult(object):
 
     metadata: Dict
     soup: Optional[BeautifulSoup] = None
-    response_history: Optional[
-        ResponseHistory
-    ] = None  # only stashing `ResponseHistory` if we have it
+    response_history: Optional[ResponseHistory] = (
+        None  # only stashing `ResponseHistory` if we have it
+    )
     _version: int = 1  # version tracking
     default_encoder: Optional[Callable] = None
 
@@ -1882,9 +1884,9 @@ class MetadataParser(object):
                 (k.lower(), v) for k, v in resp.headers.items()
             )
             # stash this into the url actual too
-            self.url_actual = self.parsed_result.metadata["_internal"][
-                "url_actual"
-            ] = resp.url
+            self.url_actual = self.parsed_result.metadata["_internal"]["url_actual"] = (
+                resp.url
+            )
             # stash the encoding
             self.parsed_result.metadata["_internal"]["encoding"] = html_encoding = (
                 resp.encoding.lower() if resp.encoding else None
