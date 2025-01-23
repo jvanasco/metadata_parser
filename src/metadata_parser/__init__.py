@@ -319,6 +319,7 @@ def get_encoding_from_headers(headers: CaseInsensitiveDict) -> Optional[str]:
             return param.split("=")[-1]
     return None
 
+
 # ------------------------------------------------------------------------------
 
 
@@ -1948,8 +1949,7 @@ class MetadataParser(object):
                     )
                 log.error("NotParsable | %s", self.url)
                 raise NotParsable(
-                    "NotParseable document detected! "
-                    "content-type:'[%s]" % content_type,
+                    "NotParseable document detected! content-type:'[%s]" % content_type,
                     metadataParser=self,
                 )
 
