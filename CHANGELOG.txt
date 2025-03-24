@@ -1,6 +1,14 @@
 1.0
     1.0 will be a complete api overhaul
 
+0.12.3
+    * pin "BeautifulSoup4<4.15.0"
+        * See `https://git.launchpad.net/beautifulsoup/tree/CHANGELOG`
+        > 4.13.0 (20250202)
+        > These things now give DeprecationWarnings when you try to use them,
+and are scheduled to be removed in Beautiful Soup 4.15.0.
+        * fixes #47
+
 0.12.2
     * Support Python 3.13 via `legacy-cgi` package.
       Thank you, https://github.com/Dryusdan.
