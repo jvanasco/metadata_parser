@@ -27,7 +27,7 @@ with open(os.path.join(HERE, "README.rst")) as fp:
     long_description = fp.read()
 
 requires = [
-    "BeautifulSoup4",
+    "BeautifulSoup4<4.15.0",
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
 ]
