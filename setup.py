@@ -34,9 +34,6 @@ requires = [
 if sys.version_info.major == 2:
     requires.append("backports.html")
 
-if sys.version_info >= (3, 13):
-    requires.append("legacy-cgi")
-
 tests_require = [
     "httpbin",
     "pytest",

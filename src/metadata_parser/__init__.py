@@ -1,7 +1,6 @@
 import _socket  # noqa: I100,I201  # peername hack, see below
 
 # stdlib
-import cgi  # noqa: I100,I201
 import collections
 import datetime
 from html import unescape as html_unescape
@@ -313,9 +312,11 @@ def get_encoding_from_headers(headers: CaseInsensitiveDict) -> Optional[str]:
     content_type = headers.get("content-type")
     if not content_type:
         return None
-    content_type, params = cgi.parse_header(content_type)
-    if "charset" in params:
-        return params["charset"].strip("'\"")
+    if not "charset" in content_type:
+        return None
+    for param in content_type.replace(" ", "").split(";"):
+        if "charset=" in param:
+            return param.split("=")[-1]
     return None
 
 
@@ -1948,8 +1949,7 @@ class MetadataParser(object):
                     )
                 log.error("NotParsable | %s", self.url)
                 raise NotParsable(
-                    "NotParseable document detected! "
-                    "content-type:'[%s]" % content_type,
+                    "NotParseable document detected! content-type:'[%s]" % content_type,
                     metadataParser=self,
                 )
 
