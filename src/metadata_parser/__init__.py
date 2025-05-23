@@ -1171,7 +1171,7 @@ class ParsedResult(object):
           function or "raw"
         """
         warn_future(
-            """`ParsedResult.get_metadata` returns a string and is deprecated"""
+            """`ParsedResult.get_metadata` returns a string and is deprecated """
             """in favor of `get_metadatas` which returns a list. """
             """This will be removed in the next minor or major release."""
         )
@@ -2129,7 +2129,7 @@ class MetadataParser(object):
                 return
             doc_searchpath = doc.html.head  # bs4.element.Tag
 
-        ogs = doc_searchpath.findAll("meta", attrs={"property": RE_prefix_opengraph})
+        ogs = doc_searchpath.find_all("meta", attrs={"property": RE_prefix_opengraph})
         for og in ogs:
             try:
                 parsed_result._add_discovered(
@@ -2144,7 +2144,7 @@ class MetadataParser(object):
                     log.debug("Ran into a serious error parsing `og`: %s", exc)
                 pass
 
-        twitters = doc_searchpath.findAll("meta", attrs={"name": RE_prefix_twitter})
+        twitters = doc_searchpath.find_all("meta", attrs={"name": RE_prefix_twitter})
         for twitter in twitters:
             try:
                 # for the deprecated "twitter:(label|data)" meta tags, we must use a 'value' attr
@@ -2196,7 +2196,7 @@ class MetadataParser(object):
                 pass
 
         # is there an image_src?
-        images = doc.findAll("link", attrs={"rel": RE_prefix_rel_img_src})
+        images = doc.find_all("link", attrs={"rel": RE_prefix_rel_img_src})
         if images:
             # we only use the first image on the page
             image = images[0]
@@ -2218,7 +2218,7 @@ class MetadataParser(object):
                 pass
 
         # figure out the canonical url
-        canonicals = doc.findAll("link", attrs={"rel": RE_canonical})
+        canonicals = doc.find_all("link", attrs={"rel": RE_canonical})
         if canonicals:
             # only use the first?
             canonical = canonicals[0]
@@ -2240,7 +2240,7 @@ class MetadataParser(object):
                 pass
 
         # is there a shortlink?
-        shortlinks = doc.findAll("link", attrs={"rel": RE_shortlink})
+        shortlinks = doc.find_all("link", attrs={"rel": RE_shortlink})
         for shortlink in shortlinks:
             if shortlink.has_attr("href"):
                 _link = shortlink["href"]
@@ -2260,7 +2260,7 @@ class MetadataParser(object):
                 pass
 
         # pull out all the metadata
-        meta = doc_searchpath.findAll(name="meta")
+        meta = doc_searchpath.find_all(name="meta")
         for m in meta:
             try:
                 k = None  # metadata key
