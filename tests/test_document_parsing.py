@@ -722,22 +722,28 @@ class TestDocumentParsing(unittest.TestCase):
                 dc_mixed_candidates[_key], dcTestMixedCandidates1aExpected[_key]
             )
         # but we need to test get_metadata and get_metadatas
+        with self.assertRaises(ValueError) as cm:
+            parsed.get_metadata("TestMixedCandidates1a", strategy="dc")
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates1a", strategy="dc"), "Friendship"
+            cm.exception.args[0], "If `strategy` is not a `list`, it must be 'all'."
+        )
+
+        self.assertEqual(
+            parsed.get_metadata("TestMixedCandidates1a", strategy=["dc"]), "Friendship"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates1a", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates1a", strategy=["dc"]),
             [dcTestMixedCandidates1aExpected],
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates1a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "FRIENDSHIP",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates1a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "FRIENDSHIP"}],
         )
@@ -760,21 +766,21 @@ class TestDocumentParsing(unittest.TestCase):
             )
         # but we need to test get_metadata and get_metadatas
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates1b", strategy="dc"), "158.25"
+            parsed.get_metadata("TestMixedCandidates1b", strategy=["dc"]), "158.25"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates1b", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates1b", strategy=["dc"]),
             [dcTestMixedCandidates1bExpected],
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates1b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "158.25",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates1b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "158.25", "SCHEME": "DDC"}],
         )
@@ -809,21 +815,21 @@ class TestDocumentParsing(unittest.TestCase):
         # but we need to test get_metadata and get_metadatas
 
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates2a", strategy="dc"), "Friendship"
+            parsed.get_metadata("TestMixedCandidates2a", strategy=["dc"]), "Friendship"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates2a", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates2a", strategy=["dc"]),
             dcTestMixedCandidates2aExpected,
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates2a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "FRIENDSHIP",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates2a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "158.25", "SCHEME": "DDC"}, {"CONTENT": "FRIENDSHIP"}],
         )
@@ -854,30 +860,30 @@ class TestDocumentParsing(unittest.TestCase):
                 )
         # but we need to test get_metadata and get_metadatas
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates2b", strategy="dc"), "Friendship"
+            parsed.get_metadata("TestMixedCandidates2b", strategy=["dc"]), "Friendship"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates2b", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates2b", strategy=["dc"]),
             dcTestMixedCandidates2bExpected,
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates2b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "FRIENDSHIP",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates2b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "FRIENDSHIP"}, {"CONTENT": "158.25", "SCHEME": "DDC"}],
         )
 
         # ok, mixedfield tests:
         # TestMixedField0
-        self.assertEqual(parsed.get_metadata("TestMixedField0", strategy="dc"), None)
+        self.assertEqual(parsed.get_metadata("TestMixedField0", strategy=["dc"]), None)
         self.assertEqual(
-            parsed.get_metadata("TestMixedField0", strategy="meta"),
+            parsed.get_metadata("TestMixedField0", strategy=["meta"]),
             "meta:TestMixedField0",
         )
         self.assertEqual(
@@ -886,13 +892,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField0", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
             ),
             None,
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField0", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD0",
         )
@@ -902,9 +908,9 @@ class TestDocumentParsing(unittest.TestCase):
             ),
             {"meta": "META:TESTMIXEDFIELD0"},
         )
-        self.assertEqual(parsed.get_metadatas("TestMixedField0", strategy="dc"), None)
+        self.assertEqual(parsed.get_metadatas("TestMixedField0", strategy=["dc"]), None)
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField0", strategy="meta"),
+            parsed.get_metadatas("TestMixedField0", strategy=["meta"]),
             ["meta:TestMixedField0"],
         )
         self.assertEqual(
@@ -913,13 +919,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField0", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
             ),
             None,
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField0", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD0"],
         )
@@ -932,10 +938,11 @@ class TestDocumentParsing(unittest.TestCase):
 
         # TestMixedField1
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy="dc"), "dc:TestMixedField1"
+            parsed.get_metadata("TestMixedField1", strategy=["dc"]),
+            "dc:TestMixedField1",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy="meta"),
+            parsed.get_metadata("TestMixedField1", strategy=["meta"]),
             "meta:TestMixedField1",
         )
         self.assertEqual(
@@ -944,13 +951,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField1", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "DC:TESTMIXEDFIELD1",
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField1", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD1",
         )
@@ -961,11 +968,11 @@ class TestDocumentParsing(unittest.TestCase):
             {"meta": "META:TESTMIXEDFIELD1", "dc": "DC:TESTMIXEDFIELD1"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy="dc"),
+            parsed.get_metadatas("TestMixedField1", strategy=["dc"]),
             [{"content": "dc:TestMixedField1"}],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy="meta"),
+            parsed.get_metadatas("TestMixedField1", strategy=["meta"]),
             ["meta:TestMixedField1"],
         )
         self.assertEqual(
@@ -977,13 +984,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField1", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField1", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD1"],
         )
@@ -998,10 +1005,11 @@ class TestDocumentParsing(unittest.TestCase):
         )
         # TestMixedField2
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy="dc"), "dc:TestMixedField2"
+            parsed.get_metadata("TestMixedField2", strategy=["dc"]),
+            "dc:TestMixedField2",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy="meta"),
+            parsed.get_metadata("TestMixedField2", strategy=["meta"]),
             "meta:TestMixedField2",
         )
         self.assertEqual(
@@ -1010,13 +1018,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField2", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "DC:TESTMIXEDFIELD2",
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField2", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD2",
         )
@@ -1027,14 +1035,14 @@ class TestDocumentParsing(unittest.TestCase):
             {"meta": "META:TESTMIXEDFIELD2", "dc": "DC:TESTMIXEDFIELD2"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy="dc"),
+            parsed.get_metadatas("TestMixedField2", strategy=["dc"]),
             [
                 {"content": "dc:TestMixedField2"},
                 {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
             ],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy="meta"),
+            parsed.get_metadatas("TestMixedField2", strategy=["meta"]),
             ["meta:TestMixedField2"],
         )
         self.assertEqual(
@@ -1049,7 +1057,7 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField2", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [
                 {"CONTENT": "DC:TESTMIXEDFIELD2"},
@@ -1058,7 +1066,7 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField2", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD2"],
         )
@@ -1077,10 +1085,11 @@ class TestDocumentParsing(unittest.TestCase):
 
         # TestMixedField3
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy="dc"), "dc:TestMixedField3"
+            parsed.get_metadata("TestMixedField3", strategy=["dc"]),
+            "dc:TestMixedField3",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy="meta"),
+            parsed.get_metadata("TestMixedField3", strategy=["meta"]),
             "meta:TestMixedField3",
         )
         self.assertEqual(
@@ -1089,13 +1098,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField3", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "DC:TESTMIXEDFIELD3",
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField3", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD3",
         )
@@ -1106,11 +1115,11 @@ class TestDocumentParsing(unittest.TestCase):
             {"meta": "META:TESTMIXEDFIELD3", "dc": "DC:TESTMIXEDFIELD3"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy="dc"),
+            parsed.get_metadatas("TestMixedField3", strategy=["dc"]),
             [{"content": "dc:TestMixedField3"}],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy="meta"),
+            parsed.get_metadatas("TestMixedField3", strategy=["meta"]),
             ["meta:TestMixedField3"],
         )
         self.assertEqual(
@@ -1122,13 +1131,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField3", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField3", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD3"],
         )

@@ -11,6 +11,11 @@ class TestIpLookups(unittest.TestCase):
     """"""
 
     def test_ip_lookup(self):
-        url = "http://example.com/"
+        """
+        this is using the live internet
+
+        todo: use httpbin
+        """
+        url = "https://example.com/"
         page = metadata_parser.MetadataParser(url=url)
         self.assertTrue(page.peername)
