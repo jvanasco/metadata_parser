@@ -35,6 +35,7 @@ import requests
 from requests.structures import CaseInsensitiveDict
 from requests_toolbelt.utils.deprecated import get_encodings_from_content
 from typing_extensions import Literal  # py38
+from typing_extensions import Protocol  # py38
 
 if TYPE_CHECKING:
     from bs4 import Tag as _bs4_Tag
@@ -987,7 +988,11 @@ class ResponseHistory(object):
                 )
 
 
-class UrlParserCacheable(object):
+class _UrlParserCacheable(Protocol):
+    urlparse: Callable[[str], ParseResult]
+
+
+class UrlParserCacheable(_UrlParserCacheable):
     """
     class for caching calls to urlparse
 
@@ -996,14 +1001,20 @@ class UrlParserCacheable(object):
 
     cache: collections.OrderedDict
     maxitems: int
+    urlparser: Callable[[str], ParseResult]
 
-    def __init__(self, maxitems: int = 30):
+    def __init__(
+        self,
+        maxitems: int = 30,
+        urlparser: Callable[[str], ParseResult] = urlparse,
+    ):
         """
         :param maxitems: maximum items to cache, default 30
         :type maxitems: int, optional
         """
         self.cache = collections.OrderedDict()
         self.maxitems = maxitems
+        self.urlparser = urlparser
 
     def urlparse(self, url: str) -> ParseResult:
         """
@@ -1011,7 +1022,7 @@ class UrlParserCacheable(object):
         :type url: str
         """
         if url not in self.cache:
-            self.cache[url] = urlparse(url)
+            self.cache[url] = self.urlparser(url)
             if len(self.cache) > self.maxitems:
                 self.cache.popitem(last=False)
         return self.cache[url]
@@ -1388,6 +1399,7 @@ class MetadataParser(object):
     support_malformed: Optional[bool] = None
 
     urlparse: Callable[[str], ParseResult]
+    _cached_urlparser: Optional[_UrlParserCacheable]
 
     # this has a per-parser default tuple
     # it can be upgraded manually
@@ -1427,6 +1439,7 @@ class MetadataParser(object):
         retry_dropped_without_headers: Optional[bool] = None,
         support_malformed: Optional[bool] = None,
         cached_urlparser: Union[bool, int, Callable[[str], ParseResult]] = True,
+        cached_urlparser_maxitems: Optional[int] = None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -1521,27 +1534,56 @@ class MetadataParser(object):
                 default: True
                 options: True: use a instance of UrlParserCacheable(maxitems=30)
                        : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
-                       : None/False/0 - use native urlparse
+                            DEPRECATED in v13.0
+                            instead, set `cached_urlparser=True, cached_urlparser_maxitems=maxitems
+                       : None/False - use native urlparse
                        : callable - use as a custom urlparse
+            `cached_urlparser_maxitems`
+                default: None
+                options: int: sets maxitems
         """
         if __debug__:
             log.debug("MetadataParser.__init__(%s)", url)
         if url is not None:
             url = url.strip()
         self.parsed_result = ParsedResult()
+        if cached_urlparser_maxitems:
+            if cached_urlparser is not True:
+                raise ValueError(
+                    "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+                )
+        if cached_urlparser == 0:
+            warn_future(
+                "Supplying `0` to `cached_urlparser` to set maxitems is deprecated. "
+                "This will be removed in the next major or minor release."
+                "Supply `cached_urlparser=False` instead."
+            )
+            cached_urlparser = False
         if cached_urlparser:
+            if isinstance(cached_urlparser, int):
+                # build a default parser with maxitems
+                warn_future(
+                    "Supplying an int to `cached_urlparser` to set maxitems is deprecated. "
+                    "This will be removed in the next major or minor release."
+                    "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
+                )
+                # coerce args for the next block
+                cached_urlparser_maxitems = cached_urlparser
+                cached_urlparser = True
             if cached_urlparser is True:
-                _cached_urlparser = UrlParserCacheable()  # a cache
-                self._cached_urlparser = _cached_urlparser  # stash it
-                self.urlparse = _cached_urlparser.urlparse
-            elif isinstance(cached_urlparser, int):
-                _cached_urlparser = UrlParserCacheable(
-                    maxitems=cached_urlparser
-                )  # a cache
+                # build a default parser
+                if cached_urlparser_maxitems is not None:
+                    _cached_urlparser = UrlParserCacheable(
+                        maxitems=cached_urlparser_maxitems
+                    )
+                else:
+                    _cached_urlparser = UrlParserCacheable()
                 self._cached_urlparser = _cached_urlparser  # stash it
                 self.urlparse = _cached_urlparser.urlparse
             else:
-                # TODO - raise value error if not callable
+                if not callable(cached_urlparser):
+                    raise ValueError("`cached_urlparser` must be a callable")
+                self._cached_urlparser = None
                 self.urlparse = cached_urlparser
         else:
             self.urlparse = urlparse

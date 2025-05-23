@@ -2,6 +2,7 @@
 import os
 from typing import Dict
 import unittest
+import warnings
 
 # local
 import metadata_parser
@@ -215,7 +216,7 @@ def _docs_test(test_names):
     return errors
 
 
-def _docs_test_parser(test_names, cached_urlparser):
+def _docs_test_parser(test_names, cached_urlparser, cached_urlparser_maxitems=None):
     errors = []
     for test in test_names:
         tests = []
@@ -223,6 +224,8 @@ def _docs_test_parser(test_names, cached_urlparser):
         kwargs = {}
         if cached_urlparser != "*no-kwarg":
             kwargs["cached_urlparser"] = cached_urlparser
+        if cached_urlparser_maxitems is not None:
+            kwargs["cached_urlparser_maxitems"] = cached_urlparser_maxitems
         parsed = metadata_parser.MetadataParser(
             url=url, html=docs[test]["doc"], **kwargs
         )
@@ -1354,12 +1357,13 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(c_parsed.metadata["meta"]["charset"], "UTF-8")
 
 
-class TestCustomUrlparser(unittest.TestCase):
+class Test_UrlParserCacheable(unittest.TestCase):
     """
-    python -m unittest tests.document_parsing.TestCustomUrlparser
+    python -m unittest tests.document_parsing.Test_UrlParserCacheable
     """
 
-    def test_default__get_discrete_url__good_relative(self):
+    def test__default(self):
+        """MetadataParser()"""
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1371,7 +1375,8 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_true__get_discrete_url__good_relative(self):
+    def test__True(self):
+        """MetadataParser(cached_urlparser=True)"""
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1383,19 +1388,63 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_int__get_discrete_url__good_relative(self):
-        errors = _docs_test_parser(
-            [
-                "good-canonical-relative",
-                "good-canonical-relative_alt",
-                "good-og-relative_alt",
-            ],
-            1,
-        )
-        if errors:
-            raise ValueError(errors)
+    def test__Int_1(self):
+        """MetadataParser(cached_urlparser=1)"""
+        with warnings.catch_warnings(record=True) as warned:
+            warnings.simplefilter("always")
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                1,
+            )
+            if errors:
+                raise ValueError(errors)
+            assert len(warned) >= 1
+            _found = False
+            for w in warned:
+                if isinstance(w.message, FutureWarning):
+                    if w.message.args[0].startswith(
+                        "Supplying an int to `cached_urlparser` to set maxitems is deprecated."
+                    ):
+                        _found = True
+                        assert (
+                            "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
+                            in w.message.args[0]
+                        )
+            assert _found is True
 
-    def test_none__get_discrete_url__good_relative(self):
+    def test__Int_0(self):
+        """MetadataParser(cached_urlparser=1)"""
+        with warnings.catch_warnings(record=True) as warned:
+            warnings.simplefilter("always")
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                0,
+            )
+            if errors:
+                raise ValueError(errors)
+            assert len(warned) >= 1
+            _found = False
+            for w in warned:
+                if isinstance(w.message, FutureWarning):
+                    if w.message.args[0].startswith(
+                        "Supplying `0` to `cached_urlparser` to set maxitems is deprecated."
+                    ):
+                        _found = True
+                        assert (
+                            "Supply `cached_urlparser=False` instead"
+                            in w.message.args[0]
+                        )
+            assert _found is True
+
+    def test__None(self):
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1407,7 +1456,7 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_false__get_discrete_url__good_relative(self):
+    def test__False(self):
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1419,7 +1468,7 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_instance__get_discrete_url__good_relative(self):
+    def test__CustomParser(self):
         custom_parser_obj = metadata_parser.UrlParserCacheable()
         custom_parser = custom_parser_obj.urlparse
         errors = _docs_test_parser(
@@ -1432,3 +1481,136 @@ class TestCustomUrlparser(unittest.TestCase):
         )
         if errors:
             raise ValueError(errors)
+
+
+class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
+
+    def test__default(self):
+        """MetadataParser()"""
+        errors = _docs_test_parser(
+            [
+                "good-canonical-relative",
+                "good-canonical-relative_alt",
+                "good-og-relative_alt",
+            ],
+            "*no-kwarg",
+            cached_urlparser_maxitems=1,
+        )
+        if errors:
+            raise ValueError(errors)
+
+    def test__True(self):
+        # this should fail
+        errors = _docs_test_parser(
+            [
+                "good-canonical-relative",
+                "good-canonical-relative_alt",
+                "good-og-relative_alt",
+            ],
+            True,
+            cached_urlparser_maxitems=1,
+        )
+        if errors:
+            raise ValueError(errors)
+
+    def test__False(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                False,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__Int_1(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                1,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__Int_0(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                0,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__None(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                None,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__CustomParser(self):
+        # this should fail
+        custom_parser_obj = metadata_parser.UrlParserCacheable()
+        custom_parser = custom_parser_obj.urlparse
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                custom_parser,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )

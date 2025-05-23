@@ -9,6 +9,18 @@
         string is "all", otherwise a list of string - excluding "all" - must be
         submitted. Warnings of this have been emitted for several years.
     * __init__(`search_head_only`) now defaults to False
+    * `UrlParserCacheable` has been extended to accepted a `urlparser` argument.
+      This defaults to `urlparse` and expects the same signature.
+    * __init__(`cached_urlparser`) has new deprecations to standardize the API
+        submitting an Int to set max_items is deprecated; instead:
+            cached_urlparser=True
+            cached_urlparser_maxitems=int
+        submitting 0 is deprecated; instead:
+            cached_urlparser=False
+                or
+            cached_urlparser_maxitems=0
+            cached_urlparser=False
+    * __init__(`cached_urlparser_maxitems`) has been added
 
 0.12.3
     * pin "BeautifulSoup4<4.15.0"
