@@ -2,6 +2,7 @@
 import os
 from typing import Dict
 import unittest
+import warnings
 
 # local
 import metadata_parser
@@ -215,7 +216,7 @@ def _docs_test(test_names):
     return errors
 
 
-def _docs_test_parser(test_names, cached_urlparser):
+def _docs_test_parser(test_names, cached_urlparser, cached_urlparser_maxitems=None):
     errors = []
     for test in test_names:
         tests = []
@@ -223,6 +224,8 @@ def _docs_test_parser(test_names, cached_urlparser):
         kwargs = {}
         if cached_urlparser != "*no-kwarg":
             kwargs["cached_urlparser"] = cached_urlparser
+        if cached_urlparser_maxitems is not None:
+            kwargs["cached_urlparser_maxitems"] = cached_urlparser_maxitems
         parsed = metadata_parser.MetadataParser(
             url=url, html=docs[test]["doc"], **kwargs
         )
@@ -722,22 +725,28 @@ class TestDocumentParsing(unittest.TestCase):
                 dc_mixed_candidates[_key], dcTestMixedCandidates1aExpected[_key]
             )
         # but we need to test get_metadata and get_metadatas
+        with self.assertRaises(ValueError) as cm:
+            parsed.get_metadata("TestMixedCandidates1a", strategy="dc")
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates1a", strategy="dc"), "Friendship"
+            cm.exception.args[0], "If `strategy` is not a `list`, it must be 'all'."
+        )
+
+        self.assertEqual(
+            parsed.get_metadata("TestMixedCandidates1a", strategy=["dc"]), "Friendship"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates1a", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates1a", strategy=["dc"]),
             [dcTestMixedCandidates1aExpected],
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates1a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "FRIENDSHIP",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates1a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "FRIENDSHIP"}],
         )
@@ -760,21 +769,21 @@ class TestDocumentParsing(unittest.TestCase):
             )
         # but we need to test get_metadata and get_metadatas
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates1b", strategy="dc"), "158.25"
+            parsed.get_metadata("TestMixedCandidates1b", strategy=["dc"]), "158.25"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates1b", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates1b", strategy=["dc"]),
             [dcTestMixedCandidates1bExpected],
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates1b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "158.25",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates1b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "158.25", "SCHEME": "DDC"}],
         )
@@ -809,21 +818,21 @@ class TestDocumentParsing(unittest.TestCase):
         # but we need to test get_metadata and get_metadatas
 
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates2a", strategy="dc"), "Friendship"
+            parsed.get_metadata("TestMixedCandidates2a", strategy=["dc"]), "Friendship"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates2a", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates2a", strategy=["dc"]),
             dcTestMixedCandidates2aExpected,
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates2a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "FRIENDSHIP",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates2a", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "158.25", "SCHEME": "DDC"}, {"CONTENT": "FRIENDSHIP"}],
         )
@@ -854,30 +863,30 @@ class TestDocumentParsing(unittest.TestCase):
                 )
         # but we need to test get_metadata and get_metadatas
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates2b", strategy="dc"), "Friendship"
+            parsed.get_metadata("TestMixedCandidates2b", strategy=["dc"]), "Friendship"
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates2b", strategy="dc"),
+            parsed.get_metadatas("TestMixedCandidates2b", strategy=["dc"]),
             dcTestMixedCandidates2bExpected,
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedCandidates2b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "FRIENDSHIP",
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedCandidates2b", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "FRIENDSHIP"}, {"CONTENT": "158.25", "SCHEME": "DDC"}],
         )
 
         # ok, mixedfield tests:
         # TestMixedField0
-        self.assertEqual(parsed.get_metadata("TestMixedField0", strategy="dc"), None)
+        self.assertEqual(parsed.get_metadata("TestMixedField0", strategy=["dc"]), None)
         self.assertEqual(
-            parsed.get_metadata("TestMixedField0", strategy="meta"),
+            parsed.get_metadata("TestMixedField0", strategy=["meta"]),
             "meta:TestMixedField0",
         )
         self.assertEqual(
@@ -886,13 +895,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField0", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
             ),
             None,
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField0", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD0",
         )
@@ -902,9 +911,9 @@ class TestDocumentParsing(unittest.TestCase):
             ),
             {"meta": "META:TESTMIXEDFIELD0"},
         )
-        self.assertEqual(parsed.get_metadatas("TestMixedField0", strategy="dc"), None)
+        self.assertEqual(parsed.get_metadatas("TestMixedField0", strategy=["dc"]), None)
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField0", strategy="meta"),
+            parsed.get_metadatas("TestMixedField0", strategy=["meta"]),
             ["meta:TestMixedField0"],
         )
         self.assertEqual(
@@ -913,13 +922,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField0", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
             ),
             None,
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField0", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD0"],
         )
@@ -932,10 +941,11 @@ class TestDocumentParsing(unittest.TestCase):
 
         # TestMixedField1
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy="dc"), "dc:TestMixedField1"
+            parsed.get_metadata("TestMixedField1", strategy=["dc"]),
+            "dc:TestMixedField1",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy="meta"),
+            parsed.get_metadata("TestMixedField1", strategy=["meta"]),
             "meta:TestMixedField1",
         )
         self.assertEqual(
@@ -944,13 +954,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField1", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "DC:TESTMIXEDFIELD1",
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField1", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD1",
         )
@@ -961,11 +971,11 @@ class TestDocumentParsing(unittest.TestCase):
             {"meta": "META:TESTMIXEDFIELD1", "dc": "DC:TESTMIXEDFIELD1"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy="dc"),
+            parsed.get_metadatas("TestMixedField1", strategy=["dc"]),
             [{"content": "dc:TestMixedField1"}],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy="meta"),
+            parsed.get_metadatas("TestMixedField1", strategy=["meta"]),
             ["meta:TestMixedField1"],
         )
         self.assertEqual(
@@ -977,13 +987,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField1", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField1", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD1"],
         )
@@ -998,10 +1008,11 @@ class TestDocumentParsing(unittest.TestCase):
         )
         # TestMixedField2
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy="dc"), "dc:TestMixedField2"
+            parsed.get_metadata("TestMixedField2", strategy=["dc"]),
+            "dc:TestMixedField2",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy="meta"),
+            parsed.get_metadata("TestMixedField2", strategy=["meta"]),
             "meta:TestMixedField2",
         )
         self.assertEqual(
@@ -1010,13 +1021,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField2", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "DC:TESTMIXEDFIELD2",
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField2", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD2",
         )
@@ -1027,14 +1038,14 @@ class TestDocumentParsing(unittest.TestCase):
             {"meta": "META:TESTMIXEDFIELD2", "dc": "DC:TESTMIXEDFIELD2"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy="dc"),
+            parsed.get_metadatas("TestMixedField2", strategy=["dc"]),
             [
                 {"content": "dc:TestMixedField2"},
                 {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
             ],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy="meta"),
+            parsed.get_metadatas("TestMixedField2", strategy=["meta"]),
             ["meta:TestMixedField2"],
         )
         self.assertEqual(
@@ -1049,7 +1060,7 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField2", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [
                 {"CONTENT": "DC:TESTMIXEDFIELD2"},
@@ -1058,7 +1069,7 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField2", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD2"],
         )
@@ -1077,10 +1088,11 @@ class TestDocumentParsing(unittest.TestCase):
 
         # TestMixedField3
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy="dc"), "dc:TestMixedField3"
+            parsed.get_metadata("TestMixedField3", strategy=["dc"]),
+            "dc:TestMixedField3",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy="meta"),
+            parsed.get_metadata("TestMixedField3", strategy=["meta"]),
             "meta:TestMixedField3",
         )
         self.assertEqual(
@@ -1089,13 +1101,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField3", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
             ),
             "DC:TESTMIXEDFIELD3",
         )
         self.assertEqual(
             parsed.get_metadata(
-                "TestMixedField3", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
             ),
             "META:TESTMIXEDFIELD3",
         )
@@ -1106,11 +1118,11 @@ class TestDocumentParsing(unittest.TestCase):
             {"meta": "META:TESTMIXEDFIELD3", "dc": "DC:TESTMIXEDFIELD3"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy="dc"),
+            parsed.get_metadatas("TestMixedField3", strategy=["dc"]),
             [{"content": "dc:TestMixedField3"}],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy="meta"),
+            parsed.get_metadatas("TestMixedField3", strategy=["meta"]),
             ["meta:TestMixedField3"],
         )
         self.assertEqual(
@@ -1122,13 +1134,13 @@ class TestDocumentParsing(unittest.TestCase):
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField3", strategy="dc", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
         )
         self.assertEqual(
             parsed.get_metadatas(
-                "TestMixedField3", strategy="meta", encoder=encoder_capitalizer
+                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD3"],
         )
@@ -1345,12 +1357,13 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(c_parsed.metadata["meta"]["charset"], "UTF-8")
 
 
-class TestCustomUrlparser(unittest.TestCase):
+class Test_UrlParserCacheable(unittest.TestCase):
     """
-    python -m unittest tests.document_parsing.TestCustomUrlparser
+    python -m unittest tests.document_parsing.Test_UrlParserCacheable
     """
 
-    def test_default__get_discrete_url__good_relative(self):
+    def test__default(self):
+        """MetadataParser()"""
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1362,7 +1375,8 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_true__get_discrete_url__good_relative(self):
+    def test__True(self):
+        """MetadataParser(cached_urlparser=True)"""
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1374,19 +1388,63 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_int__get_discrete_url__good_relative(self):
-        errors = _docs_test_parser(
-            [
-                "good-canonical-relative",
-                "good-canonical-relative_alt",
-                "good-og-relative_alt",
-            ],
-            1,
-        )
-        if errors:
-            raise ValueError(errors)
+    def test__Int_1(self):
+        """MetadataParser(cached_urlparser=1)"""
+        with warnings.catch_warnings(record=True) as warned:
+            warnings.simplefilter("always")
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                1,
+            )
+            if errors:
+                raise ValueError(errors)
+            assert len(warned) >= 1
+            _found = False
+            for w in warned:
+                if isinstance(w.message, FutureWarning):
+                    if w.message.args[0].startswith(
+                        "Supplying an int to `cached_urlparser` to set maxitems is deprecated."
+                    ):
+                        _found = True
+                        assert (
+                            "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
+                            in w.message.args[0]
+                        )
+            assert _found is True
 
-    def test_none__get_discrete_url__good_relative(self):
+    def test__Int_0(self):
+        """MetadataParser(cached_urlparser=1)"""
+        with warnings.catch_warnings(record=True) as warned:
+            warnings.simplefilter("always")
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                0,
+            )
+            if errors:
+                raise ValueError(errors)
+            assert len(warned) >= 1
+            _found = False
+            for w in warned:
+                if isinstance(w.message, FutureWarning):
+                    if w.message.args[0].startswith(
+                        "Supplying `0` to `cached_urlparser` to set maxitems is deprecated."
+                    ):
+                        _found = True
+                        assert (
+                            "Supply `cached_urlparser=False` instead"
+                            in w.message.args[0]
+                        )
+            assert _found is True
+
+    def test__None(self):
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1398,7 +1456,7 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_false__get_discrete_url__good_relative(self):
+    def test__False(self):
         errors = _docs_test_parser(
             [
                 "good-canonical-relative",
@@ -1410,7 +1468,7 @@ class TestCustomUrlparser(unittest.TestCase):
         if errors:
             raise ValueError(errors)
 
-    def test_instance__get_discrete_url__good_relative(self):
+    def test__CustomParser(self):
         custom_parser_obj = metadata_parser.UrlParserCacheable()
         custom_parser = custom_parser_obj.urlparse
         errors = _docs_test_parser(
@@ -1423,3 +1481,136 @@ class TestCustomUrlparser(unittest.TestCase):
         )
         if errors:
             raise ValueError(errors)
+
+
+class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
+
+    def test__default(self):
+        """MetadataParser()"""
+        errors = _docs_test_parser(
+            [
+                "good-canonical-relative",
+                "good-canonical-relative_alt",
+                "good-og-relative_alt",
+            ],
+            "*no-kwarg",
+            cached_urlparser_maxitems=1,
+        )
+        if errors:
+            raise ValueError(errors)
+
+    def test__True(self):
+        # this should fail
+        errors = _docs_test_parser(
+            [
+                "good-canonical-relative",
+                "good-canonical-relative_alt",
+                "good-og-relative_alt",
+            ],
+            True,
+            cached_urlparser_maxitems=1,
+        )
+        if errors:
+            raise ValueError(errors)
+
+    def test__False(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                False,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__Int_1(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                1,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__Int_0(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                0,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__None(self):
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                None,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )
+
+    def test__CustomParser(self):
+        # this should fail
+        custom_parser_obj = metadata_parser.UrlParserCacheable()
+        custom_parser = custom_parser_obj.urlparse
+        with self.assertRaises(ValueError) as cm:
+            errors = _docs_test_parser(
+                [
+                    "good-canonical-relative",
+                    "good-canonical-relative_alt",
+                    "good-og-relative_alt",
+                ],
+                custom_parser,
+                cached_urlparser_maxitems=1,
+            )
+            if errors:
+                raise ValueError(errors)
+        assert isinstance(cm.exception, ValueError)
+        assert (
+            cm.exception.args[0]
+            == "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+        )

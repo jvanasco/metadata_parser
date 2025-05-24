@@ -10,6 +10,7 @@ import os
 import re
 import socket  # peername hack, see below
 import typing
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Iterable
@@ -33,6 +34,8 @@ from bs4 import BeautifulSoup
 import requests
 from requests.structures import CaseInsensitiveDict
 from requests_toolbelt.utils.deprecated import get_encodings_from_content
+from typing_extensions import Literal  # py38
+from typing_extensions import Protocol  # py38
 
 if TYPE_CHECKING:
     from bs4 import Tag as _bs4_Tag
@@ -46,7 +49,7 @@ FUTURE_BEHAVIOR = bool(int(os.getenv("METADATA_PARSER_FUTURE", "0")))
 # ==============================================================================
 
 
-__VERSION__ = "0.12.3"
+__VERSION__ = "0.13.0"
 
 
 # ------------------------------------------------------------------------------
@@ -88,7 +91,9 @@ MAX_FILESIZE = int(
 TYPES_RESPONSE = Union["DummyResponse", requests.Response]
 TYPES_PEERNAME = Tuple[str, int]  # (ip, port)
 TYPE_URL_FETCH = Tuple[str, str, "ResponseHistory"]
-
+TYPE_REQUESTS_TIMEOUT = Optional[
+    Union[int, float, Tuple[int, int], Tuple[float, float]]
+]
 
 # ------------------------------------------------------------------------------
 
@@ -352,15 +357,15 @@ def get_response_peername(resp: TYPES_RESPONSE) -> Optional[TYPES_PEERNAME]:
             i += 1
             try:
                 if i == 1:
-                    sock = resp.raw._connection.sock
+                    sock = resp.raw._connection.sock  # type: ignore[union-attr]
                 elif i == 2:
-                    sock = resp.raw._connection.sock.socket
+                    sock = resp.raw._connection.sock.socket  # type: ignore[union-attr]
                 elif i == 3:
-                    sock = resp.raw._fp.fp._sock
+                    sock = resp.raw._fp.fp._sock  # type: ignore[union-attr]
                 elif i == 4:
-                    sock = resp.raw._fp.fp._sock.socket
+                    sock = resp.raw._fp.fp._sock.socket  # type: ignore[union-attr]
                 elif i == 5:
-                    sock = resp.raw._fp.fp.raw._sock
+                    sock = resp.raw._fp.fp.raw._sock  # type: ignore[union-attr]
                 else:
                     break
                 if not isinstance(sock, _compatible_sockets):
@@ -582,7 +587,7 @@ def is_parsed_valid_relative(parsed: ParseResult) -> bool:
 
 def parsed_to_relative(
     parsed: ParseResult,
-    parsed_fallback: Optional[str] = None,
+    parsed_fallback: Optional[ParseResult] = None,
 ) -> str:
     """turns a parsed url into a full relative path"""
     assert isinstance(parsed, ParseResult)
@@ -611,7 +616,7 @@ def parsed_to_relative(
 def fix_unicode_url(
     url: str,
     encoding: Optional[str] = None,
-    urlparser: Callable = urlparse,
+    urlparser: Callable[[str], ParseResult] = urlparse,
 ) -> str:
     """
     some cms systems will put unicode in their canonical url
@@ -650,8 +655,8 @@ def is_url_valid(
     url: str,
     require_public_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
-    urlparser: Callable = urlparse,
-) -> bool:
+    urlparser: Callable[[str], ParseResult] = urlparse,
+) -> Union[Literal[False], ParseResult]:
     """
     tries to parse a url. if valid returns `ParseResult`
     (boolean eval is True); if invalid returns `False`
@@ -678,7 +683,7 @@ def url_to_absolute_url(
     url_fallback: Optional[str] = None,
     require_public_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
-    urlparser: Callable = urlparse,
+    urlparser: Callable[[str], ParseResult] = urlparse,
 ) -> Optional[str]:
     """
     returns an "absolute url" if we have one.
@@ -713,6 +718,9 @@ def url_to_absolute_url(
 
     if url_test is None and url_fallback is not None:
         return url_fallback
+
+    if TYPE_CHECKING:
+        assert url_test is not None
 
     parsed = urlparser(url_test)
 
@@ -749,6 +757,8 @@ def url_to_absolute_url(
         # this can happen if someone puts in "" for the canonical
         # but this can also happen if we have different domains...
         if url_fallback:
+            if TYPE_CHECKING:
+                assert parsed_fallback is not None
             if (parsed_fallback.scheme == parsed.scheme) or (
                 parsed_fallback.netloc == parsed.netloc
             ):
@@ -771,6 +781,8 @@ def url_to_absolute_url(
         # ok, the URL isn't valid
         # can we re-assemble it
         if url_fallback:
+            if TYPE_CHECKING:
+                assert parsed_fallback is not None
             if is_parsed_valid_url(
                 parsed_fallback,
                 require_public_netloc=require_public_netloc,
@@ -791,6 +803,8 @@ def url_to_absolute_url(
 
 
 class InvalidDocument(Exception):
+    message: str
+
     def __init__(self, message: str = ""):
         self.message = message
 
@@ -799,6 +813,11 @@ class InvalidDocument(Exception):
 
 
 class NotParsable(Exception):
+    raised: Optional[requests.exceptions.RequestException]
+    code: Optional[int]
+    metadataParser: Optional["MetadataParser"]
+    response: Optional[TYPES_RESPONSE]
+
     def __init__(
         self,
         message: str = "",
@@ -855,6 +874,11 @@ class RedirectDetected(Exception):
     ``code``: status code of the response
     ``response``: actual response object
     """
+
+    location: str
+    code: Optional[int]
+    response: Optional[TYPES_RESPONSE]
+    metadataParser: Optional["MetadataParser"]
 
     def __init__(
         self,
@@ -945,7 +969,7 @@ class ResponseHistory(object):
     def log(
         self,
         prefix: str = "ResponseHistory",
-        logger: Callable = log.error,
+        logger: Callable[..., None] = log.error,
     ) -> None:
         """
         :param prefix: Prefix for logging, defaults to "ResponseHistory"
@@ -964,7 +988,11 @@ class ResponseHistory(object):
                 )
 
 
-class UrlParserCacheable(object):
+class _UrlParserCacheable(Protocol):
+    urlparse: Callable[[str], ParseResult]
+
+
+class UrlParserCacheable(_UrlParserCacheable):
     """
     class for caching calls to urlparse
 
@@ -973,14 +1001,20 @@ class UrlParserCacheable(object):
 
     cache: collections.OrderedDict
     maxitems: int
+    urlparser: Callable[[str], ParseResult]
 
-    def __init__(self, maxitems: int = 30):
+    def __init__(
+        self,
+        maxitems: int = 30,
+        urlparser: Callable[[str], ParseResult] = urlparse,
+    ):
         """
         :param maxitems: maximum items to cache, default 30
         :type maxitems: int, optional
         """
         self.cache = collections.OrderedDict()
         self.maxitems = maxitems
+        self.urlparser = urlparser
 
     def urlparse(self, url: str) -> ParseResult:
         """
@@ -988,7 +1022,7 @@ class UrlParserCacheable(object):
         :type url: str
         """
         if url not in self.cache:
-            self.cache[url] = urlparse(url)
+            self.cache[url] = self.urlparser(url)
             if len(self.cache) > self.maxitems:
                 self.cache.popitem(last=False)
         return self.cache[url]
@@ -1014,11 +1048,10 @@ class ParsedResult(object):
         None  # only stashing `ResponseHistory` if we have it
     )
     _version: int = 1  # version tracking
-    default_encoder: Optional[Callable] = None
-
+    default_encoder: Optional[Callable[[str], str]] = None
     og_minimum_requirements: List = ["title", "type", "image", "url"]
     twitter_sections: List = ["card", "title", "site", "description"]
-    strategy: Union[List, str] = ["og", "dc", "meta", "page", "twitter"]
+    strategy: Union[List[str], str] = ["og", "dc", "meta", "page", "twitter"]
 
     _get_metadata__last_strategy: Optional[str] = None
 
@@ -1074,21 +1107,13 @@ class ParsedResult(object):
 
     def _coerce_validate_strategy(
         self,
-        strategy: Union[list, str, None] = None,
+        strategy: Union[List[str], str, None] = None,
     ) -> Union[List, str]:
         """normalize a strategy into a valid option"""
         if strategy:
             if isinstance(strategy, str):
                 if strategy != "all":
-                    warn_user(
-                        """If `strategy` is not a `list`, it should be 'all'."""
-                        """This is coerced into a list, but will be enforced."""
-                    )
-                    if strategy not in self.strategy:
-                        raise ValueError("invalid strategy: %s" % strategy)
-                    strategy = [
-                        strategy,
-                    ]
+                    raise ValueError("If `strategy` is not a `list`, it must be 'all'.")
             elif isinstance(strategy, list):
                 _invalids = []
                 for _candidate in strategy:
@@ -1107,7 +1132,7 @@ class ParsedResult(object):
         self,
         field: str,
         strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable] = None,
+        encoder: Optional[Callable[[str], str]] = None,
     ) -> Union[str, Dict[str, Union[str, Dict]], None]:
         """
         LEGACY. DEPRECATED.  DO NOT USE THIS.
@@ -1157,8 +1182,9 @@ class ParsedResult(object):
           function or "raw"
         """
         warn_future(
-            """`get_metadata` returns a string and is being deprecated"""
-            """in favor of `get_metadatas` which returns a list."""
+            """`ParsedResult.get_metadata` returns a string and is deprecated """
+            """in favor of `get_metadatas` which returns a list. """
+            """This will be removed in the next minor or major release."""
         )
         strategy = self._coerce_validate_strategy(strategy)
         self._get_metadata__last_strategy = None
@@ -1217,8 +1243,8 @@ class ParsedResult(object):
     def get_metadatas(
         self,
         field: str,
-        strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable] = None,
+        strategy: Union[List[str], str, None] = None,
+        encoder: Optional[Callable[[str], str]] = None,
     ) -> Optional[Union[Dict, List]]:
         """
         looks for the field in various stores.  defaults to the core
@@ -1349,65 +1375,71 @@ class MetadataParser(object):
         this can be necessary on development machines
     """
 
-    url = None
-    url_actual = None
-    strategy = None
-    LEN_MAX_TITLE = 255
-    only_parse_file_extensions = None
-    allow_localhosts = None
-    require_public_netloc = None
-    force_doctype = None
-    requests_timeout = None
+    url: Optional[str] = None
+    url_actual: Optional[str] = None
+    strategy: Union[List[str], str, None] = None
+    LEN_MAX_TITLE: int = 255
+    only_parse_file_extensions: Optional[List[str]] = None
+    allow_localhosts: Optional[bool] = None
+    require_public_netloc: Optional[bool] = None
+    force_doctype: Optional[bool] = None
+    requests_timeout: TYPE_REQUESTS_TIMEOUT = None
     peername: Optional[TYPES_PEERNAME] = None
-    is_redirect = None
-    is_redirect_unique = None
-    is_redirect_same_host = None
+    is_redirect: Optional[bool] = None
+    is_redirect_unique: Optional[bool] = None
+    is_redirect_same_host: Optional[bool] = None
 
-    force_parse = None
-    force_parse_invalid_content_type = None
-    only_parse_http_ok = None
-    requests_session = None
-    derive_encoding = None
-    default_encoding = None
-    default_encoder: Optional[Callable] = None
-    support_malformed = None
+    force_parse: Optional[bool] = None
+    force_parse_invalid_content_type: Optional[bool] = None
+    only_parse_http_ok: Optional[bool] = None
+    requests_session: Optional[requests.Session] = None
+    derive_encoding: Optional[bool] = None
+    default_encoding: Optional[str] = None
+    default_encoder: Optional[Callable[[str], str]] = None
+    support_malformed: Optional[bool] = None
+
+    urlparse: Callable[[str], ParseResult]
+    _cached_urlparser: Optional[_UrlParserCacheable]
 
     # this has a per-parser default tuple
     # it can be upgraded manually
-    schemeless_fields_upgradeable = SCHEMELESS_FIELDS_UPGRADEABLE
-    schemeless_fields_disallow = SCHEMELESS_FIELDS_DISALLOW
+    schemeless_fields_upgradeable: Tuple[str, ...] = SCHEMELESS_FIELDS_UPGRADEABLE
+    schemeless_fields_disallow: Tuple[str, ...] = SCHEMELESS_FIELDS_DISALLOW
 
-    _content_types_parse = ("text/html",)
-    _content_types_noparse = ("application/json",)
+    _content_types_parse: Tuple[str, ...] = ("text/html",)
+    _content_types_noparse: Tuple[str, ...] = ("application/json",)
+
+    response: Optional[TYPES_RESPONSE]
 
     def __init__(
         self,
         url: Optional[str] = None,
         html: Optional[str] = None,
-        strategy: Union[list, str, None] = None,
-        url_data=None,
-        url_headers=None,
+        strategy: Union[List[str], str, None] = None,
+        url_data: Optional[Dict[str, Any]] = None,
+        url_headers: Optional[Dict[str, str]] = None,
         force_parse: bool = False,
         ssl_verify: bool = True,
-        only_parse_file_extensions=None,
-        force_parse_invalid_content_type=False,
-        require_public_netloc=True,
-        allow_localhosts=None,
-        force_doctype=False,
-        requests_timeout=None,
-        raise_on_invalid=False,
-        search_head_only=None,
-        allow_redirects=True,
-        requests_session=None,
-        only_parse_http_ok=True,
-        defer_fetch=False,
-        derive_encoding=True,
-        html_encoding=None,
-        default_encoding=None,
-        default_encoder: Optional[Callable] = None,
-        retry_dropped_without_headers=None,
-        support_malformed=None,
-        cached_urlparser=True,
+        only_parse_file_extensions: Optional[List[str]] = None,
+        force_parse_invalid_content_type: bool = False,
+        require_public_netloc: bool = True,
+        allow_localhosts: Optional[bool] = None,
+        force_doctype: bool = False,
+        requests_timeout: TYPE_REQUESTS_TIMEOUT = None,
+        raise_on_invalid: bool = False,
+        search_head_only: bool = False,
+        allow_redirects: bool = True,
+        requests_session: Optional[requests.Session] = None,
+        only_parse_http_ok: bool = True,
+        defer_fetch: bool = False,
+        derive_encoding: bool = True,
+        html_encoding: Optional[str] = None,
+        default_encoding: Optional[str] = None,
+        default_encoder: Optional[Callable[[str], str]] = None,
+        retry_dropped_without_headers: Optional[bool] = None,
+        support_malformed: Optional[bool] = None,
+        cached_urlparser: Union[bool, int, Callable[[str], ParseResult]] = True,
+        cached_urlparser_maxitems: Optional[int] = None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -1466,11 +1498,10 @@ class MetadataParser(object):
                 if True, will raise an InvalidDocument exception if the response
                 does not look like a proper html document
             `search_head_only`
-                default: None
-                if `None` will default to True and emit a deprecation warning.
+                default: False
                 if `True`, will only search the document head for meta information.
                 `search_head_only=True` is the legacy behavior, but missed too many
-                bad html implementations. This will be set to `False` in the future.
+                bad html implementations.
             `allow_redirects`
                 default: True
                 passed onto `fetch_url`, which will pass it onto requests.get
@@ -1503,26 +1534,56 @@ class MetadataParser(object):
                 default: True
                 options: True: use a instance of UrlParserCacheable(maxitems=30)
                        : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
-                       : None/False/0 - use native urlparse
-                       : other truthy values - use as a custom urlparse
+                            DEPRECATED in v13.0
+                            instead, set `cached_urlparser=True, cached_urlparser_maxitems=maxitems
+                       : None/False - use native urlparse
+                       : callable - use as a custom urlparse
+            `cached_urlparser_maxitems`
+                default: None
+                options: int: sets maxitems
         """
         if __debug__:
             log.debug("MetadataParser.__init__(%s)", url)
         if url is not None:
             url = url.strip()
         self.parsed_result = ParsedResult()
+        if cached_urlparser_maxitems:
+            if cached_urlparser is not True:
+                raise ValueError(
+                    "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
+                )
+        if cached_urlparser == 0:
+            warn_future(
+                "Supplying `0` to `cached_urlparser` to set maxitems is deprecated. "
+                "This will be removed in the next major or minor release."
+                "Supply `cached_urlparser=False` instead."
+            )
+            cached_urlparser = False
         if cached_urlparser:
+            if isinstance(cached_urlparser, int):
+                # build a default parser with maxitems
+                warn_future(
+                    "Supplying an int to `cached_urlparser` to set maxitems is deprecated. "
+                    "This will be removed in the next major or minor release."
+                    "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
+                )
+                # coerce args for the next block
+                cached_urlparser_maxitems = cached_urlparser
+                cached_urlparser = True
             if cached_urlparser is True:
-                cached_urlparser = UrlParserCacheable()  # a cache
-                self._cached_urlparser = cached_urlparser  # stash it
-                self.urlparse = cached_urlparser.urlparse
-            elif isinstance(cached_urlparser, int):
-                cached_urlparser = UrlParserCacheable(
-                    maxitems=cached_urlparser
-                )  # a cache
-                self._cached_urlparser = cached_urlparser  # stash it
-                self.urlparse = cached_urlparser.urlparse
+                # build a default parser
+                if cached_urlparser_maxitems is not None:
+                    _cached_urlparser = UrlParserCacheable(
+                        maxitems=cached_urlparser_maxitems
+                    )
+                else:
+                    _cached_urlparser = UrlParserCacheable()
+                self._cached_urlparser = _cached_urlparser  # stash it
+                self.urlparse = _cached_urlparser.urlparse
             else:
+                if not callable(cached_urlparser):
+                    raise ValueError("`cached_urlparser` must be a callable")
+                self._cached_urlparser = None
                 self.urlparse = cached_urlparser
         else:
             self.urlparse = urlparse
@@ -1541,12 +1602,6 @@ class MetadataParser(object):
         self.force_parse = force_parse
         self.force_parse_invalid_content_type = force_parse_invalid_content_type
         self.only_parse_http_ok = only_parse_http_ok
-        if search_head_only is None:
-            warn_future(
-                """`search_head_only` was not provided and defaulting to `True` """
-                """Future versions will default to `False`."""
-            )
-            search_head_only = True
         self.search_head_only = search_head_only
         self.raise_on_invalid = raise_on_invalid
         self.requests_session = requests_session
@@ -1651,7 +1706,7 @@ class MetadataParser(object):
         self,
         field: str,
         strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable] = None,
+        encoder: Optional[Callable[[str], str]] = None,
     ) -> Union[str, Dict[str, Union[str, Dict]], None]:
         # deprecating in 1.0; operate on the result instead
         warn_future(
@@ -1664,8 +1719,8 @@ class MetadataParser(object):
     def get_metadatas(
         self,
         field,
-        strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable] = None,
+        strategy: Union[List[str], str, None] = None,
+        encoder: Optional[Callable[[str], str]] = None,
     ) -> Optional[Union[Dict, List]]:
         # deprecating in 1.0; operate on the result instead
         warn_future(
@@ -1697,18 +1752,18 @@ class MetadataParser(object):
 
     def fetch_url(
         self,
-        url_data=None,
-        url_headers=None,
-        force_parse=None,
-        force_parse_invalid_content_type=None,
-        allow_redirects=None,
-        ssl_verify=None,
-        requests_timeout=None,
-        requests_session=None,
-        only_parse_http_ok=None,
-        derive_encoding=None,
-        default_encoding=None,
-        retry_dropped_without_headers=None,
+        url_data: Optional[Dict[str, Any]] = None,  # ???: required
+        url_headers: Optional[Union[CaseInsensitiveDict, Dict[str, Any]]] = None,
+        force_parse: Optional[bool] = None,  # `None` will use `self.force_parse`
+        force_parse_invalid_content_type: Optional[bool] = None,
+        allow_redirects: Optional[bool] = None,
+        ssl_verify: Optional[bool] = None,
+        requests_timeout: TYPE_REQUESTS_TIMEOUT = None,
+        requests_session: Optional[requests.Session] = None,
+        only_parse_http_ok: Optional[bool] = None,
+        derive_encoding: Optional[bool] = None,
+        default_encoding: Optional[str] = None,
+        retry_dropped_without_headers: Optional[bool] = None,
     ) -> TYPE_URL_FETCH:
         """
         fetches the url and returns a tuple of (html, html_encoding).
@@ -1758,6 +1813,7 @@ class MetadataParser(object):
             else self.only_parse_http_ok
         )
         if not force_parse and self.only_parse_file_extensions is not None:
+            assert self.url
             parsed = self.urlparse(self.url)
             path = parsed.path
             if path:
@@ -1971,6 +2027,8 @@ class MetadataParser(object):
 
         except requests.exceptions.RequestException as error:
             if hasattr(error, "response") and (error.response is not None):
+                if TYPE_CHECKING:
+                    assert error.response is not None
                 self.response = error.response
                 try:
                     assert self.response is not None  # mypy
@@ -1990,7 +2048,9 @@ class MetadataParser(object):
                 raised=error,
                 metadataParser=self,
             )
-
+        if TYPE_CHECKING:
+            assert html is not None
+            assert html_encoding is not None
         return (html, html_encoding, response_history)
 
     def absolute_url(self, link: Optional[str] = None) -> Optional[str]:
@@ -2111,7 +2171,7 @@ class MetadataParser(object):
                 return
             doc_searchpath = doc.html.head  # bs4.element.Tag
 
-        ogs = doc_searchpath.findAll("meta", attrs={"property": RE_prefix_opengraph})
+        ogs = doc_searchpath.find_all("meta", attrs={"property": RE_prefix_opengraph})
         for og in ogs:
             try:
                 parsed_result._add_discovered(
@@ -2126,7 +2186,7 @@ class MetadataParser(object):
                     log.debug("Ran into a serious error parsing `og`: %s", exc)
                 pass
 
-        twitters = doc_searchpath.findAll("meta", attrs={"name": RE_prefix_twitter})
+        twitters = doc_searchpath.find_all("meta", attrs={"name": RE_prefix_twitter})
         for twitter in twitters:
             try:
                 # for the deprecated "twitter:(label|data)" meta tags, we must use a 'value' attr
@@ -2178,7 +2238,7 @@ class MetadataParser(object):
                 pass
 
         # is there an image_src?
-        images = doc.findAll("link", attrs={"rel": RE_prefix_rel_img_src})
+        images = doc.find_all("link", attrs={"rel": RE_prefix_rel_img_src})
         if images:
             # we only use the first image on the page
             image = images[0]
@@ -2200,7 +2260,7 @@ class MetadataParser(object):
                 pass
 
         # figure out the canonical url
-        canonicals = doc.findAll("link", attrs={"rel": RE_canonical})
+        canonicals = doc.find_all("link", attrs={"rel": RE_canonical})
         if canonicals:
             # only use the first?
             canonical = canonicals[0]
@@ -2222,7 +2282,7 @@ class MetadataParser(object):
                 pass
 
         # is there a shortlink?
-        shortlinks = doc.findAll("link", attrs={"rel": RE_shortlink})
+        shortlinks = doc.find_all("link", attrs={"rel": RE_shortlink})
         for shortlink in shortlinks:
             if shortlink.has_attr("href"):
                 _link = shortlink["href"]
@@ -2242,7 +2302,7 @@ class MetadataParser(object):
                 pass
 
         # pull out all the metadata
-        meta = doc_searchpath.findAll(name="meta")
+        meta = doc_searchpath.find_all(name="meta")
         for m in meta:
             try:
                 k = None  # metadata key
@@ -2566,7 +2626,7 @@ class MetadataParser(object):
     def get_metadata_link(
         self,
         field: str,
-        strategy: Union[list, str, None] = None,
+        strategy: Union[List[str], str, None] = None,
         allow_encoded_uri: bool = False,
         require_public_global: bool = True,
     ) -> Optional[str]:
@@ -2577,7 +2637,7 @@ class MetadataParser(object):
 
         kwargs:
             strategy=None
-                ('all') or iterable ['og', 'dc', 'meta', 'page', 'twitter', ]
+                'all' or List ['og', 'dc', 'meta', 'page', 'twitter', ]
             allow_encoded_uri=False
             require_public_global=True
 

@@ -1,5 +1,27 @@
-1.0
-    1.0 will be a complete api overhaul
+1.0 (unreleased)
+    1.0 will include an api overhaul and remove all deprecations
+
+
+0.13.0
+    * drop py36; no test options due to github deprecation of ubuntu20.04
+    * `_coerce_validate_strategy` (invoked by `get_metadatas`) will now raise a
+        ValueError if a string other than "all" is submitted.  The only valid
+        string is "all", otherwise a list of string - excluding "all" - must be
+        submitted. Warnings of this have been emitted for several years.
+    * __init__(`search_head_only`) now defaults to False
+    * `UrlParserCacheable` has been extended to accepted a `urlparser` argument.
+      This defaults to `urlparse` and expects the same signature.
+    * __init__(`cached_urlparser`) has new deprecations to standardize the API
+        submitting an Int to set max_items is deprecated; instead:
+            cached_urlparser=True
+            cached_urlparser_maxitems=int
+        submitting 0 is deprecated; instead:
+            cached_urlparser=False
+                or
+            cached_urlparser_maxitems=0
+            cached_urlparser=False
+    * __init__(`cached_urlparser_maxitems`) has been added
+    * the next release is likely to be 1.0
 
 0.12.3
     * pin "BeautifulSoup4<4.15.0"

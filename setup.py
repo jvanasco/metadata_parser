@@ -27,9 +27,10 @@ with open(os.path.join(HERE, "README.rst")) as fp:
     long_description = fp.read()
 
 requires = [
-    "BeautifulSoup4<4.15.0",
+    "BeautifulSoup4>4.13.0,<4.14.0",
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
+    "typing_extensions",
 ]
 if sys.version_info.major == 2:
     requires.append("backports.html")
@@ -59,7 +60,6 @@ setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
