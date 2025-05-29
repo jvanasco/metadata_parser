@@ -343,7 +343,7 @@ class TestEncoders(unittest.TestCase):
         parsed = self._make_raw("unicode_whitespace")
         # title_raw = parsed.parsed_result.get_metadatas('title')
         title_ascii = parsed.parsed_result.get_metadatas(
-            "title", encoder=metadata_parser.encode_ascii
+            "title", encoder=metadata_parser.utils.encode_ascii
         )
         self.assertEqual(title_ascii[0], self._data["unicode_whitespace"]["ascii"])
 
@@ -351,7 +351,7 @@ class TestEncoders(unittest.TestCase):
         parsed = self._make_raw("unicode_chars")
         # title_raw = parsed.parsed_result.get_metadatas('title')
         title_ascii = parsed.parsed_result.get_metadatas(
-            "title", encoder=metadata_parser.encode_ascii
+            "title", encoder=metadata_parser.utils.encode_ascii
         )
         self.assertEqual(title_ascii[0], self._data["unicode_chars"]["ascii"])
 
@@ -359,11 +359,11 @@ class TestEncoders(unittest.TestCase):
         parsed = self._make_html("decode_html_encoder")
         parsed_description = parsed.parsed_result.get_metadatas("description")
 
-        decoded_direct = metadata_parser.decode_html(parsed_description[0])
+        decoded_direct = metadata_parser.utils.decode_html(parsed_description[0])
         self.assertEqual(decoded_direct, self._data["decode_html_encoder"]["decoded"])
 
         decoded_decoder = parsed.parsed_result.get_metadatas(
-            "description", encoder=metadata_parser.decode_html
+            "description", encoder=metadata_parser.utils.decode_html
         )
         self.assertEqual(
             decoded_decoder[0], self._data["decode_html_encoder"]["decoded"]
@@ -374,7 +374,7 @@ class TestEncoders(unittest.TestCase):
         ensure the default decoder is invoked
         """
         parsed_with_default = self._make_html(
-            "decode_html_encoder", default_encoder=metadata_parser.decode_html
+            "decode_html_encoder", default_encoder=metadata_parser.utils.decode_html
         )
         parsed_no_default = self._make_html("decode_html_encoder")
 
