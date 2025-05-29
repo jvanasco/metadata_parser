@@ -49,7 +49,7 @@ FUTURE_BEHAVIOR = bool(int(os.getenv("METADATA_PARSER_FUTURE", "0")))
 # ==============================================================================
 
 
-__VERSION__ = "0.13.0"
+__VERSION__ = "1.0.0dev"
 
 
 # ------------------------------------------------------------------------------
@@ -1128,118 +1128,6 @@ class ParsedResult(object):
             strategy = self.strategy
         return strategy
 
-    def get_metadata(
-        self,
-        field: str,
-        strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Union[str, Dict[str, Union[str, Dict]], None]:
-        """
-        LEGACY. DEPRECATED.  DO NOT USE THIS.
-
-        `get_metadata`
-        looks for the field in various stores.  defaults to the core
-        strategy, though you may specify a certain item.  if you search for
-        'all' it will return a dict of all values.
-
-        This is a legacy method and is being deprecated in favor of `get_metadatas`
-        This method will always return a string for the field value, however it
-        is possible the field contains multiple elements or even a dict if the
-        source was dublincore.
-
-        In comparison, `get_metadatas` will always return a list for the values.
-
-        In the case of DC/DublinCore metadata, this will return the first 'simple'
-        pairing (key/value - without a scheme/language) or the first element if no
-        simple match exists.
-
-        This function will return different types depending on the input:
-
-        if `strategy` is a single type:
-            `str` or `None`
-
-        if `strategy` is a list:
-            `str` or `None`, with `str` being the first match
-            self._get_metadata__last_strategy will persist the matching strategy
-
-        if `strategy` is "all":
-            `dict` of {strategy: result}
-
-        :param field:
-          The field to retrieve
-        :type field: str
-
-        :param strategy:
-          Where to search for the metadata. such as 'all' or
-          iterable like ['og', 'dc', 'meta', 'page', 'twitter', ]
-        :type strategy: string or list
-
-        :param encoder:
-          a function, such as `encode_ascii`, to encode values before returning.
-          a valid `encoder` accepts one(1) arg.
-          if a `default_encoder` is registered, the string "raw" will disable it.
-        :type encoder:
-          function or "raw"
-        """
-        warn_future(
-            """`ParsedResult.get_metadata` returns a string and is deprecated """
-            """in favor of `get_metadatas` which returns a list. """
-            """This will be removed in the next minor or major release."""
-        )
-        strategy = self._coerce_validate_strategy(strategy)
-        self._get_metadata__last_strategy = None
-
-        if encoder is None:
-            encoder = self.default_encoder
-        elif encoder == "raw":
-            encoder = None
-
-        def _lookup(store: str) -> Optional[Union[str, Dict]]:
-            if field in self.metadata[store]:
-                val = self.metadata[store][field]
-                if store == "dc":
-                    # dublincore will be different. it uses dicts by default
-                    # this is a one-element match
-                    if isinstance(val, dict):
-                        val = val["content"]
-                    else:
-                        _opt = None
-                        for _val in val:
-                            if len(_val.keys()) == 1:
-                                _opt = _val["content"]
-                                break
-                        if _opt is None:
-                            _opt = val[0]["content"]
-                        val = _opt
-                else:
-                    if isinstance(val, list):
-                        val = val[0]
-                if encoder:
-                    val = encoder(val)
-                return val
-            return None
-
-        # `_coerce_validate_strategy` ensured a compliant strategy
-        if isinstance(strategy, list):
-            for store in strategy:
-                if store in self.metadata:
-                    val = _lookup(store)
-                    if val is not None:
-                        self._get_metadata__last_strategy = store
-                        return val
-            return None
-        elif strategy == "all":
-            rval: Dict = {}
-            for store in self.metadata:
-                if store == "_v":
-                    continue
-                if field in self.metadata[store]:
-                    val = _lookup(store)
-                    rval[store] = val
-            return rval
-        else:
-            raise ValueError("unsupported strategy")
-
     def get_metadatas(
         self,
         field: str,
@@ -1438,7 +1326,7 @@ class MetadataParser(object):
         default_encoder: Optional[Callable[[str], str]] = None,
         retry_dropped_without_headers: Optional[bool] = None,
         support_malformed: Optional[bool] = None,
-        cached_urlparser: Union[bool, int, Callable[[str], ParseResult]] = True,
+        cached_urlparser: Union[bool, Callable[[str], ParseResult]] = True,
         cached_urlparser_maxitems: Optional[int] = None,
     ):
         """
@@ -1533,9 +1421,6 @@ class MetadataParser(object):
             `cached_urlparser`
                 default: True
                 options: True: use a instance of UrlParserCacheable(maxitems=30)
-                       : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
-                            DEPRECATED in v13.0
-                            instead, set `cached_urlparser=True, cached_urlparser_maxitems=maxitems
                        : None/False - use native urlparse
                        : callable - use as a custom urlparse
             `cached_urlparser_maxitems`
@@ -1552,24 +1437,7 @@ class MetadataParser(object):
                 raise ValueError(
                     "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
                 )
-        if cached_urlparser == 0:
-            warn_future(
-                "Supplying `0` to `cached_urlparser` to set maxitems is deprecated. "
-                "This will be removed in the next major or minor release."
-                "Supply `cached_urlparser=False` instead."
-            )
-            cached_urlparser = False
         if cached_urlparser:
-            if isinstance(cached_urlparser, int):
-                # build a default parser with maxitems
-                warn_future(
-                    "Supplying an int to `cached_urlparser` to set maxitems is deprecated. "
-                    "This will be removed in the next major or minor release."
-                    "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
-                )
-                # coerce args for the next block
-                cached_urlparser_maxitems = cached_urlparser
-                cached_urlparser = True
             if cached_urlparser is True:
                 # build a default parser
                 if cached_urlparser_maxitems is not None:
@@ -1667,75 +1535,6 @@ class MetadataParser(object):
                 support_malformed=support_malformed,
                 response_history=_response_history,
             )
-
-    # --------------------------------------------------------------------------
-
-    @property
-    def metadata(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.metadata is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.metadata
-
-    @property
-    def metadata_version(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.metadata_version is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.metadata_version
-
-    @property
-    def metadata_encoding(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.metadata_encoding is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.metadata_encoding
-
-    @property
-    def soup(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.soup is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.soup
-
-    def get_metadata(
-        self,
-        field: str,
-        strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Union[str, Dict[str, Union[str, Dict]], None]:
-        # deprecating in 1.0; operate on the result instead
-        warn_future(
-            "MetadataParser.get_metadata is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.get_metadata(
-            field, strategy=strategy, encoder=encoder
-        )
-
-    def get_metadatas(
-        self,
-        field,
-        strategy: Union[List[str], str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Optional[Union[Dict, List]]:
-        # deprecating in 1.0; operate on the result instead
-        warn_future(
-            "MetadataParser.get_metadatas is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.get_metadatas(
-            field, strategy=strategy, encoder=encoder
-        )
-
-    def is_opengraph_minimum(self) -> bool:
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.is_opengraph_minimum is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.is_opengraph_minimum()
 
     # --------------------------------------------------------------------------
 

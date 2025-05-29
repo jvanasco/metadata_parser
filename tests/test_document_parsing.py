@@ -1,11 +1,14 @@
 # stdlib
 import os
 from typing import Dict
+from typing import List
+from typing import Tuple
 import unittest
-import warnings
 
 # local
 import metadata_parser
+from metadata_parser import urlparse
+
 
 # ==============================================================================
 
@@ -216,7 +219,9 @@ def _docs_test(test_names):
     return errors
 
 
-def _docs_test_parser(test_names, cached_urlparser, cached_urlparser_maxitems=None):
+def _docs_test_parser(
+    test_names, cached_urlparser, cached_urlparser_maxitems=None
+) -> Tuple[metadata_parser.MetadataParser, List]:
     errors = []
     for test in test_names:
         tests = []
@@ -237,7 +242,7 @@ def _docs_test_parser(test_names, cached_urlparser, cached_urlparser_maxitems=No
                 errors.append([test, "get_discrete_url()", url_expected, url_retrieved])
         if not tests:
             raise ValueError("No tests!")
-    return errors
+    return parsed, errors
 
 
 class TestHtmlDocument(unittest.TestCase):
@@ -322,7 +327,7 @@ class TestEncoders(unittest.TestCase):
         # create a parsed result, and inject raw data.
         # data coming through beautifulsoup will be parsed differently
         parsed = metadata_parser.MetadataParser()
-        parsed.metadata["meta"]["title"] = self._data[data_option]["raw"]
+        parsed.parsed_result.metadata["meta"]["title"] = self._data[data_option]["raw"]
         return parsed
 
     def _make_html(self, data_option, default_encoder=None):
@@ -336,27 +341,33 @@ class TestEncoders(unittest.TestCase):
 
     def test_unicode_whitespace(self):
         parsed = self._make_raw("unicode_whitespace")
-        # title_raw = parsed.get_metadata('title')
-        title_ascii = parsed.get_metadata("title", encoder=metadata_parser.encode_ascii)
-        self.assertEqual(title_ascii, self._data["unicode_whitespace"]["ascii"])
+        # title_raw = parsed.parsed_result.get_metadatas('title')
+        title_ascii = parsed.parsed_result.get_metadatas(
+            "title", encoder=metadata_parser.encode_ascii
+        )
+        self.assertEqual(title_ascii[0], self._data["unicode_whitespace"]["ascii"])
 
     def test_unicode_chars(self):
         parsed = self._make_raw("unicode_chars")
-        # title_raw = parsed.get_metadata('title')
-        title_ascii = parsed.get_metadata("title", encoder=metadata_parser.encode_ascii)
-        self.assertEqual(title_ascii, self._data["unicode_chars"]["ascii"])
+        # title_raw = parsed.parsed_result.get_metadatas('title')
+        title_ascii = parsed.parsed_result.get_metadatas(
+            "title", encoder=metadata_parser.encode_ascii
+        )
+        self.assertEqual(title_ascii[0], self._data["unicode_chars"]["ascii"])
 
     def test_decode_html_encoder(self):
         parsed = self._make_html("decode_html_encoder")
-        parsed_description = parsed.get_metadata("description")
+        parsed_description = parsed.parsed_result.get_metadatas("description")
 
-        decoded_direct = metadata_parser.decode_html(parsed_description)
+        decoded_direct = metadata_parser.decode_html(parsed_description[0])
         self.assertEqual(decoded_direct, self._data["decode_html_encoder"]["decoded"])
 
-        decoded_decoder = parsed.get_metadata(
+        decoded_decoder = parsed.parsed_result.get_metadatas(
             "description", encoder=metadata_parser.decode_html
         )
-        self.assertEqual(decoded_decoder, self._data["decode_html_encoder"]["decoded"])
+        self.assertEqual(
+            decoded_decoder[0], self._data["decode_html_encoder"]["decoded"]
+        )
 
     def test_default_encoder(self):
         """
@@ -368,18 +379,22 @@ class TestEncoders(unittest.TestCase):
         parsed_no_default = self._make_html("decode_html_encoder")
 
         # does the default_decoder work?
-        decoded_default = parsed_with_default.get_metadata("description")
-        self.assertEqual(decoded_default, self._data["decode_html_encoder"]["decoded"])
+        decoded_default = parsed_with_default.parsed_result.get_metadatas("description")
+        self.assertEqual(
+            decoded_default[0], self._data["decode_html_encoder"]["decoded"]
+        )
 
         # does the no decoder work as expected?
-        not_decoded = parsed_no_default.get_metadata("description")
-        self.assertEqual(not_decoded, self._data["decode_html_encoder"]["parsed"])
+        not_decoded = parsed_no_default.parsed_result.get_metadatas("description")
+        self.assertEqual(not_decoded[0], self._data["decode_html_encoder"]["parsed"])
 
         # can we override the default_decoder to get RAW?
-        decoded_override = parsed_with_default.get_metadata(
+        decoded_override = parsed_with_default.parsed_result.get_metadatas(
             "description", encoder="raw"
         )
-        self.assertEqual(decoded_override, self._data["decode_html_encoder"]["parsed"])
+        self.assertEqual(
+            decoded_override[0], self._data["decode_html_encoder"]["parsed"]
+        )
 
         # can we override the default_decoder to get something else?
         # ensure these 2 aren't equal, otherwise the next bit doesn't really test!
@@ -387,11 +402,11 @@ class TestEncoders(unittest.TestCase):
             self._data["decode_html_encoder"]["parsed"],
             self._data["decode_html_encoder"]["parsed"].upper(),
         )
-        decoded_override = parsed_with_default.get_metadata(
+        decoded_override = parsed_with_default.parsed_result.get_metadatas(
             "description", encoder=lambda x: x.upper()
         )
         self.assertEqual(
-            decoded_override, self._data["decode_html_encoder"]["parsed"].upper()
+            decoded_override[0], self._data["decode_html_encoder"]["parsed"].upper()
         )
 
 
@@ -418,92 +433,120 @@ class TestDocumentParsing(unittest.TestCase):
         html = self._MakeOne("simple.html")
         parsed = metadata_parser.MetadataParser(url=None, html=html)
         self.assertEqual(
-            parsed.metadata["meta"]["article:publisher"],
+            parsed.parsed_result.metadata["meta"]["article:publisher"],
             "https://www.example.com/meta/property=article:publisher",
         )
-        self.assertEqual(parsed.metadata["meta"]["author"], "meta.author")
-        self.assertEqual(parsed.metadata["meta"]["description"], "meta.description")
-        self.assertEqual(parsed.metadata["meta"]["keywords"], "meta.keywords")
+        self.assertEqual(parsed.parsed_result.metadata["meta"]["author"], "meta.author")
         self.assertEqual(
-            parsed.metadata["meta"]["og:description"], "meta.property=og:description"
+            parsed.parsed_result.metadata["meta"]["description"], "meta.description"
         )
         self.assertEqual(
-            parsed.metadata["meta"]["og:image"],
+            parsed.parsed_result.metadata["meta"]["keywords"], "meta.keywords"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["og:description"],
+            "meta.property=og:description",
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["og:image"],
             "https://www.example.com/meta/property=og:image",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["og:site_name"], "meta.property=og:site_name"
+            parsed.parsed_result.metadata["meta"]["og:site_name"],
+            "meta.property=og:site_name",
         )
-        self.assertEqual(parsed.metadata["meta"]["og:title"], "meta.property=og:title")
-        self.assertEqual(parsed.metadata["meta"]["og:type"], "meta.property=og:type")
         self.assertEqual(
-            parsed.metadata["meta"]["og:url"],
+            parsed.parsed_result.metadata["meta"]["og:title"], "meta.property=og:title"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["og:type"], "meta.property=og:type"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["og:url"],
             "https://www.example.com/meta/property=og:url",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["twitter:card"], "meta.name=twitter:card"
+            parsed.parsed_result.metadata["meta"]["twitter:card"],
+            "meta.name=twitter:card",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["twitter:description"],
+            parsed.parsed_result.metadata["meta"]["twitter:description"],
             "meta.name=twitter:description",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["twitter:image:src"],
+            parsed.parsed_result.metadata["meta"]["twitter:image:src"],
             "https://example.com/meta/name=twitter:image:src",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["twitter:site"], "meta.name=twitter:site"
+            parsed.parsed_result.metadata["meta"]["twitter:site"],
+            "meta.name=twitter:site",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["twitter:title"], "meta.name=twitter:title"
+            parsed.parsed_result.metadata["meta"]["twitter:title"],
+            "meta.name=twitter:title",
         )
         self.assertEqual(
-            parsed.metadata["meta"]["twitter:url"],
+            parsed.parsed_result.metadata["meta"]["twitter:url"],
             "https://example.com/meta/name=twitter:url",
         )
         self.assertEqual(
-            parsed.metadata["og"]["description"], "meta.property=og:description"
+            parsed.parsed_result.metadata["og"]["description"],
+            "meta.property=og:description",
         )
         self.assertEqual(
-            parsed.metadata["og"]["image"],
+            parsed.parsed_result.metadata["og"]["image"],
             "https://www.example.com/meta/property=og:image",
         )
         self.assertEqual(
-            parsed.metadata["og"]["site_name"], "meta.property=og:site_name"
-        )
-        self.assertEqual(parsed.metadata["og"]["title"], "meta.property=og:title")
-        self.assertEqual(parsed.metadata["og"]["type"], "meta.property=og:type")
-        self.assertEqual(
-            parsed.metadata["og"]["url"], "https://www.example.com/meta/property=og:url"
+            parsed.parsed_result.metadata["og"]["site_name"],
+            "meta.property=og:site_name",
         )
         self.assertEqual(
-            parsed.metadata["page"]["canonical"],
+            parsed.parsed_result.metadata["og"]["title"], "meta.property=og:title"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["og"]["type"], "meta.property=og:type"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["og"]["url"],
+            "https://www.example.com/meta/property=og:url",
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["page"]["canonical"],
             "http://example.com/meta/rel=canonical",
         )
         self.assertEqual(
-            parsed.metadata["page"]["shortlink"],
+            parsed.parsed_result.metadata["page"]["shortlink"],
             "http://example.com/meta/rel=shortlink",
         )
-        self.assertEqual(parsed.metadata["page"]["title"], "title")
-        self.assertEqual(parsed.metadata["twitter"]["card"], "meta.name=twitter:card")
+        self.assertEqual(parsed.parsed_result.metadata["page"]["title"], "title")
         self.assertEqual(
-            parsed.metadata["twitter"]["description"], "meta.name=twitter:description"
+            parsed.parsed_result.metadata["twitter"]["card"], "meta.name=twitter:card"
         )
         self.assertEqual(
-            parsed.metadata["twitter"]["image:src"],
+            parsed.parsed_result.metadata["twitter"]["description"],
+            "meta.name=twitter:description",
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["twitter"]["image:src"],
             "https://example.com/meta/name=twitter:image:src",
         )
-        self.assertEqual(parsed.metadata["twitter"]["site"], "meta.name=twitter:site")
-        self.assertEqual(parsed.metadata["twitter"]["title"], "meta.name=twitter:title")
         self.assertEqual(
-            parsed.metadata["twitter"]["url"],
+            parsed.parsed_result.metadata["twitter"]["site"], "meta.name=twitter:site"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["twitter"]["title"], "meta.name=twitter:title"
+        )
+        self.assertEqual(
+            parsed.parsed_result.metadata["twitter"]["url"],
             "https://example.com/meta/name=twitter:url",
         )
         self.assertEqual(
-            parsed.metadata["twitter"]["data"], "meta.name=twitter:data||value"
+            parsed.parsed_result.metadata["twitter"]["data"],
+            "meta.name=twitter:data||value",
         )
-        self.assertNotIn("label", parsed.metadata["twitter"])
-        self.assertEqual(parsed.is_opengraph_minimum(), True)
+        self.assertNotIn("label", parsed.parsed_result.metadata["twitter"])
+        self.assertEqual(parsed.parsed_result.is_opengraph_minimum(), True)
 
     def test_html_urls(self):
         """this tests simple.html to have certain fields"""
@@ -547,19 +590,21 @@ class TestDocumentParsing(unittest.TestCase):
 
         such as calling both:
             * `parsed.parsed_result.get_metadatas`
-            * `parsed.get_metadatas`
+            * `parsed.parsed_result.get_metadatas`
         """
         html = self._MakeOne("duplicates.html")
         parsed = metadata_parser.MetadataParser(url=None, html=html)
 
         # this is just a property and should be the same object
-        self.assertIs(parsed.metadata, parsed.parsed_result.metadata)
+        self.assertIs(parsed.parsed_result.metadata, parsed.parsed_result.metadata)
 
         # we should be tracking the verison now
-        self.assertIn("_v", parsed.metadata)
+        self.assertIn("_v", parsed.parsed_result.metadata)
 
         # it should be the same version
-        self.assertEqual(parsed.metadata_version, metadata_parser.ParsedResult._version)
+        self.assertEqual(
+            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
+        )
         self.assertEqual(
             parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
         )
@@ -567,7 +612,7 @@ class TestDocumentParsing(unittest.TestCase):
         # we have 3 og:image entries in this file
         _computed_link = parsed.get_metadata_link("image", strategy=["og"])
         assert _computed_link == "https://www.example.com/meta/property=og:image"
-        _all_og_images = parsed.get_metadatas("og:image")
+        _all_og_images = parsed.parsed_result.get_metadatas("og:image")
         assert _all_og_images is not None
         assert len(_all_og_images) == 3
         assert "https://www.example.com/meta/property=og:image" in _all_og_images
@@ -589,48 +634,62 @@ class TestDocumentParsing(unittest.TestCase):
             "citation_author:3",
         ]
         # these should be lists
-        self.assertEqual(parsed.metadata["meta"]["citation_author"], _citation_authors)
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["citation_author"], _citation_authors
+        )
         self.assertEqual(
             parsed.parsed_result.get_metadatas("citation_author", ["meta"]),
             _citation_authors,
         )
         self.assertEqual(
-            parsed.get_metadatas("citation_author", ["meta"]), _citation_authors
+            parsed.parsed_result.get_metadatas("citation_author", ["meta"]),
+            _citation_authors,
         )
         # this is a string
         self.assertEqual(
-            parsed.parsed_result.get_metadata("citation_author", ["meta"]),
+            parsed.parsed_result.get_metadatas("citation_author", ["meta"])[0],
             _citation_authors[0],
         )
         self.assertEqual(
-            parsed.get_metadata("citation_author", ["meta"]), _citation_authors[0]
+            parsed.parsed_result.get_metadatas("citation_author", ["meta"])[0],
+            _citation_authors[0],
         )
 
         _meta_authors = ["meta.author:1", "meta.author:2"]
         # these should be lists
-        self.assertEqual(parsed.metadata["meta"]["author"], _meta_authors)
+        self.assertEqual(parsed.parsed_result.metadata["meta"]["author"], _meta_authors)
         self.assertEqual(
             parsed.parsed_result.get_metadatas("author", ["meta"]), _meta_authors
         )
-        self.assertEqual(parsed.get_metadatas("author", ["meta"]), _meta_authors)
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("author", ["meta"]), _meta_authors
+        )
         # this is a string
         self.assertEqual(
-            parsed.parsed_result.get_metadata("author", ["meta"]), _meta_authors[0]
+            parsed.parsed_result.get_metadatas("author", ["meta"])[0], _meta_authors[0]
         )
-        self.assertEqual(parsed.get_metadata("author", ["meta"]), _meta_authors[0])
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("author", ["meta"])[0],
+            _meta_authors[0],
+        )
 
         _meta_kws = ["meta.keywords:1", "meta.keywords:2"]
         # these should be lists
-        self.assertEqual(parsed.metadata["meta"]["keywords"], _meta_kws)
+        self.assertEqual(parsed.parsed_result.metadata["meta"]["keywords"], _meta_kws)
         self.assertEqual(
             parsed.parsed_result.get_metadatas("keywords", ["meta"]), _meta_kws
         )
-        self.assertEqual(parsed.get_metadatas("keywords", ["meta"]), _meta_kws)
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords", ["meta"]), _meta_kws
+        )
         # this is a string
         self.assertEqual(
-            parsed.parsed_result.get_metadata("keywords", ["meta"]), _meta_kws[0]
+            parsed.parsed_result.get_metadatas("keywords", ["meta"])[0],
+            _meta_kws[0],
         )
-        self.assertEqual(parsed.get_metadata("keywords", ["meta"]), _meta_kws[0])
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords", ["meta"])[0], _meta_kws[0]
+        ),
 
         # -----
         # this is a single element and should be stored in the metadata dict as a string
@@ -640,22 +699,31 @@ class TestDocumentParsing(unittest.TestCase):
         self.assertEqual(
             parsed.parsed_result.get_metadatas("description", ["meta"]), [_description]
         )
-        self.assertEqual(parsed.get_metadatas("description", ["meta"]), [_description])
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", ["meta"]), [_description]
+        )
 
         # this is a string
-        self.assertEqual(parsed.metadata["meta"]["description"], _description)
         self.assertEqual(
-            parsed.parsed_result.get_metadata("description", ["meta"]), _description
+            parsed.parsed_result.metadata["meta"]["description"],
+            _description,
         )
-        self.assertEqual(parsed.get_metadata("description", ["meta"]), _description)
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", ["meta"])[0],
+            _description,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", ["meta"])[0],
+            _description,
+        )
 
         # -----
         # dc creator has a language variant
         #  'dc': {'Creator': [{'content': 'Plato'},
         #                     {'content': 'Platon', 'lang': 'fr'}],
 
-        self.assertIn("Creator", parsed.metadata["dc"])
-        dc_creator = parsed.metadata["dc"]["Creator"]
+        self.assertIn("Creator", parsed.parsed_result.metadata["dc"])
+        dc_creator = parsed.parsed_result.metadata["dc"]["Creator"]
         # so this should be a list
         self.assertIs(type(dc_creator), list)
         # with a length of 2
@@ -690,8 +758,8 @@ class TestDocumentParsing(unittest.TestCase):
             {"content": "Friendship"},
             {"content": "158.25", "scheme": "ddc"},
         ]
-        self.assertIn("Subject", parsed.metadata["dc"])
-        dc_subject = parsed.metadata["dc"]["Subject"]
+        self.assertIn("Subject", parsed.parsed_result.metadata["dc"])
+        dc_subject = parsed.parsed_result.metadata["dc"]["Subject"]
         self.assertIs(type(dc_subject), list)
         self.assertEqual(len(dc_subject), len(dcSubjectsExpected))
         for idx, _expected in enumerate(dc_subject):
@@ -710,8 +778,10 @@ class TestDocumentParsing(unittest.TestCase):
         # handle the ordering of results
         # the raw info tested is the same as the above Subject test...
         dcTestMixedCandidates1aExpected = {"content": "Friendship"}
-        self.assertIn("TestMixedCandidates1a", parsed.metadata["dc"])
-        dc_mixed_candidates = parsed.metadata["dc"]["TestMixedCandidates1a"]
+        self.assertIn("TestMixedCandidates1a", parsed.parsed_result.metadata["dc"])
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates1a"
+        ]
         self.assertIs(type(dc_mixed_candidates), dict)
         self.assertEqual(
             len(dc_mixed_candidates.keys()), len(dcTestMixedCandidates1aExpected.keys())
@@ -726,26 +796,25 @@ class TestDocumentParsing(unittest.TestCase):
             )
         # but we need to test get_metadata and get_metadatas
         with self.assertRaises(ValueError) as cm:
-            parsed.get_metadata("TestMixedCandidates1a", strategy="dc")
+            parsed.parsed_result.get_metadatas("TestMixedCandidates1a", strategy="dc")
         self.assertEqual(
             cm.exception.args[0], "If `strategy` is not a `list`, it must be 'all'."
         )
 
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates1a", strategy=["dc"]), "Friendship"
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1a", strategy=["dc"]
+            )[0],
+            {"content": "Friendship"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates1a", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1a", strategy=["dc"]
+            ),
             [dcTestMixedCandidates1aExpected],
         )
         self.assertEqual(
-            parsed.get_metadata(
-                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "FRIENDSHIP",
-        )
-        self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "FRIENDSHIP"}],
@@ -753,8 +822,10 @@ class TestDocumentParsing(unittest.TestCase):
 
         # 1b
         dcTestMixedCandidates1bExpected = {"content": "158.25", "scheme": "ddc"}
-        self.assertIn("TestMixedCandidates1b", parsed.metadata["dc"])
-        dc_mixed_candidates = parsed.metadata["dc"]["TestMixedCandidates1b"]
+        self.assertIn("TestMixedCandidates1b", parsed.parsed_result.metadata["dc"])
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates1b"
+        ]
         self.assertIs(type(dc_mixed_candidates), dict)
         self.assertEqual(
             len(dc_mixed_candidates.keys()), len(dcTestMixedCandidates1bExpected.keys())
@@ -769,20 +840,19 @@ class TestDocumentParsing(unittest.TestCase):
             )
         # but we need to test get_metadata and get_metadatas
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates1b", strategy=["dc"]), "158.25"
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1b", strategy=["dc"]
+            )[0],
+            {"content": "158.25", "scheme": "ddc"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates1b", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1b", strategy=["dc"]
+            ),
             [dcTestMixedCandidates1bExpected],
         )
         self.assertEqual(
-            parsed.get_metadata(
-                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "158.25",
-        )
-        self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "158.25", "SCHEME": "DDC"}],
@@ -796,8 +866,10 @@ class TestDocumentParsing(unittest.TestCase):
             {"content": "158.25", "scheme": "ddc"},
             {"content": "Friendship"},
         ]
-        self.assertIn("TestMixedCandidates2a", parsed.metadata["dc"])
-        dc_mixed_candidates = parsed.metadata["dc"]["TestMixedCandidates2a"]
+        self.assertIn("TestMixedCandidates2a", parsed.parsed_result.metadata["dc"])
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates2a"
+        ]
         self.assertIs(type(dc_mixed_candidates), list)
         self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2aExpected))
         for idx, _expected in enumerate(dc_mixed_candidates):
@@ -818,20 +890,27 @@ class TestDocumentParsing(unittest.TestCase):
         # but we need to test get_metadata and get_metadatas
 
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates2a", strategy=["dc"]), "Friendship"
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2a", strategy=["dc"]
+            )[0],
+            {"content": "158.25", "scheme": "ddc"},
+            {"content": "Friendship"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates2a", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2a", strategy=["dc"]
+            ),
             dcTestMixedCandidates2aExpected,
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "FRIENDSHIP",
+            )[0],
+            {"CONTENT": "158.25", "SCHEME": "DDC"},
+            {"CONTENT": "FRIENDSHIP"},
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "158.25", "SCHEME": "DDC"}, {"CONTENT": "FRIENDSHIP"}],
@@ -842,8 +921,10 @@ class TestDocumentParsing(unittest.TestCase):
             {"content": "Friendship"},
             {"content": "158.25", "scheme": "ddc"},
         ]
-        self.assertIn("TestMixedCandidates2b", parsed.metadata["dc"])
-        dc_mixed_candidates = parsed.metadata["dc"]["TestMixedCandidates2b"]
+        self.assertIn("TestMixedCandidates2b", parsed.parsed_result.metadata["dc"])
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates2b"
+        ]
         self.assertIs(type(dc_mixed_candidates), list)
         self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2bExpected))
         for idx, _expected in enumerate(dc_mixed_candidates):
@@ -863,20 +944,25 @@ class TestDocumentParsing(unittest.TestCase):
                 )
         # but we need to test get_metadata and get_metadatas
         self.assertEqual(
-            parsed.get_metadata("TestMixedCandidates2b", strategy=["dc"]), "Friendship"
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2b", strategy=["dc"]
+            )[0],
+            {"content": "Friendship"},
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedCandidates2b", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2b", strategy=["dc"]
+            ),
             dcTestMixedCandidates2bExpected,
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "FRIENDSHIP",
+            )[0],
+            {"CONTENT": "FRIENDSHIP"},
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "FRIENDSHIP"}, {"CONTENT": "158.25", "SCHEME": "DDC"}],
@@ -884,56 +970,61 @@ class TestDocumentParsing(unittest.TestCase):
 
         # ok, mixedfield tests:
         # TestMixedField0
-        self.assertEqual(parsed.get_metadata("TestMixedField0", strategy=["dc"]), None)
         self.assertEqual(
-            parsed.get_metadata("TestMixedField0", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["dc"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["meta"])[0],
             "meta:TestMixedField0",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField0", strategy="all"),
-            {"meta": "meta:TestMixedField0"},
-        )
-        self.assertEqual(
-            parsed.get_metadata(
-                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            None,
-        )
-        self.assertEqual(
-            parsed.get_metadata(
-                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
-            ),
-            "META:TESTMIXEDFIELD0",
-        )
-        self.assertEqual(
-            parsed.get_metadata(
-                "TestMixedField0", strategy="all", encoder=encoder_capitalizer
-            ),
-            {"meta": "META:TESTMIXEDFIELD0"},
-        )
-        self.assertEqual(parsed.get_metadatas("TestMixedField0", strategy=["dc"]), None)
-        self.assertEqual(
-            parsed.get_metadatas("TestMixedField0", strategy=["meta"]),
-            ["meta:TestMixedField0"],
-        )
-        self.assertEqual(
-            parsed.get_metadatas("TestMixedField0", strategy="all"),
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy="all"),
             {"meta": ["meta:TestMixedField0"]},
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
             ),
             None,
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
+            )[0],
+            "META:TESTMIXEDFIELD0",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy="all", encoder=encoder_capitalizer
+            ),
+            {"meta": ["META:TESTMIXEDFIELD0"]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["dc"]), None
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["meta"]),
+            ["meta:TestMixedField0"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy="all"),
+            {"meta": ["meta:TestMixedField0"]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
+            ),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD0"],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField0", strategy="all", encoder=encoder_capitalizer
             ),
             {"meta": ["META:TESTMIXEDFIELD0"]},
@@ -941,64 +1032,70 @@ class TestDocumentParsing(unittest.TestCase):
 
         # TestMixedField1
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy=["dc"]),
-            "dc:TestMixedField1",
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["dc"])[0],
+            {"content": "dc:TestMixedField1"},
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["meta"])[0],
             "meta:TestMixedField1",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField1", strategy="all"),
-            {"meta": "meta:TestMixedField1", "dc": "dc:TestMixedField1"},
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy="all"),
+            {
+                "dc": [{"content": "dc:TestMixedField1"}],
+                "meta": ["meta:TestMixedField1"],
+            },
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "DC:TESTMIXEDFIELD1",
+            )[0],
+            {"CONTENT": "DC:TESTMIXEDFIELD1"},
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
-            ),
+            )[0],
             "META:TESTMIXEDFIELD1",
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField1", strategy="all", encoder=encoder_capitalizer
             ),
-            {"meta": "META:TESTMIXEDFIELD1", "dc": "DC:TESTMIXEDFIELD1"},
+            {
+                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
+                "meta": ["META:TESTMIXEDFIELD1"],
+            },
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["dc"]),
             [{"content": "dc:TestMixedField1"}],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["meta"]),
             ["meta:TestMixedField1"],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField1", strategy="all"),
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy="all"),
             {
                 "meta": ["meta:TestMixedField1"],
                 "dc": [{"content": "dc:TestMixedField1"}],
             },
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD1"],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField1", strategy="all", encoder=encoder_capitalizer
             ),
             {
@@ -1008,48 +1105,61 @@ class TestDocumentParsing(unittest.TestCase):
         )
         # TestMixedField2
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy=["dc"]),
-            "dc:TestMixedField2",
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["dc"])[0],
+            {"content": "dc:TestMixedField2"},
+            {"con[45 chars]dc"},
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["meta"])[0],
             "meta:TestMixedField2",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField2", strategy="all"),
-            {"meta": "meta:TestMixedField2", "dc": "dc:TestMixedField2"},
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy="all"),
+            {
+                "dc": [
+                    {"content": "dc:TestMixedField2"},
+                    {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
+                ],
+                "meta": ["meta:TestMixedField2"],
+            },
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "DC:TESTMIXEDFIELD2",
+            )[0],
+            {"CONTENT": "DC:TESTMIXEDFIELD2"},
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
-            ),
+            )[0],
             "META:TESTMIXEDFIELD2",
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField2", strategy="all", encoder=encoder_capitalizer
             ),
-            {"meta": "META:TESTMIXEDFIELD2", "dc": "DC:TESTMIXEDFIELD2"},
+            {
+                "dc": [
+                    {"CONTENT": "DC:TESTMIXEDFIELD2"},
+                    {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
+                ],
+                "meta": ["META:TESTMIXEDFIELD2"],
+            },
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["dc"]),
             [
                 {"content": "dc:TestMixedField2"},
                 {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
             ],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["meta"]),
             ["meta:TestMixedField2"],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField2", strategy="all"),
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy="all"),
             {
                 "meta": ["meta:TestMixedField2"],
                 "dc": [
@@ -1059,7 +1169,7 @@ class TestDocumentParsing(unittest.TestCase):
             },
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [
@@ -1068,13 +1178,13 @@ class TestDocumentParsing(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD2"],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField2", strategy="all", encoder=encoder_capitalizer
             ),
             {
@@ -1088,64 +1198,70 @@ class TestDocumentParsing(unittest.TestCase):
 
         # TestMixedField3
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy=["dc"]),
-            "dc:TestMixedField3",
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"])[0],
+            {"content": "dc:TestMixedField3"},
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"])[0],
             "meta:TestMixedField3",
         )
         self.assertEqual(
-            parsed.get_metadata("TestMixedField3", strategy="all"),
-            {"meta": "meta:TestMixedField3", "dc": "dc:TestMixedField3"},
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy="all"),
+            {
+                "dc": [{"content": "dc:TestMixedField3"}],
+                "meta": ["meta:TestMixedField3"],
+            },
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            "DC:TESTMIXEDFIELD3",
+            )[0],
+            {"CONTENT": "DC:TESTMIXEDFIELD3"},
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
-            ),
+            )[0],
             "META:TESTMIXEDFIELD3",
         )
         self.assertEqual(
-            parsed.get_metadata(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField3", strategy="all", encoder=encoder_capitalizer
             ),
-            {"meta": "META:TESTMIXEDFIELD3", "dc": "DC:TESTMIXEDFIELD3"},
+            {
+                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
+                "meta": ["META:TESTMIXEDFIELD3"],
+            },
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy=["dc"]),
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"]),
             [{"content": "dc:TestMixedField3"}],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"]),
             ["meta:TestMixedField3"],
         )
         self.assertEqual(
-            parsed.get_metadatas("TestMixedField3", strategy="all"),
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy="all"),
             {
                 "meta": ["meta:TestMixedField3"],
                 "dc": [{"content": "dc:TestMixedField3"}],
             },
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
             ),
             [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
             ),
             ["META:TESTMIXEDFIELD3"],
         )
         self.assertEqual(
-            parsed.get_metadatas(
+            parsed.parsed_result.get_metadatas(
                 "TestMixedField3", strategy="all", encoder=encoder_capitalizer
             ),
             {
@@ -1154,37 +1270,53 @@ class TestDocumentParsing(unittest.TestCase):
             },
         )
 
-        self.assertEqual(parsed.get_metadata("news_keywords", strategy=["meta"]), "")
         self.assertEqual(
-            parsed.get_metadata("auto-publish", strategy=["meta"]), "timely"
+            parsed.parsed_result.get_metadatas("news_keywords", strategy=["meta"])[0],
+            "",
         )
         self.assertEqual(
-            parsed.get_metadata("article:modified_time", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("auto-publish", strategy=["meta"])[0],
+            "timely",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "article:modified_time", strategy=["meta"]
+            )[0],
             "2017-10-11 01:01:01",
         )
         self.assertEqual(
-            parsed.get_metadata("msapplication-tap-highlight", strategy=["meta"]), "no"
+            parsed.parsed_result.get_metadatas(
+                "msapplication-tap-highlight", strategy=["meta"]
+            )[0],
+            "no",
         )
         self.assertEqual(
-            parsed.get_metadata("google-site-verification", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas(
+                "google-site-verification", strategy=["meta"]
+            )[0],
             "123123123",
         )
         self.assertEqual(
-            parsed.get_metadata("twitter:data1", strategy=["meta"]), "8 min read"
+            parsed.parsed_result.get_metadatas("twitter:data1", strategy=["meta"])[0],
+            "8 min read",
         )
         self.assertEqual(
-            parsed.get_metadata("google", strategy=["meta"]), "notranslate"
+            parsed.parsed_result.get_metadatas("google", strategy=["meta"])[0],
+            "notranslate",
         )
-        self.assertEqual(parsed.get_metadata("news_keywords", strategy=["meta"]), "")
         self.assertEqual(
-            parsed.get_metadatas("viewport", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("news_keywords", strategy=["meta"])[0],
+            "",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("viewport", strategy=["meta"]),
             [
                 "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no",
                 "width=device-width, initial-scale=1, maximum-scale=1",
             ],
         )
         self.assertEqual(
-            parsed.get_metadata("thumbnail", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("thumbnail", strategy=["meta"])[0],
             "https://example.com/path/to/image.jpg",
         )
         self.assertEqual(
@@ -1192,14 +1324,15 @@ class TestDocumentParsing(unittest.TestCase):
             "https://example.com/path/to/image.jpg",
         )
         self.assertEqual(
-            parsed.get_metadata("thumbnail-2", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("thumbnail-2", strategy=["meta"])[0],
             "//example.com/path/to/image.jpg",
         )
         self.assertEqual(
             parsed.get_metadata_link("thumbnail-2", strategy=["meta"]), None
         )
         self.assertEqual(
-            parsed.get_metadata("thumbnail-3", strategy=["meta"]), "/path/to/image.jpg"
+            parsed.parsed_result.get_metadatas("thumbnail-3", strategy=["meta"])[0],
+            "/path/to/image.jpg",
         )
         self.assertEqual(
             parsed.get_metadata_link("thumbnail-3", strategy=["meta"]), None
@@ -1207,7 +1340,7 @@ class TestDocumentParsing(unittest.TestCase):
 
         # this should error!
         with self.assertRaises(ValueError) as cm:
-            parsed.get_metadatas("canonical", strategy=["all"])
+            parsed.parsed_result.get_metadatas("canonical", strategy=["all"])
         self.assertEqual(
             cm.exception.args[0], 'Submit "all" as a `str`, not in a `list`.'
         )
@@ -1217,25 +1350,31 @@ class TestDocumentParsing(unittest.TestCase):
 
         # get_metadata - single section
         self.assertEqual(
-            parsed.get_metadata("canonical", strategy=["page"]),
+            parsed.parsed_result.get_metadatas("canonical", strategy=["page"])[0],
             "http://example.com/meta/rel=canonical",
         )
-        self.assertEqual(parsed.get_metadata("canonical", strategy=["meta"]), None)
         self.assertEqual(
-            parsed.get_metadata("canonical", strategy="all"),
-            {"page": "http://example.com/meta/rel=canonical"},
+            parsed.parsed_result.get_metadatas("canonical", strategy=["meta"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy="all"),
+            {"page": ["http://example.com/meta/rel=canonical"]},
         )
 
         # get_metadatas - single section
         self.assertEqual(
-            parsed.get_metadatas("canonical", strategy=["page"]),
+            parsed.parsed_result.get_metadatas("canonical", strategy=["page"]),
             [
                 "http://example.com/meta/rel=canonical",
             ],
         )
-        self.assertEqual(parsed.get_metadatas("canonical", strategy=["meta"]), None)
         self.assertEqual(
-            parsed.get_metadatas("canonical", strategy="all"),
+            parsed.parsed_result.get_metadatas("canonical", strategy=["meta"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy="all"),
             {
                 "page": [
                     "http://example.com/meta/rel=canonical",
@@ -1245,39 +1384,38 @@ class TestDocumentParsing(unittest.TestCase):
 
         # get_metadata - multiple section
         self.assertEqual(
-            parsed.get_metadata("description", strategy=["meta"]), "meta.description"
+            parsed.parsed_result.get_metadatas("description", strategy=["meta"])[0],
+            "meta.description",
         )
         self.assertEqual(
-            parsed.get_metadata("description", strategy="all"),
+            parsed.parsed_result.get_metadatas("description", strategy="all"),
             {
-                "og": "meta.property=og:description",
-                "meta": "meta.description",
-                "twitter": "meta.name=twitter:description",
+                "og": ["meta.property=og:description"],
+                "meta": ["meta.description"],
+                "twitter": ["meta.name=twitter:description"],
             },
         )
         # get_metadatas - multiple section
         self.assertEqual(
-            parsed.get_metadatas("description", strategy=["meta"]), ["meta.description"]
+            parsed.parsed_result.get_metadatas("description", strategy=["meta"]),
+            ["meta.description"],
         )
         self.assertEqual(
-            parsed.get_metadatas("description", strategy="all"),
+            parsed.parsed_result.get_metadatas("description", strategy="all"),
             {
-                "og": [
-                    "meta.property=og:description",
-                ],
-                "meta": [
-                    "meta.description",
-                ],
+                "og": ["meta.property=og:description"],
+                "meta": ["meta.description"],
                 "twitter": ["meta.name=twitter:description"],
             },
         )
 
         # multiple candidates!
         self.assertEqual(
-            parsed.get_metadata("keywords", strategy=["meta"]), "meta.keywords:1"
+            parsed.parsed_result.get_metadatas("keywords", strategy=["meta"])[0],
+            "meta.keywords:1",
         )
         self.assertEqual(
-            parsed.get_metadatas("keywords", strategy=["meta"]),
+            parsed.parsed_result.get_metadatas("keywords", strategy=["meta"]),
             ["meta.keywords:1", "meta.keywords:2"],
         )
 
@@ -1293,23 +1431,27 @@ class TestDocumentParsing(unittest.TestCase):
         # in `simple.html`, "label" (incorrectly) uses "content" and "data" uses "label"
         parsed = metadata_parser.MetadataParser(url=None, html=html)
         self.assertEqual(
-            parsed.metadata["twitter"]["data"], "meta.name=twitter:data||value"
+            parsed.parsed_result.metadata["twitter"]["data"],
+            "meta.name=twitter:data||value",
         )
-        self.assertNotIn("label", parsed.metadata["twitter"])
-        self.assertNotIn("invalid", parsed.metadata["twitter"])
+        self.assertNotIn("label", parsed.parsed_result.metadata["twitter"])
+        self.assertNotIn("invalid", parsed.parsed_result.metadata["twitter"])
 
         # now with `support_malformed` support we will load the label!
         parsed2 = metadata_parser.MetadataParser(
             url=None, html=html, support_malformed=True
         )
         self.assertEqual(
-            parsed2.metadata["twitter"]["data"], "meta.name=twitter:data||value"
+            parsed2.parsed_result.metadata["twitter"]["data"],
+            "meta.name=twitter:data||value",
         )
         self.assertEqual(
-            parsed2.metadata["twitter"]["label"], "meta.name=twitter:label||content"
+            parsed2.parsed_result.metadata["twitter"]["label"],
+            "meta.name=twitter:label||content",
         )
         self.assertEqual(
-            parsed2.metadata["twitter"]["invalid"], "meta.name=twitter:invalid"
+            parsed2.parsed_result.metadata["twitter"]["invalid"],
+            "meta.name=twitter:invalid",
         )
 
         # try it with dupes...
@@ -1317,21 +1459,21 @@ class TestDocumentParsing(unittest.TestCase):
         parsed_dupe = metadata_parser.MetadataParser(url=None, html=html_dupes)
         # two items for each of data/label, but label is empty strings
         self.assertEqual(
-            parsed_dupe.metadata["twitter"]["data"],
+            parsed_dupe.parsed_result.metadata["twitter"]["data"],
             ["meta.name=twitter:data||value,1", "meta.name=twitter:data||value,2"],
         )
-        self.assertNotIn("label", parsed.metadata["twitter"])
+        self.assertNotIn("label", parsed.parsed_result.metadata["twitter"])
 
         # everyone is happy when metadata is malformed!
         parsed_dupe = metadata_parser.MetadataParser(
             url=None, html=html_dupes, support_malformed=True
         )
         self.assertEqual(
-            parsed_dupe.metadata["twitter"]["data"],
+            parsed_dupe.parsed_result.metadata["twitter"]["data"],
             ["meta.name=twitter:data||value,1", "meta.name=twitter:data||value,2"],
         )
         self.assertEqual(
-            parsed_dupe.metadata["twitter"]["label"],
+            parsed_dupe.parsed_result.metadata["twitter"]["label"],
             [
                 "meta.name=twitter:label||content,1",
                 "meta.name=twitter:label||content,2",
@@ -1345,16 +1487,17 @@ class TestDocumentParsing(unittest.TestCase):
         a_html = self._MakeOne("charset_a.html")
         a_parsed = metadata_parser.MetadataParser(url=None, html=a_html)
         self.assertEqual(
-            a_parsed.metadata["meta"]["content-type"], "text/html; charset=UTF-8"
+            a_parsed.parsed_result.metadata["meta"]["content-type"],
+            "text/html; charset=UTF-8",
         )
 
         b_html = self._MakeOne("charset_b.html")
         b_parsed = metadata_parser.MetadataParser(url=None, html=b_html)
-        self.assertEqual(b_parsed.metadata["meta"]["charset"], "UTF-8")
+        self.assertEqual(b_parsed.parsed_result.metadata["meta"]["charset"], "UTF-8")
 
         c_html = self._MakeOne("charset_c.html")
         c_parsed = metadata_parser.MetadataParser(url=None, html=c_html)
-        self.assertEqual(c_parsed.metadata["meta"]["charset"], "UTF-8")
+        self.assertEqual(c_parsed.parsed_result.metadata["meta"]["charset"], "UTF-8")
 
 
 class Test_UrlParserCacheable(unittest.TestCase):
@@ -1364,7 +1507,7 @@ class Test_UrlParserCacheable(unittest.TestCase):
 
     def test__default(self):
         """MetadataParser()"""
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1377,7 +1520,7 @@ class Test_UrlParserCacheable(unittest.TestCase):
 
     def test__True(self):
         """MetadataParser(cached_urlparser=True)"""
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1390,9 +1533,9 @@ class Test_UrlParserCacheable(unittest.TestCase):
 
     def test__Int_1(self):
         """MetadataParser(cached_urlparser=1)"""
-        with warnings.catch_warnings(record=True) as warned:
-            warnings.simplefilter("always")
-            errors = _docs_test_parser(
+        # this should fail
+        with self.assertRaises(ValueError) as cm:
+            parsed, errors = _docs_test_parser(
                 [
                     "good-canonical-relative",
                     "good-canonical-relative_alt",
@@ -1402,50 +1545,26 @@ class Test_UrlParserCacheable(unittest.TestCase):
             )
             if errors:
                 raise ValueError(errors)
-            assert len(warned) >= 1
-            _found = False
-            for w in warned:
-                if isinstance(w.message, FutureWarning):
-                    if w.message.args[0].startswith(
-                        "Supplying an int to `cached_urlparser` to set maxitems is deprecated."
-                    ):
-                        _found = True
-                        assert (
-                            "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
-                            in w.message.args[0]
-                        )
-            assert _found is True
+        assert isinstance(cm.exception, ValueError)
+        assert cm.exception.args[0] == "`cached_urlparser` must be a callable"
 
     def test__Int_0(self):
-        """MetadataParser(cached_urlparser=1)"""
-        with warnings.catch_warnings(record=True) as warned:
-            warnings.simplefilter("always")
-            errors = _docs_test_parser(
-                [
-                    "good-canonical-relative",
-                    "good-canonical-relative_alt",
-                    "good-og-relative_alt",
-                ],
-                0,
-            )
-            if errors:
-                raise ValueError(errors)
-            assert len(warned) >= 1
-            _found = False
-            for w in warned:
-                if isinstance(w.message, FutureWarning):
-                    if w.message.args[0].startswith(
-                        "Supplying `0` to `cached_urlparser` to set maxitems is deprecated."
-                    ):
-                        _found = True
-                        assert (
-                            "Supply `cached_urlparser=False` instead"
-                            in w.message.args[0]
-                        )
-            assert _found is True
+        """MetadataParser(cached_urlparser=0)"""
+        parsed, errors = _docs_test_parser(
+            [
+                "good-canonical-relative",
+                "good-canonical-relative_alt",
+                "good-og-relative_alt",
+            ],
+            0,
+        )
+        if errors:
+            raise ValueError(errors)
+        # equivalent to `cached_urlparser=False`
+        assert parsed.urlparse is urlparse
 
     def test__None(self):
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1457,7 +1576,7 @@ class Test_UrlParserCacheable(unittest.TestCase):
             raise ValueError(errors)
 
     def test__False(self):
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1471,7 +1590,7 @@ class Test_UrlParserCacheable(unittest.TestCase):
     def test__CustomParser(self):
         custom_parser_obj = metadata_parser.UrlParserCacheable()
         custom_parser = custom_parser_obj.urlparse
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1487,7 +1606,7 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
 
     def test__default(self):
         """MetadataParser()"""
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1501,7 +1620,7 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
 
     def test__True(self):
         # this should fail
-        errors = _docs_test_parser(
+        parsed, errors = _docs_test_parser(
             [
                 "good-canonical-relative",
                 "good-canonical-relative_alt",
@@ -1516,7 +1635,7 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
     def test__False(self):
         # this should fail
         with self.assertRaises(ValueError) as cm:
-            errors = _docs_test_parser(
+            parsed, errors = _docs_test_parser(
                 [
                     "good-canonical-relative",
                     "good-canonical-relative_alt",
@@ -1536,7 +1655,7 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
     def test__Int_1(self):
         # this should fail
         with self.assertRaises(ValueError) as cm:
-            errors = _docs_test_parser(
+            parsed, errors = _docs_test_parser(
                 [
                     "good-canonical-relative",
                     "good-canonical-relative_alt",
@@ -1554,9 +1673,10 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
         )
 
     def test__Int_0(self):
+        """MetadataParser(cached_urlparser=0)"""
         # this should fail
         with self.assertRaises(ValueError) as cm:
-            errors = _docs_test_parser(
+            parsed, errors = _docs_test_parser(
                 [
                     "good-canonical-relative",
                     "good-canonical-relative_alt",
@@ -1576,7 +1696,7 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
     def test__None(self):
         # this should fail
         with self.assertRaises(ValueError) as cm:
-            errors = _docs_test_parser(
+            parsed, errors = _docs_test_parser(
                 [
                     "good-canonical-relative",
                     "good-canonical-relative_alt",
@@ -1598,7 +1718,7 @@ class Test_UrlParserCacheable_MaxItems(unittest.TestCase):
         custom_parser_obj = metadata_parser.UrlParserCacheable()
         custom_parser = custom_parser_obj.urlparse
         with self.assertRaises(ValueError) as cm:
-            errors = _docs_test_parser(
+            parsed, errors = _docs_test_parser(
                 [
                     "good-canonical-relative",
                     "good-canonical-relative_alt",

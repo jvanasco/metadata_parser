@@ -1,5 +1,7 @@
 1.0 (unreleased)
-    1.0 will include an api overhaul and remove all deprecations
+    Remove Deprecated Functions
+    Split package into namespaces
+    add helper for dc metadata
 
 
 0.13.0
