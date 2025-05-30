@@ -1,8 +1,11 @@
 # stdlib
 import os
+from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Tuple
+from typing import Union
 import unittest
 
 # local
@@ -151,10 +154,16 @@ docs: Dict = {
 }
 
 
-def encoder_capitalizer(decoded):
-    if type(decoded) is dict:
-        return {k.upper(): v.upper() for k, v in decoded.items()}
-    return decoded.upper()
+def encoder_capitalizer(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
+    if isinstance(raw, dict):
+        return {k.upper(): v.upper() for k, v in raw.items()}
+    return raw.upper()
+
+
+def encoder_lowercaser(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
+    if isinstance(raw, dict):
+        return {k.lower(): v.lower() for k, v in raw.items()}
+    return raw.lower()
 
 
 # setup the test_docs with html bodies
@@ -330,7 +339,7 @@ class TestEncoders(unittest.TestCase):
         parsed.parsed_result.metadata["meta"]["title"] = self._data[data_option]["raw"]
         return parsed
 
-    def _make_html(self, data_option, default_encoder=None):
+    def _make_html(self, data_option, default_encoder: Optional[Callable] = None):
         # data coming through beautifulsoup is parsed by that library
         parsed = metadata_parser.MetadataParser(
             html=self._data[data_option]["html"],
@@ -403,7 +412,7 @@ class TestEncoders(unittest.TestCase):
             self._data["decode_html_encoder"]["parsed"].upper(),
         )
         decoded_override = parsed_with_default.parsed_result.get_metadatas(
-            "description", encoder=lambda x: x.upper()
+            "description", encoder=encoder_capitalizer
         )
         self.assertEqual(
             decoded_override[0], self._data["decode_html_encoder"]["parsed"].upper()
@@ -595,18 +604,13 @@ class TestDocumentParsing(unittest.TestCase):
         html = self._MakeOne("duplicates.html")
         parsed = metadata_parser.MetadataParser(url=None, html=html)
 
-        # this is just a property and should be the same object
-        self.assertIs(parsed.parsed_result.metadata, parsed.parsed_result.metadata)
-
         # we should be tracking the verison now
         self.assertIn("_v", parsed.parsed_result.metadata)
 
         # it should be the same version
         self.assertEqual(
-            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
-        )
-        self.assertEqual(
-            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
+            parsed.parsed_result.metadata_version,
+            metadata_parser.ParsedResult._version,
         )
 
         # we have 3 og:image entries in this file
@@ -688,8 +692,9 @@ class TestDocumentParsing(unittest.TestCase):
             _meta_kws[0],
         )
         self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", ["meta"])[0], _meta_kws[0]
-        ),
+            parsed.parsed_result.get_metadatas("keywords", ["meta"])[0],
+            _meta_kws[0],
+        )
 
         # -----
         # this is a single element and should be stored in the metadata dict as a string
@@ -1418,6 +1423,20 @@ class TestDocumentParsing(unittest.TestCase):
             parsed.parsed_result.get_metadatas("keywords", strategy=["meta"]),
             ["meta.keywords:1", "meta.keywords:2"],
         )
+
+    def test_complex_html__encoder(self):
+        html = self._MakeOne("duplicates.html")
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+
+        # we should be tracking the verison now
+        self.assertIn("_v", parsed.parsed_result.metadata)
+
+        # it should be the same version
+        self.assertEqual(
+            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
+        )
+
+        # TODO
 
     def test_malformed_twitter(self):
         """

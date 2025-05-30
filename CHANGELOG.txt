@@ -1,10 +1,32 @@
 1.0.0 (unreleased)
-    Remove Deprecated Functions
-    Split package into namespaces
-    add helper for dc metadata
+    Backwards Incompatible Changes:
+        Remove Deprecated Functions:
+            `MetadataParser.get_metadata`
+            `MetadataParser.get_metadatas`
+            `MetadataParser.is_opengraph_minimum`
+            `MetadataParser.metadata`
+            `MetadataParser.metadata_encoding`
+            `MetadataParser.metadata_version`
+            `MetadataParser.soup`
+            `ParsedResult.get_metadata`
+        Remove Deprecated Functionality:
+            `MetadataParser.__init__::cached_urlparser`
+                    no longer accepts `int` to control `cached_urlparser_maxitems`
+        Encoder changes
+            previously, encoders accepted one argument.
+            now they accept two arguments:
+                Arg 1 is a string or dict
+                Arg 2 is string, identifying the strategy/store
+            affected functions:
+                `decode_html`
+                `encode_ascii`
+                `ParsedResult.default_encoder`
+                `ParsedResult.get_metadatas::encoder`
+                `MetadataParser.__init__::default_encoder`
+                
 
-    
-
+            
+        Split package into namespaces
 
 0.13.0
     * drop py36; no test options due to github deprecation of ubuntu20.04

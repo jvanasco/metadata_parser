@@ -4,6 +4,7 @@ from html import unescape as html_unescape
 import logging
 from typing import AnyStr
 from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -87,22 +88,30 @@ class DummyResponse(object):
         # end `encoding` block
 
 
-def decode_html(text: str) -> str:
+def decode_html(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
     """
     helper function to decode text that has both HTML and non-ascii characters
     """
-    text = encode_ascii(html_unescape(text))
+    if isinstance(raw, dict):
+        if strategy == "dc":
+            return decode_html(raw.get("content", ""))
+        raise ValueError("strategy `%s` not known to support `dict")
+    text = encode_ascii(html_unescape(raw))
     return text
 
 
-def encode_ascii(text: str) -> str:
+def encode_ascii(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
     """
     helper function to force ascii;
     some edge-cases have unicode line breaks in titles/etc.
     """
-    if not text:
-        text = ""
-    _as_bytes = unicodedata.normalize("NFKD", text).encode("ascii", "ignore")
+    if isinstance(raw, dict):
+        if strategy == "dc":
+            return encode_ascii(raw.get("content", ""))
+        raise ValueError("strategy `%s` not known to support `dict")
+    if not raw:
+        raw = ""
+    _as_bytes = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore")
     _as_str = _as_bytes.decode("utf-8", "ignore")
     return _as_str
 

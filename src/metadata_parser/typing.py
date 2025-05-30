@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 # ==============================================================================
 
+TYPE_ENCODER = Callable[[str, Optional[str]], str]  # def encode(value, strategy)
 TYPE_REQUESTS_TIMEOUT = Optional[
     Union[int, float, Tuple[int, int], Tuple[float, float]]
 ]

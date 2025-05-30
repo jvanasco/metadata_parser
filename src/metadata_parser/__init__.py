@@ -51,6 +51,7 @@ from .utils import warn_user
 
 if TYPE_CHECKING:
     from bs4 import Tag as _bs4_Tag
+    from .typing import TYPE_ENCODER
     from .typing import TYPE_REQUESTS_TIMEOUT
     from .typing import TYPE_URL_FETCH
     from .typing import TYPES_PEERNAME
@@ -563,7 +564,7 @@ class ParsedResult(object):
         None  # only stashing `ResponseHistory` if we have it
     )
     _version: int = 1  # version tracking
-    default_encoder: Optional[Callable[[str], str]] = None
+    default_encoder: Optional["TYPE_ENCODER"] = None
     og_minimum_requirements: List = ["title", "type", "image", "url"]
     twitter_sections: List = ["card", "title", "site", "description"]
     strategy: Union[List[str], str] = ["og", "dc", "meta", "page", "twitter"]
@@ -647,7 +648,7 @@ class ParsedResult(object):
         self,
         field: str,
         strategy: Union[List[str], str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
+        encoder: Optional["TYPE_ENCODER"] = None,
     ) -> Optional[Union[Dict, List]]:
         """
         looks for the field in various stores.  defaults to the core
@@ -668,10 +669,21 @@ class ParsedResult(object):
 
         :param encoder:
           a function, such as `encode_ascii`, to encode values before returning.
-          a valid `encoder` accepts one(1) arg.
+          a valid `encoder` requires one arg and accepts one optional arg:.
+
+            def encode(value: Union[str, dict], store:Optional[str]=None) -> str:
+                if store == "dc":
+                    return value["content"].lower() if "content" in value else None
+                return value.lower() if value is not None else None
+
           if a `default_encoder` is registered, the string "raw" will disable it.
         :type encoder:
           function or "raw"
+
+        :param dc_simple:
+          simplify dc elements into just the 'content' text, not dict
+        :type encoder:
+          bool
         """
         strategy = self._coerce_validate_strategy(strategy)
 
@@ -684,11 +696,9 @@ class ParsedResult(object):
             if field in self.metadata[store]:
                 val = self.metadata[store][field]
                 if not isinstance(val, list):
-                    val = [
-                        val,
-                    ]
+                    val = [val]
                 if encoder:
-                    val = [encoder(v) for v in val]
+                    val = [encoder(v, store) for v in val]
                 return val
             return None
 
@@ -798,7 +808,7 @@ class MetadataParser(object):
     requests_session: Optional[requests.Session] = None
     derive_encoding: Optional[bool] = None
     default_encoding: Optional[str] = None
-    default_encoder: Optional[Callable[[str], str]] = None
+    default_encoder: Optional["TYPE_ENCODER"] = None
     support_malformed: Optional[bool] = None
 
     urlparse: Callable[[str], ParseResult]
@@ -838,7 +848,7 @@ class MetadataParser(object):
         derive_encoding: bool = True,
         html_encoding: Optional[str] = None,
         default_encoding: Optional[str] = None,
-        default_encoder: Optional[Callable[[str], str]] = None,
+        default_encoder: Optional["TYPE_ENCODER"] = None,
         retry_dropped_without_headers: Optional[bool] = None,
         support_malformed: Optional[bool] = None,
         cached_urlparser: Union[bool, Callable[[str], ParseResult]] = True,
