@@ -1,0 +1,7 @@
+1.0.0
+    update README.md
+        default strategy changed
+    tests needed for:
+        select_first_strategy
+            try to break it
+            select different strategies, different data on each

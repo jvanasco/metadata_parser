@@ -109,7 +109,8 @@ Optional Integrations
 
 * ``tldextract``
   This package will attempt to use the package ``tldextract`` for advanced domain
-  and hostname analysis. If ``tldextract`` is not found, a fallback is used.
+  and hostname analysis. If ``tldextract`` is not wanted, it can be disabled
+  with an environment variable.
 
 
 Environment Variables
@@ -389,19 +390,19 @@ Until version ``0.9.19``, the recommended way to get metadata was to use
 
     >>> import metadata_parser
     >>> page = metadata_parser.MetadataParser(url="http://www.example.com")
-    >>> print page.metadata
-    >>> print page.get_metadatas('title')
-    >>> print page.get_metadatas('title', strategy=['og',])
-    >>> print page.get_metadatas('title', strategy=['page', 'og', 'dc',])
+    >>> print(page.metadata)
+    >>> print(page.get_metadatas('title'))
+    >>> print(page.get_metadatas('title', strategy=['og',]))
+    >>> print(page.get_metadatas('title', strategy=['page', 'og', 'dc',]))
 
 **From HTML**::
 
     >>> HTML = """<here>"""
     >>> page = metadata_parser.MetadataParser(html=HTML)
-    >>> print page.metadata
-    >>> print page.get_metadatas('title')
-    >>> print page.get_metadatas('title', strategy=['og',])
-    >>> print page.get_metadatas('title', strategy=['page', 'og', 'dc',])
+    >>> print(page.metadata)
+    >>> print(page.get_metadatas('title'))
+    >>> print(page.get_metadatas('title', strategy=['og',]))
+    >>> print(page.get_metadatas('title', strategy=['page', 'og', 'dc',]))
 
 
 Malformed Data

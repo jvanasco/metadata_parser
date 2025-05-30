@@ -54,8 +54,10 @@ if TYPE_CHECKING:
     from .typing import TYPE_ENCODER
     from .typing import TYPE_REQUESTS_TIMEOUT
     from .typing import TYPE_URL_FETCH
+    from .typing import TYPE_URLPARSE
     from .typing import TYPES_PEERNAME
     from .typing import TYPES_RESPONSE
+    from .typing import TYPES_STRATEGY
 
 if __debug__:
     # only used for testing. turn off in most production env with -o flags
@@ -138,6 +140,8 @@ SCHEMELESS_FIELDS_UPGRADEABLE = (
     "og:video:secure_url",
 )
 
+
+STRATEGY_ALL = ["meta", "page", "og", "dc", "twitter"]
 
 # ------------------------------------------------------------------------------
 
@@ -324,7 +328,7 @@ def is_url_valid(
     url: str,
     require_public_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
-    urlparser: Callable[[str], ParseResult] = urlparse,
+    urlparser: "TYPE_URLPARSE" = urlparse,
 ) -> Union[Literal[False], ParseResult]:
     """
     tries to parse a url. if valid returns `ParseResult`
@@ -352,7 +356,7 @@ def url_to_absolute_url(
     url_fallback: Optional[str] = None,
     require_public_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
-    urlparser: Callable[[str], ParseResult] = urlparse,
+    urlparser: "TYPE_URLPARSE" = urlparse,
 ) -> Optional[str]:
     """
     returns an "absolute url" if we have one.
@@ -517,12 +521,12 @@ class UrlParserCacheable(_UrlParserCacheable):
 
     cache: collections.OrderedDict
     maxitems: int
-    urlparser: Callable[[str], ParseResult]
+    urlparser: "TYPE_URLPARSE"
 
     def __init__(
         self,
         maxitems: int = 30,
-        urlparser: Callable[[str], ParseResult] = urlparse,
+        urlparser: "TYPE_URLPARSE" = urlparse,
     ):
         """
         :param maxitems: maximum items to cache, default 30
@@ -558,24 +562,26 @@ class ParsedResult(object):
     readme/docs are not necessarily installed locally.
     """
 
+    _og_minimum_requirements: List = ["title", "type", "image", "url"]
+    _version: int = 1  # version tracking
+
+    # unused
+    # _get_metadata__last_strategy: Optional[str] = None
+    # twitter_sections: List = ["card", "title", "site", "description"]
+
+    default_encoder: Optional["TYPE_ENCODER"] = None
     metadata: Dict
-    soup: Optional[BeautifulSoup] = None
     response_history: Optional[ResponseHistory] = (
         None  # only stashing `ResponseHistory` if we have it
     )
-    _version: int = 1  # version tracking
-    default_encoder: Optional["TYPE_ENCODER"] = None
-    og_minimum_requirements: List = ["title", "type", "image", "url"]
-    twitter_sections: List = ["card", "title", "site", "description"]
-    strategy: Union[List[str], str] = ["og", "dc", "meta", "page", "twitter"]
-
-    _get_metadata__last_strategy: Optional[str] = None
+    soup: Optional[BeautifulSoup] = None
+    strategy: Union[List[str], str] = STRATEGY_ALL
 
     def __init__(self):
         self.metadata = {
-            "og": {},
-            "meta": {},
             "dc": {},
+            "meta": {},
+            "og": {},
             "page": {},
             "twitter": {},
             "_internal": {},
@@ -623,7 +629,7 @@ class ParsedResult(object):
 
     def _coerce_validate_strategy(
         self,
-        strategy: Union[List[str], str, None] = None,
+        strategy: "TYPES_STRATEGY" = None,
     ) -> Union[List, str]:
         """normalize a strategy into a valid option"""
         if strategy:
@@ -647,13 +653,13 @@ class ParsedResult(object):
     def get_metadatas(
         self,
         field: str,
-        strategy: Union[List[str], str, None] = None,
+        strategy: "TYPES_STRATEGY" = None,
         encoder: Optional["TYPE_ENCODER"] = None,
-    ) -> Optional[Union[Dict, List]]:
+    ) -> Optional[Dict[str, Union[Dict, List]]]:
         """
         looks for the field in various stores.  defaults to the core
         strategy, though you may specify a certain item.  if you search for
-        'all' it will return a dict of all values.
+        "all" it will return a dict of all values.
 
         This method replaced the legacy method `get_metadatas`.
         This method will always return a list.
@@ -663,8 +669,8 @@ class ParsedResult(object):
         :type field: str
 
         :param strategy:
-          Where to search for the metadata. such as 'all' or
-          iterable like ['og', 'dc', 'meta', 'page', 'twitter', ]
+          Where to search for the metadata. such as "all" or
+          iterable like ["meta", "page", "og", "dc", "twitter", ]
         :type strategy: string or list
 
         :param encoder:
@@ -702,6 +708,8 @@ class ParsedResult(object):
                 return val
             return None
 
+        rval: Dict = {}
+
         # `_coerce_validate_strategy` ensured a compliant strategy
         if isinstance(strategy, list):
             # returns List or None
@@ -709,11 +717,10 @@ class ParsedResult(object):
                 if store in self.metadata:
                     val = _lookup(store)
                     if val is not None:
-                        return val
-            return None
+                        rval[store] = val
+            return rval or None
         elif strategy == "all":
             # returns Dict or None
-            rval: Dict = {}
             for store in self.metadata:
                 if store == "_v":
                     continue
@@ -731,9 +738,37 @@ class ParsedResult(object):
         return all(
             [
                 self.metadata["og"].get(attr, None)
-                for attr in self.og_minimum_requirements
+                for attr in self._og_minimum_requirements
             ]
         )
+
+    def select_first_match(
+        self,
+        field: str,
+        strategy: "TYPES_STRATEGY" = None,
+    ) -> Optional[str]:
+        candidates = self.get_metadatas(field, strategy=strategy)
+        if not candidates:
+            return None
+        # invoke the default strategy if needed
+        strategy = strategy or self.strategy
+        # act on the strategy
+        if strategy == "all":
+            first_strategy = list(candidates.keys())[0]
+        else:
+            assert isinstance(strategy, list)
+            for _strategy in strategy:
+                if _strategy in candidates:
+                    first_strategy = _strategy
+                    break
+        first_value = candidates[first_strategy][0]
+        if isinstance(first_value, dict):
+            if first_strategy == "dc":
+                return first_value["content"]
+            msg = "unknown dict handling for strategy=`%s`" % first_strategy
+            raise ValueError(msg)
+            # return None
+        return first_value
 
 
 # ------------------------------------------------------------------------------
@@ -790,7 +825,7 @@ class MetadataParser(object):
 
     url: Optional[str] = None
     url_actual: Optional[str] = None
-    strategy: Union[List[str], str, None] = None
+    strategy: "TYPES_STRATEGY" = None
     LEN_MAX_TITLE: int = 255
     only_parse_file_extensions: Optional[List[str]] = None
     allow_localhosts: Optional[bool] = None
@@ -811,7 +846,7 @@ class MetadataParser(object):
     default_encoder: Optional["TYPE_ENCODER"] = None
     support_malformed: Optional[bool] = None
 
-    urlparse: Callable[[str], ParseResult]
+    urlparse: "TYPE_URLPARSE"
     _cached_urlparser: Optional[_UrlParserCacheable]
 
     # this has a per-parser default tuple
@@ -828,7 +863,7 @@ class MetadataParser(object):
         self,
         url: Optional[str] = None,
         html: Optional[str] = None,
-        strategy: Union[List[str], str, None] = None,
+        strategy: "TYPES_STRATEGY" = None,
         url_data: Optional[Dict[str, Any]] = None,
         url_headers: Optional[Dict[str, str]] = None,
         force_parse: bool = False,
@@ -851,7 +886,7 @@ class MetadataParser(object):
         default_encoder: Optional["TYPE_ENCODER"] = None,
         retry_dropped_without_headers: Optional[bool] = None,
         support_malformed: Optional[bool] = None,
-        cached_urlparser: Union[bool, Callable[[str], ParseResult]] = True,
+        cached_urlparser: Union[bool, "TYPE_URLPARSE"] = True,
         cached_urlparser_maxitems: Optional[int] = None,
     ):
         """
@@ -1756,12 +1791,13 @@ class MetadataParser(object):
             allow_unicode_url=True
         """
         _candidates = self.parsed_result.get_metadatas("canonical", strategy=["page"])
+        candidates = _candidates["page"] if _candidates else _candidates
 
         # get_metadatas returns a list, so find the first canonical item
-        _candidates = [c for c in _candidates if c] if _candidates else []
-        if not _candidates:
+        candidates = [c for c in candidates if c] if candidates else []
+        if not candidates:
             return None
-        canonical = _candidates[0]
+        canonical = candidates[0]
 
         # does the canonical have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
@@ -1831,11 +1867,13 @@ class MetadataParser(object):
             allow_unicode_url=True
         """
         _candidates = self.parsed_result.get_metadatas("url", strategy=["og"])
+        candidates = _candidates["og"] if _candidates else _candidates
+
         # get_metadatas returns a list, so find the first og item
-        _candidates = [c for c in _candidates if c] if _candidates else []
-        if not _candidates:
+        candidates = [c for c in candidates if c] if candidates else []
+        if not candidates:
             return None
-        og = _candidates[0]
+        og = candidates[0]
 
         # does the og have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
@@ -1950,7 +1988,7 @@ class MetadataParser(object):
     def get_metadata_link(
         self,
         field: str,
-        strategy: Union[List[str], str, None] = None,
+        strategy: "TYPES_STRATEGY" = None,
         allow_encoded_uri: bool = False,
         require_public_global: bool = True,
     ) -> Optional[str]:
@@ -1961,7 +1999,7 @@ class MetadataParser(object):
 
         kwargs:
             strategy=None
-                'all' or List ['og', 'dc', 'meta', 'page', 'twitter', ]
+                "all" or List ["og", "dc", "meta", "page", "twitter", ]
             allow_encoded_uri=False
             require_public_global=True
 
@@ -1970,12 +2008,10 @@ class MetadataParser(object):
             also require the fallback url to be on the public internet and not a
             localhost value.
         """
-        _candidates = self.parsed_result.get_metadatas(field, strategy=strategy)
-        _candidates = [c for c in _candidates if c] if _candidates else []
-        if not _candidates:
-            return None
         # `_value` will be our raw value
-        _value = _candidates[0]
+        _value = self.parsed_result.select_first_match(field, strategy=strategy)
+        if not _value:
+            return None
 
         # `value` will be our clean value
         # remove whitespace, because some bad blogging platforms add in whitespace by printing elements on multiple lines. d'oh!

@@ -104,6 +104,14 @@ def encode_ascii(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
     """
     helper function to force ascii;
     some edge-cases have unicode line breaks in titles/etc.
+
+    reference function for `encoder`
+
+    The first arg is a `raw` value to be encoded, which will either be a str or
+    dict.  The second arg is an (optional) str that identifies the strategy.
+
+    When invoked by `MetadataParser.get_metadatas()` the strategy will always
+    be sent.
     """
     if isinstance(raw, dict):
         if strategy == "dc":

@@ -1,5 +1,7 @@
 # stdlib
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import TYPE_CHECKING
@@ -16,14 +18,19 @@ if TYPE_CHECKING:
 
 # ==============================================================================
 
-TYPE_ENCODER = Callable[[str, Optional[str]], str]  # def encode(value, strategy)
+# TYPE_ENCODER = Callable[[str, Optional[str]], str]  # def encode(value, strategy)
+TYPE_ENCODER = Callable[
+    [str, Optional[str]], Union[str, Dict]
+]  # def encode(value, strategy)
 TYPE_REQUESTS_TIMEOUT = Optional[
     Union[int, float, Tuple[int, int], Tuple[float, float]]
 ]
 TYPE_URL_FETCH = Tuple[str, str, "ResponseHistory"]
+TYPE_URLPARSE = Callable[[str], "ParseResult"]
 TYPES_PEERNAME = Tuple[str, int]  # (ip, port)
 TYPES_RESPONSE = Union["DummyResponse", "requests.Response"]
+TYPES_STRATEGY = Union[List[str], str, None]
 
 
 class _UrlParserCacheable(Protocol):
-    urlparse: Callable[[str], "ParseResult"]
+    urlparse: TYPE_URLPARSE

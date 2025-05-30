@@ -154,13 +154,19 @@ docs: Dict = {
 }
 
 
-def encoder_capitalizer(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
+def encoder_capitalizer(
+    raw: Union[str, Dict], strategy: Optional[str] = None
+) -> Union[str, dict]:
+    # note, an api compliant encoder will only return str
     if isinstance(raw, dict):
         return {k.upper(): v.upper() for k, v in raw.items()}
     return raw.upper()
 
 
-def encoder_lowercaser(raw: Union[str, Dict], strategy: Optional[str] = None) -> str:
+def encoder_lowercaser(
+    raw: Union[str, Dict], strategy: Optional[str] = None
+) -> Union[str, dict]:
+    # note, an api compliant encoder will only return str
     if isinstance(raw, dict):
         return {k.lower(): v.lower() for k, v in raw.items()}
     return raw.lower()
@@ -351,29 +357,33 @@ class TestEncoders(unittest.TestCase):
     def test_unicode_whitespace(self):
         parsed = self._make_raw("unicode_whitespace")
         # title_raw = parsed.parsed_result.get_metadatas('title')
-        title_ascii = parsed.parsed_result.get_metadatas(
+        _title_ascii = parsed.parsed_result.get_metadatas(
             "title", encoder=metadata_parser.utils.encode_ascii
         )
+        title_ascii = _title_ascii["meta"]
         self.assertEqual(title_ascii[0], self._data["unicode_whitespace"]["ascii"])
 
     def test_unicode_chars(self):
         parsed = self._make_raw("unicode_chars")
         # title_raw = parsed.parsed_result.get_metadatas('title')
-        title_ascii = parsed.parsed_result.get_metadatas(
+        _title_ascii = parsed.parsed_result.get_metadatas(
             "title", encoder=metadata_parser.utils.encode_ascii
         )
+        title_ascii = _title_ascii["meta"]
         self.assertEqual(title_ascii[0], self._data["unicode_chars"]["ascii"])
 
     def test_decode_html_encoder(self):
         parsed = self._make_html("decode_html_encoder")
-        parsed_description = parsed.parsed_result.get_metadatas("description")
+        _parsed_description = parsed.parsed_result.get_metadatas("description")
+        parsed_description = _parsed_description["meta"]
 
         decoded_direct = metadata_parser.utils.decode_html(parsed_description[0])
         self.assertEqual(decoded_direct, self._data["decode_html_encoder"]["decoded"])
 
-        decoded_decoder = parsed.parsed_result.get_metadatas(
+        _decoded_decoder = parsed.parsed_result.get_metadatas(
             "description", encoder=metadata_parser.utils.decode_html
         )
+        decoded_decoder = _decoded_decoder["meta"]
         self.assertEqual(
             decoded_decoder[0], self._data["decode_html_encoder"]["decoded"]
         )
@@ -388,19 +398,24 @@ class TestEncoders(unittest.TestCase):
         parsed_no_default = self._make_html("decode_html_encoder")
 
         # does the default_decoder work?
-        decoded_default = parsed_with_default.parsed_result.get_metadatas("description")
+        _decoded_default = parsed_with_default.parsed_result.get_metadatas(
+            "description"
+        )
+        decoded_default = _decoded_default["meta"]
         self.assertEqual(
             decoded_default[0], self._data["decode_html_encoder"]["decoded"]
         )
 
         # does the no decoder work as expected?
-        not_decoded = parsed_no_default.parsed_result.get_metadatas("description")
+        _not_decoded = parsed_no_default.parsed_result.get_metadatas("description")
+        not_decoded = _not_decoded["meta"]
         self.assertEqual(not_decoded[0], self._data["decode_html_encoder"]["parsed"])
 
         # can we override the default_decoder to get RAW?
-        decoded_override = parsed_with_default.parsed_result.get_metadatas(
+        _decoded_override = parsed_with_default.parsed_result.get_metadatas(
             "description", encoder="raw"
         )
+        decoded_override = _decoded_override["meta"]
         self.assertEqual(
             decoded_override[0], self._data["decode_html_encoder"]["parsed"]
         )
@@ -411,22 +426,16 @@ class TestEncoders(unittest.TestCase):
             self._data["decode_html_encoder"]["parsed"],
             self._data["decode_html_encoder"]["parsed"].upper(),
         )
-        decoded_override = parsed_with_default.parsed_result.get_metadatas(
+        _decoded_override = parsed_with_default.parsed_result.get_metadatas(
             "description", encoder=encoder_capitalizer
         )
+        decoded_override = _decoded_override["meta"]
         self.assertEqual(
             decoded_override[0], self._data["decode_html_encoder"]["parsed"].upper()
         )
 
 
-class TestDocumentParsing(unittest.TestCase):
-    """
-    python -m unittest tests.document_parsing.TestDocumentParsing
-    python -m unittest tests.document_parsing.TestDocumentParsing.test_simple_html
-    python -m unittest tests.document_parsing.TestDocumentParsing.test_html_urls
-    python -m unittest tests.document_parsing.TestDocumentParsing.test_complex_html
-    python -m unittest tests.document_parsing.TestDocumentParsing.test_charsets
-    """
+class _TestDocumentParsingCore:
 
     def _MakeOne(self, filename):
         """lazy cache of files as needed"""
@@ -436,6 +445,16 @@ class TestDocumentParsing(unittest.TestCase):
                 os.path.join(_examples_dir, filename)
             ).read()
         return CACHED_FILESYSTEM_DOCUMENTS[filename]
+
+
+class TestDocumentParsing(unittest.TestCase, _TestDocumentParsingCore):
+    """
+    python -m unittest tests.document_parsing.TestDocumentParsing
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_simple_html
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_html_urls
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_complex_html
+    python -m unittest tests.document_parsing.TestDocumentParsing.test_charsets
+    """
 
     def test_simple_html(self):
         """this tests simple.html to have certain fields"""
@@ -591,852 +610,24 @@ class TestDocumentParsing(unittest.TestCase):
         assert parsed.response is not None
         self.assertEqual(parsed.response.encoding, "UTF-8")
 
-    def test_complex_html(self):
+    def test_charsets(self):
         """
-        this tests duplicates.html to have certain fields
-
-        this also ensures some legacy behavior is supported
-
-        such as calling both:
-            * `parsed.parsed_result.get_metadatas`
-            * `parsed.parsed_result.get_metadatas`
+        python -m unittest tests.document_parsing.TestDocumentParsing.test_charsets
         """
-        html = self._MakeOne("duplicates.html")
-        parsed = metadata_parser.MetadataParser(url=None, html=html)
-
-        # we should be tracking the verison now
-        self.assertIn("_v", parsed.parsed_result.metadata)
-
-        # it should be the same version
+        a_html = self._MakeOne("charset_a.html")
+        a_parsed = metadata_parser.MetadataParser(url=None, html=a_html)
         self.assertEqual(
-            parsed.parsed_result.metadata_version,
-            metadata_parser.ParsedResult._version,
+            a_parsed.parsed_result.metadata["meta"]["content-type"],
+            "text/html; charset=UTF-8",
         )
 
-        # we have 3 og:image entries in this file
-        _computed_link = parsed.get_metadata_link("image", strategy=["og"])
-        assert _computed_link == "https://www.example.com/meta/property=og:image"
-        _all_og_images = parsed.parsed_result.get_metadatas("og:image")
-        assert _all_og_images is not None
-        assert len(_all_og_images) == 3
-        assert "https://www.example.com/meta/property=og:image" in _all_og_images
-        # bs4 cleans up the ampersand internally into an entity, but prints it deserialized by default
-        assert (
-            "https://www.example.com/meta?property=og:image&duplicate=1"
-            in _all_og_images
-        )
-        assert (
-            "https://www.example.com/meta?property=og:image&duplicate=2"
-            in _all_og_images
-        )
+        b_html = self._MakeOne("charset_b.html")
+        b_parsed = metadata_parser.MetadataParser(url=None, html=b_html)
+        self.assertEqual(b_parsed.parsed_result.metadata["meta"]["charset"], "UTF-8")
 
-        # -----
-        # this is a duplicate element and should be stored in the metadata dict as a list
-        _citation_authors = [
-            "citation_author:1",
-            "citation_author:2",
-            "citation_author:3",
-        ]
-        # these should be lists
-        self.assertEqual(
-            parsed.parsed_result.metadata["meta"]["citation_author"], _citation_authors
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("citation_author", ["meta"]),
-            _citation_authors,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("citation_author", ["meta"]),
-            _citation_authors,
-        )
-        # this is a string
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("citation_author", ["meta"])[0],
-            _citation_authors[0],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("citation_author", ["meta"])[0],
-            _citation_authors[0],
-        )
-
-        _meta_authors = ["meta.author:1", "meta.author:2"]
-        # these should be lists
-        self.assertEqual(parsed.parsed_result.metadata["meta"]["author"], _meta_authors)
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("author", ["meta"]), _meta_authors
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("author", ["meta"]), _meta_authors
-        )
-        # this is a string
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("author", ["meta"])[0], _meta_authors[0]
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("author", ["meta"])[0],
-            _meta_authors[0],
-        )
-
-        _meta_kws = ["meta.keywords:1", "meta.keywords:2"]
-        # these should be lists
-        self.assertEqual(parsed.parsed_result.metadata["meta"]["keywords"], _meta_kws)
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", ["meta"]), _meta_kws
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", ["meta"]), _meta_kws
-        )
-        # this is a string
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", ["meta"])[0],
-            _meta_kws[0],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", ["meta"])[0],
-            _meta_kws[0],
-        )
-
-        # -----
-        # this is a single element and should be stored in the metadata dict as a string
-        _description = "meta.description"
-
-        # these should be lists
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", ["meta"]), [_description]
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", ["meta"]), [_description]
-        )
-
-        # this is a string
-        self.assertEqual(
-            parsed.parsed_result.metadata["meta"]["description"],
-            _description,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", ["meta"])[0],
-            _description,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", ["meta"])[0],
-            _description,
-        )
-
-        # -----
-        # dc creator has a language variant
-        #  'dc': {'Creator': [{'content': 'Plato'},
-        #                     {'content': 'Platon', 'lang': 'fr'}],
-
-        self.assertIn("Creator", parsed.parsed_result.metadata["dc"])
-        dc_creator = parsed.parsed_result.metadata["dc"]["Creator"]
-        # so this should be a list
-        self.assertIs(type(dc_creator), list)
-        # with a length of 2
-        self.assertEqual(len(dc_creator), 2)
-        self.assertIs(type(dc_creator[0]), dict)
-        self.assertIs(type(dc_creator[1]), dict)
-        self.assertIn("content", dc_creator[0])
-        self.assertEqual(dc_creator[0]["content"], "Plato")
-        self.assertIn("content", dc_creator[1])
-        self.assertEqual(dc_creator[1]["content"], "Platon")
-        self.assertIn("lang", dc_creator[1])
-        self.assertEqual(dc_creator[1]["lang"], "fr")
-
-        # -----
-        # dc subject has a scheme variant
-        # 'Subject': [{'content': 'heart attack'},
-        #             {'content': 'Myocardial Infarction; Pericardial Effusion',
-        #              'scheme': 'MESH'},
-        #             {'content': 'vietnam war'},
-        #             {'content': 'Vietnamese Conflict, 1961-1975',
-        #              'scheme': 'LCSH'},
-        #             {'content': 'Friendship'},
-        #             {'content': '158.25', 'scheme': 'ddc'}]},
-        dcSubjectsExpected = [
-            {"content": "heart attack"},
-            {
-                "content": "Myocardial Infarction; Pericardial Effusion",
-                "scheme": "MESH",
-            },
-            {"content": "vietnam war"},
-            {"content": "Vietnamese Conflict, 1961-1975", "scheme": "LCSH"},
-            {"content": "Friendship"},
-            {"content": "158.25", "scheme": "ddc"},
-        ]
-        self.assertIn("Subject", parsed.parsed_result.metadata["dc"])
-        dc_subject = parsed.parsed_result.metadata["dc"]["Subject"]
-        self.assertIs(type(dc_subject), list)
-        self.assertEqual(len(dc_subject), len(dcSubjectsExpected))
-        for idx, _expected in enumerate(dc_subject):
-            self.assertIs(type(dc_subject[idx]), dict)
-            self.assertEqual(
-                len(dc_subject[idx].keys()), len(dcSubjectsExpected[idx].keys())
-            )
-            self.assertEqual(
-                sorted(dc_subject[idx].keys()), sorted(dcSubjectsExpected[idx].keys())
-            )
-            for _key in dc_subject[idx].keys():
-                self.assertEqual(dc_subject[idx][_key], dcSubjectsExpected[idx][_key])
-
-        # -----
-        # dc TestMixedCandidates1
-        # handle the ordering of results
-        # the raw info tested is the same as the above Subject test...
-        dcTestMixedCandidates1aExpected = {"content": "Friendship"}
-        self.assertIn("TestMixedCandidates1a", parsed.parsed_result.metadata["dc"])
-        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
-            "TestMixedCandidates1a"
-        ]
-        self.assertIs(type(dc_mixed_candidates), dict)
-        self.assertEqual(
-            len(dc_mixed_candidates.keys()), len(dcTestMixedCandidates1aExpected.keys())
-        )
-        self.assertEqual(
-            sorted(dc_mixed_candidates.keys()),
-            sorted(dcTestMixedCandidates1aExpected.keys()),
-        )
-        for _key in dc_mixed_candidates.keys():
-            self.assertEqual(
-                dc_mixed_candidates[_key], dcTestMixedCandidates1aExpected[_key]
-            )
-        # but we need to test get_metadata and get_metadatas
-        with self.assertRaises(ValueError) as cm:
-            parsed.parsed_result.get_metadatas("TestMixedCandidates1a", strategy="dc")
-        self.assertEqual(
-            cm.exception.args[0], "If `strategy` is not a `list`, it must be 'all'."
-        )
-
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates1a", strategy=["dc"]
-            )[0],
-            {"content": "Friendship"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates1a", strategy=["dc"]
-            ),
-            [dcTestMixedCandidates1aExpected],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [{"CONTENT": "FRIENDSHIP"}],
-        )
-
-        # 1b
-        dcTestMixedCandidates1bExpected = {"content": "158.25", "scheme": "ddc"}
-        self.assertIn("TestMixedCandidates1b", parsed.parsed_result.metadata["dc"])
-        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
-            "TestMixedCandidates1b"
-        ]
-        self.assertIs(type(dc_mixed_candidates), dict)
-        self.assertEqual(
-            len(dc_mixed_candidates.keys()), len(dcTestMixedCandidates1bExpected.keys())
-        )
-        self.assertEqual(
-            sorted(dc_mixed_candidates.keys()),
-            sorted(dcTestMixedCandidates1bExpected.keys()),
-        )
-        for _key in dc_mixed_candidates.keys():
-            self.assertEqual(
-                dc_mixed_candidates[_key], dcTestMixedCandidates1bExpected[_key]
-            )
-        # but we need to test get_metadata and get_metadatas
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates1b", strategy=["dc"]
-            )[0],
-            {"content": "158.25", "scheme": "ddc"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates1b", strategy=["dc"]
-            ),
-            [dcTestMixedCandidates1bExpected],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [{"CONTENT": "158.25", "SCHEME": "DDC"}],
-        )
-
-        # -----
-        # dc TestMixedCandidates2
-        # handle the ordering of results
-        # the raw info tested is the same as the above Subject test...
-        dcTestMixedCandidates2aExpected = [
-            {"content": "158.25", "scheme": "ddc"},
-            {"content": "Friendship"},
-        ]
-        self.assertIn("TestMixedCandidates2a", parsed.parsed_result.metadata["dc"])
-        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
-            "TestMixedCandidates2a"
-        ]
-        self.assertIs(type(dc_mixed_candidates), list)
-        self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2aExpected))
-        for idx, _expected in enumerate(dc_mixed_candidates):
-            self.assertIs(type(dc_mixed_candidates[idx]), dict)
-            self.assertEqual(
-                len(dc_mixed_candidates[idx].keys()),
-                len(dcTestMixedCandidates2aExpected[idx].keys()),
-            )
-            self.assertEqual(
-                sorted(dc_mixed_candidates[idx].keys()),
-                sorted(dcTestMixedCandidates2aExpected[idx].keys()),
-            )
-            for _key in dc_mixed_candidates[idx].keys():
-                self.assertEqual(
-                    dc_mixed_candidates[idx][_key],
-                    dcTestMixedCandidates2aExpected[idx][_key],
-                )
-        # but we need to test get_metadata and get_metadatas
-
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2a", strategy=["dc"]
-            )[0],
-            {"content": "158.25", "scheme": "ddc"},
-            {"content": "Friendship"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2a", strategy=["dc"]
-            ),
-            dcTestMixedCandidates2aExpected,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
-            )[0],
-            {"CONTENT": "158.25", "SCHEME": "DDC"},
-            {"CONTENT": "FRIENDSHIP"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [{"CONTENT": "158.25", "SCHEME": "DDC"}, {"CONTENT": "FRIENDSHIP"}],
-        )
-
-        # 2b
-        dcTestMixedCandidates2bExpected = [
-            {"content": "Friendship"},
-            {"content": "158.25", "scheme": "ddc"},
-        ]
-        self.assertIn("TestMixedCandidates2b", parsed.parsed_result.metadata["dc"])
-        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
-            "TestMixedCandidates2b"
-        ]
-        self.assertIs(type(dc_mixed_candidates), list)
-        self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2bExpected))
-        for idx, _expected in enumerate(dc_mixed_candidates):
-            self.assertIs(type(dc_mixed_candidates[idx]), dict)
-            self.assertEqual(
-                len(dc_mixed_candidates[idx].keys()),
-                len(dcTestMixedCandidates2bExpected[idx].keys()),
-            )
-            self.assertEqual(
-                sorted(dc_mixed_candidates[idx].keys()),
-                sorted(dcTestMixedCandidates2bExpected[idx].keys()),
-            )
-            for _key in dc_mixed_candidates[idx].keys():
-                self.assertEqual(
-                    dc_mixed_candidates[idx][_key],
-                    dcTestMixedCandidates2bExpected[idx][_key],
-                )
-        # but we need to test get_metadata and get_metadatas
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2b", strategy=["dc"]
-            )[0],
-            {"content": "Friendship"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2b", strategy=["dc"]
-            ),
-            dcTestMixedCandidates2bExpected,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
-            )[0],
-            {"CONTENT": "FRIENDSHIP"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [{"CONTENT": "FRIENDSHIP"}, {"CONTENT": "158.25", "SCHEME": "DDC"}],
-        )
-
-        # ok, mixedfield tests:
-        # TestMixedField0
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["dc"]),
-            None,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["meta"])[0],
-            "meta:TestMixedField0",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField0", strategy="all"),
-            {"meta": ["meta:TestMixedField0"]},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            None,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
-            )[0],
-            "META:TESTMIXEDFIELD0",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField0", strategy="all", encoder=encoder_capitalizer
-            ),
-            {"meta": ["META:TESTMIXEDFIELD0"]},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["dc"]), None
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["meta"]),
-            ["meta:TestMixedField0"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField0", strategy="all"),
-            {"meta": ["meta:TestMixedField0"]},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            None,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
-            ),
-            ["META:TESTMIXEDFIELD0"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField0", strategy="all", encoder=encoder_capitalizer
-            ),
-            {"meta": ["META:TESTMIXEDFIELD0"]},
-        )
-
-        # TestMixedField1
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["dc"])[0],
-            {"content": "dc:TestMixedField1"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["meta"])[0],
-            "meta:TestMixedField1",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField1", strategy="all"),
-            {
-                "dc": [{"content": "dc:TestMixedField1"}],
-                "meta": ["meta:TestMixedField1"],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
-            )[0],
-            {"CONTENT": "DC:TESTMIXEDFIELD1"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
-            )[0],
-            "META:TESTMIXEDFIELD1",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField1", strategy="all", encoder=encoder_capitalizer
-            ),
-            {
-                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
-                "meta": ["META:TESTMIXEDFIELD1"],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["dc"]),
-            [{"content": "dc:TestMixedField1"}],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["meta"]),
-            ["meta:TestMixedField1"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField1", strategy="all"),
-            {
-                "meta": ["meta:TestMixedField1"],
-                "dc": [{"content": "dc:TestMixedField1"}],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
-            ),
-            ["META:TESTMIXEDFIELD1"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField1", strategy="all", encoder=encoder_capitalizer
-            ),
-            {
-                "meta": ["META:TESTMIXEDFIELD1"],
-                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
-            },
-        )
-        # TestMixedField2
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["dc"])[0],
-            {"content": "dc:TestMixedField2"},
-            {"con[45 chars]dc"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["meta"])[0],
-            "meta:TestMixedField2",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField2", strategy="all"),
-            {
-                "dc": [
-                    {"content": "dc:TestMixedField2"},
-                    {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
-                ],
-                "meta": ["meta:TestMixedField2"],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
-            )[0],
-            {"CONTENT": "DC:TESTMIXEDFIELD2"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
-            )[0],
-            "META:TESTMIXEDFIELD2",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField2", strategy="all", encoder=encoder_capitalizer
-            ),
-            {
-                "dc": [
-                    {"CONTENT": "DC:TESTMIXEDFIELD2"},
-                    {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
-                ],
-                "meta": ["META:TESTMIXEDFIELD2"],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["dc"]),
-            [
-                {"content": "dc:TestMixedField2"},
-                {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
-            ],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["meta"]),
-            ["meta:TestMixedField2"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField2", strategy="all"),
-            {
-                "meta": ["meta:TestMixedField2"],
-                "dc": [
-                    {"content": "dc:TestMixedField2"},
-                    {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
-                ],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [
-                {"CONTENT": "DC:TESTMIXEDFIELD2"},
-                {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
-            ],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
-            ),
-            ["META:TESTMIXEDFIELD2"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField2", strategy="all", encoder=encoder_capitalizer
-            ),
-            {
-                "meta": ["META:TESTMIXEDFIELD2"],
-                "dc": [
-                    {"CONTENT": "DC:TESTMIXEDFIELD2"},
-                    {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
-                ],
-            },
-        )
-
-        # TestMixedField3
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"])[0],
-            {"content": "dc:TestMixedField3"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"])[0],
-            "meta:TestMixedField3",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField3", strategy="all"),
-            {
-                "dc": [{"content": "dc:TestMixedField3"}],
-                "meta": ["meta:TestMixedField3"],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
-            )[0],
-            {"CONTENT": "DC:TESTMIXEDFIELD3"},
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
-            )[0],
-            "META:TESTMIXEDFIELD3",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField3", strategy="all", encoder=encoder_capitalizer
-            ),
-            {
-                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
-                "meta": ["META:TESTMIXEDFIELD3"],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"]),
-            [{"content": "dc:TestMixedField3"}],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"]),
-            ["meta:TestMixedField3"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("TestMixedField3", strategy="all"),
-            {
-                "meta": ["meta:TestMixedField3"],
-                "dc": [{"content": "dc:TestMixedField3"}],
-            },
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
-            ),
-            [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
-            ),
-            ["META:TESTMIXEDFIELD3"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "TestMixedField3", strategy="all", encoder=encoder_capitalizer
-            ),
-            {
-                "meta": ["META:TESTMIXEDFIELD3"],
-                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
-            },
-        )
-
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("news_keywords", strategy=["meta"])[0],
-            "",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("auto-publish", strategy=["meta"])[0],
-            "timely",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "article:modified_time", strategy=["meta"]
-            )[0],
-            "2017-10-11 01:01:01",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "msapplication-tap-highlight", strategy=["meta"]
-            )[0],
-            "no",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas(
-                "google-site-verification", strategy=["meta"]
-            )[0],
-            "123123123",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("twitter:data1", strategy=["meta"])[0],
-            "8 min read",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("google", strategy=["meta"])[0],
-            "notranslate",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("news_keywords", strategy=["meta"])[0],
-            "",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("viewport", strategy=["meta"]),
-            [
-                "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no",
-                "width=device-width, initial-scale=1, maximum-scale=1",
-            ],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("thumbnail", strategy=["meta"])[0],
-            "https://example.com/path/to/image.jpg",
-        )
-        self.assertEqual(
-            parsed.get_metadata_link("thumbnail", strategy=["meta"]),
-            "https://example.com/path/to/image.jpg",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("thumbnail-2", strategy=["meta"])[0],
-            "//example.com/path/to/image.jpg",
-        )
-        self.assertEqual(
-            parsed.get_metadata_link("thumbnail-2", strategy=["meta"]), None
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("thumbnail-3", strategy=["meta"])[0],
-            "/path/to/image.jpg",
-        )
-        self.assertEqual(
-            parsed.get_metadata_link("thumbnail-3", strategy=["meta"]), None
-        )
-
-        # this should error!
-        with self.assertRaises(ValueError) as cm:
-            parsed.parsed_result.get_metadatas("canonical", strategy=["all"])
-        self.assertEqual(
-            cm.exception.args[0], 'Submit "all" as a `str`, not in a `list`.'
-        )
-
-        # ok, now test the return types
-        # some behavior was changed in the .7 release
-
-        # get_metadata - single section
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("canonical", strategy=["page"])[0],
-            "http://example.com/meta/rel=canonical",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("canonical", strategy=["meta"]),
-            None,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("canonical", strategy="all"),
-            {"page": ["http://example.com/meta/rel=canonical"]},
-        )
-
-        # get_metadatas - single section
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("canonical", strategy=["page"]),
-            [
-                "http://example.com/meta/rel=canonical",
-            ],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("canonical", strategy=["meta"]),
-            None,
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("canonical", strategy="all"),
-            {
-                "page": [
-                    "http://example.com/meta/rel=canonical",
-                ]
-            },
-        )
-
-        # get_metadata - multiple section
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", strategy=["meta"])[0],
-            "meta.description",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", strategy="all"),
-            {
-                "og": ["meta.property=og:description"],
-                "meta": ["meta.description"],
-                "twitter": ["meta.name=twitter:description"],
-            },
-        )
-        # get_metadatas - multiple section
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", strategy=["meta"]),
-            ["meta.description"],
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("description", strategy="all"),
-            {
-                "og": ["meta.property=og:description"],
-                "meta": ["meta.description"],
-                "twitter": ["meta.name=twitter:description"],
-            },
-        )
-
-        # multiple candidates!
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", strategy=["meta"])[0],
-            "meta.keywords:1",
-        )
-        self.assertEqual(
-            parsed.parsed_result.get_metadatas("keywords", strategy=["meta"]),
-            ["meta.keywords:1", "meta.keywords:2"],
-        )
-
-    def test_complex_html__encoder(self):
-        html = self._MakeOne("duplicates.html")
-        parsed = metadata_parser.MetadataParser(url=None, html=html)
-
-        # we should be tracking the verison now
-        self.assertIn("_v", parsed.parsed_result.metadata)
-
-        # it should be the same version
-        self.assertEqual(
-            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
-        )
-
-        # TODO
+        c_html = self._MakeOne("charset_c.html")
+        c_parsed = metadata_parser.MetadataParser(url=None, html=c_html)
+        self.assertEqual(c_parsed.parsed_result.metadata["meta"]["charset"], "UTF-8")
 
     def test_malformed_twitter(self):
         """
@@ -1499,24 +690,996 @@ class TestDocumentParsing(unittest.TestCase):
             ],
         )
 
-    def test_charsets(self):
-        """
-        python -m unittest tests.document_parsing.TestDocumentParsing.test_charsets
-        """
-        a_html = self._MakeOne("charset_a.html")
-        a_parsed = metadata_parser.MetadataParser(url=None, html=a_html)
+
+class TestDocumentParsing_Complex(unittest.TestCase, _TestDocumentParsingCore):
+    """
+    this tests duplicates.html to have certain fields under complex conditions
+    """
+
+    def _MakeOneParsed(self) -> metadata_parser.MetadataParser:
+        html = self._MakeOne("duplicates.html")
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+
+        # we should be tracking the verison now
+        self.assertIn("_v", parsed.parsed_result.metadata)
+
+        # it should be the same version
         self.assertEqual(
-            a_parsed.parsed_result.metadata["meta"]["content-type"],
-            "text/html; charset=UTF-8",
+            parsed.parsed_result.metadata_version,
+            metadata_parser.ParsedResult._version,
         )
 
-        b_html = self._MakeOne("charset_b.html")
-        b_parsed = metadata_parser.MetadataParser(url=None, html=b_html)
-        self.assertEqual(b_parsed.parsed_result.metadata["meta"]["charset"], "UTF-8")
+        return parsed
 
-        c_html = self._MakeOne("charset_c.html")
-        c_parsed = metadata_parser.MetadataParser(url=None, html=c_html)
-        self.assertEqual(c_parsed.parsed_result.metadata["meta"]["charset"], "UTF-8")
+    def test_og_image(self):
+        parsed = self._MakeOneParsed()
+
+        # we have 3 og:image entries in this file
+        _computed_link = parsed.get_metadata_link("image", strategy=["og"])
+        assert _computed_link == "https://www.example.com/meta/property=og:image"
+        _all_og_images = parsed.parsed_result.get_metadatas("og:image")
+        assert _all_og_images is not None
+        assert isinstance(_all_og_images, dict)
+        assert "meta" in _all_og_images
+
+        all_og_images = _all_og_images["meta"]
+
+        assert len(all_og_images) == 3
+        assert "https://www.example.com/meta/property=og:image" in all_og_images
+        # bs4 cleans up the ampersand internally into an entity, but prints it deserialized by default
+        assert (
+            "https://www.example.com/meta?property=og:image&duplicate=1"
+            in all_og_images
+        )
+        assert (
+            "https://www.example.com/meta?property=og:image&duplicate=2"
+            in all_og_images
+        )
+
+    def test__citation_authors(self):
+        parsed = self._MakeOneParsed()
+
+        # -----
+        # this is a duplicate element and should be stored in the metadata dict as a list
+        citation_authors = [
+            "citation_author:1",
+            "citation_author:2",
+            "citation_author:3",
+        ]
+        # these should be lists
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["citation_author"], citation_authors
+        )
+
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("citation_author", ["meta"])["meta"],
+            citation_authors,
+        )
+
+        # this is a string
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("citation_author", ["meta"])["meta"][0],
+            citation_authors[0],
+        )
+
+    def test__meta_authors(self):
+        parsed = self._MakeOneParsed()
+
+        meta_authors = ["meta.author:1", "meta.author:2"]
+
+        # these should be lists
+        self.assertEqual(parsed.parsed_result.metadata["meta"]["author"], meta_authors)
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("author", ["meta"])["meta"], meta_authors
+        )
+        # this is a string
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("author", ["meta"])["meta"][0],
+            meta_authors[0],
+        )
+
+    def test__meta_keywords(self):
+        parsed = self._MakeOneParsed()
+
+        meta_kws = ["meta.keywords:1", "meta.keywords:2"]
+        # these should be lists
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["keywords"],
+            meta_kws,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords", ["meta"])["meta"],
+            meta_kws,
+        )
+        # this is a string
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords", ["meta"])["meta"][0],
+            meta_kws[0],
+        )
+
+    def test__meta_description(self):
+        parsed = self._MakeOneParsed()
+        # -----
+        # this is a single element and should be stored in the metadata dict as a string
+        description = "meta.description"
+
+        # these should be lists
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", ["meta"])["meta"],
+            [description],
+        )
+
+        # this is a string
+        self.assertEqual(
+            parsed.parsed_result.metadata["meta"]["description"],
+            description,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", ["meta"])["meta"][0],
+            description,
+        )
+
+    def test__dc__basic(self):
+        parsed = self._MakeOneParsed()
+        # -----
+        # dc creator has a language variant
+        #  'dc': {'Creator': [{'content': 'Plato'},
+        #                     {'content': 'Platon', 'lang': 'fr'}],
+
+        self.assertIn("Creator", parsed.parsed_result.metadata["dc"])
+        dc_creator = parsed.parsed_result.metadata["dc"]["Creator"]
+        # so this should be a list
+        self.assertIs(type(dc_creator), list)
+        # with a length of 2
+        self.assertEqual(len(dc_creator), 2)
+        self.assertIs(type(dc_creator[0]), dict)
+        self.assertIs(type(dc_creator[1]), dict)
+        self.assertIn("content", dc_creator[0])
+        self.assertEqual(dc_creator[0]["content"], "Plato")
+        self.assertIn("content", dc_creator[1])
+        self.assertEqual(dc_creator[1]["content"], "Platon")
+        self.assertIn("lang", dc_creator[1])
+        self.assertEqual(dc_creator[1]["lang"], "fr")
+
+    def test__dc__subject(self):
+        parsed = self._MakeOneParsed()
+        # -----
+        # dc subject has a scheme variant
+        # 'Subject': [{'content': 'heart attack'},
+        #             {'content': 'Myocardial Infarction; Pericardial Effusion',
+        #              'scheme': 'MESH'},
+        #             {'content': 'vietnam war'},
+        #             {'content': 'Vietnamese Conflict, 1961-1975',
+        #              'scheme': 'LCSH'},
+        #             {'content': 'Friendship'},
+        #             {'content': '158.25', 'scheme': 'ddc'}]},
+        dcSubjectsExpected = [
+            {"content": "heart attack"},
+            {
+                "content": "Myocardial Infarction; Pericardial Effusion",
+                "scheme": "MESH",
+            },
+            {"content": "vietnam war"},
+            {"content": "Vietnamese Conflict, 1961-1975", "scheme": "LCSH"},
+            {"content": "Friendship"},
+            {"content": "158.25", "scheme": "ddc"},
+        ]
+        self.assertIn("Subject", parsed.parsed_result.metadata["dc"])
+        dc_subject = parsed.parsed_result.metadata["dc"]["Subject"]
+        self.assertIs(type(dc_subject), list)
+        self.assertEqual(len(dc_subject), len(dcSubjectsExpected))
+        for idx, _expected in enumerate(dc_subject):
+            self.assertIs(type(dc_subject[idx]), dict)
+            self.assertEqual(
+                len(dc_subject[idx].keys()), len(dcSubjectsExpected[idx].keys())
+            )
+            self.assertEqual(
+                sorted(dc_subject[idx].keys()), sorted(dcSubjectsExpected[idx].keys())
+            )
+            for _key in dc_subject[idx].keys():
+                self.assertEqual(dc_subject[idx][_key], dcSubjectsExpected[idx][_key])
+
+    def test__dc__TestMixedCandidates1(self):
+        parsed = self._MakeOneParsed()
+        # -----
+        # dc TestMixedCandidates1
+        # handle the ordering of results
+        # the raw info tested is the same as the above Subject test...
+        dcTestMixedCandidates1aExpected = {"content": "Friendship"}
+        self.assertIn(
+            "TestMixedCandidates1a",
+            parsed.parsed_result.metadata["dc"],
+        )
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates1a"
+        ]
+        self.assertIs(type(dc_mixed_candidates), dict)
+        self.assertEqual(
+            len(dc_mixed_candidates.keys()), len(dcTestMixedCandidates1aExpected.keys())
+        )
+        self.assertEqual(
+            sorted(dc_mixed_candidates.keys()),
+            sorted(dcTestMixedCandidates1aExpected.keys()),
+        )
+        for _key in dc_mixed_candidates.keys():
+            self.assertEqual(
+                dc_mixed_candidates[_key],
+                dcTestMixedCandidates1aExpected[_key],
+            )
+
+        # test get_metadatas
+        with self.assertRaises(ValueError) as cm:
+            parsed.parsed_result.get_metadatas("TestMixedCandidates1a", strategy="dc")
+        self.assertEqual(
+            cm.exception.args[0],
+            "If `strategy` is not a `list`, it must be 'all'.",
+        )
+
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1a", strategy=["dc"]
+            )["dc"][0],
+            {"content": "Friendship"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1a", strategy=["dc"]
+            )["dc"],
+            [dcTestMixedCandidates1aExpected],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1a", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [{"CONTENT": "FRIENDSHIP"}],
+        )
+
+        # 1b
+        dcTestMixedCandidates1bExpected = {"content": "158.25", "scheme": "ddc"}
+        self.assertIn("TestMixedCandidates1b", parsed.parsed_result.metadata["dc"])
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates1b"
+        ]
+        self.assertIs(type(dc_mixed_candidates), dict)
+        self.assertEqual(
+            len(dc_mixed_candidates.keys()), len(dcTestMixedCandidates1bExpected.keys())
+        )
+        self.assertEqual(
+            sorted(dc_mixed_candidates.keys()),
+            sorted(dcTestMixedCandidates1bExpected.keys()),
+        )
+        for _key in dc_mixed_candidates.keys():
+            self.assertEqual(
+                dc_mixed_candidates[_key], dcTestMixedCandidates1bExpected[_key]
+            )
+
+        # test get_metadatas
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1b", strategy=["dc"]
+            )["dc"][0],
+            {"content": "158.25", "scheme": "ddc"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1b", strategy=["dc"]
+            )["dc"],
+            [dcTestMixedCandidates1bExpected],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates1b", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [{"CONTENT": "158.25", "SCHEME": "DDC"}],
+        )
+
+    def test__dc__TestMixedCandidates2(self):
+        parsed = self._MakeOneParsed()
+        # -----
+        # dc TestMixedCandidates2
+        # handle the ordering of results
+        # the raw info tested is the same as the above Subject test...
+        dcTestMixedCandidates2aExpected = [
+            {"content": "158.25", "scheme": "ddc"},
+            {"content": "Friendship"},
+        ]
+        self.assertIn(
+            "TestMixedCandidates2a",
+            parsed.parsed_result.metadata["dc"],
+        )
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates2a"
+        ]
+        self.assertIs(type(dc_mixed_candidates), list)
+        self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2aExpected))
+        for idx, _expected in enumerate(dc_mixed_candidates):
+            self.assertIs(type(dc_mixed_candidates[idx]), dict)
+            self.assertEqual(
+                len(dc_mixed_candidates[idx].keys()),
+                len(dcTestMixedCandidates2aExpected[idx].keys()),
+            )
+            self.assertEqual(
+                sorted(dc_mixed_candidates[idx].keys()),
+                sorted(dcTestMixedCandidates2aExpected[idx].keys()),
+            )
+            for _key in dc_mixed_candidates[idx].keys():
+                self.assertEqual(
+                    dc_mixed_candidates[idx][_key],
+                    dcTestMixedCandidates2aExpected[idx][_key],
+                )
+
+        # test get_metadatas
+
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2a", strategy=["dc"]
+            )["dc"][0],
+            {"content": "158.25", "scheme": "ddc"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2a", strategy=["dc"]
+            )["dc"],
+            dcTestMixedCandidates2aExpected,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"][0],
+            {"CONTENT": "158.25", "SCHEME": "DDC"},
+            {"CONTENT": "FRIENDSHIP"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2a", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [{"CONTENT": "158.25", "SCHEME": "DDC"}, {"CONTENT": "FRIENDSHIP"}],
+        )
+
+        # 2b
+        dcTestMixedCandidates2bExpected = [
+            {"content": "Friendship"},
+            {"content": "158.25", "scheme": "ddc"},
+        ]
+        self.assertIn(
+            "TestMixedCandidates2b",
+            parsed.parsed_result.metadata["dc"],
+        )
+        dc_mixed_candidates = parsed.parsed_result.metadata["dc"][
+            "TestMixedCandidates2b"
+        ]
+        self.assertIs(type(dc_mixed_candidates), list)
+        self.assertEqual(len(dc_mixed_candidates), len(dcTestMixedCandidates2bExpected))
+        for idx, _expected in enumerate(dc_mixed_candidates):
+            self.assertIs(type(dc_mixed_candidates[idx]), dict)
+            self.assertEqual(
+                len(dc_mixed_candidates[idx].keys()),
+                len(dcTestMixedCandidates2bExpected[idx].keys()),
+            )
+            self.assertEqual(
+                sorted(dc_mixed_candidates[idx].keys()),
+                sorted(dcTestMixedCandidates2bExpected[idx].keys()),
+            )
+            for _key in dc_mixed_candidates[idx].keys():
+                self.assertEqual(
+                    dc_mixed_candidates[idx][_key],
+                    dcTestMixedCandidates2bExpected[idx][_key],
+                )
+
+        # test get_metadatas
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2b", strategy=["dc"]
+            )["dc"][0],
+            {"content": "Friendship"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2b", strategy=["dc"]
+            )["dc"],
+            dcTestMixedCandidates2bExpected,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"][0],
+            {"CONTENT": "FRIENDSHIP"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedCandidates2b", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [{"CONTENT": "FRIENDSHIP"}, {"CONTENT": "158.25", "SCHEME": "DDC"}],
+        )
+
+    def test__TestMixedField0(self):
+        parsed = self._MakeOneParsed()
+        # ok, mixedfield tests:
+        # TestMixedField0
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["dc"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["meta"])[
+                "meta"
+            ][0],
+            "meta:TestMixedField0",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy="all"),
+            {"meta": ["meta:TestMixedField0"]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
+            ),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"][0],
+            "META:TESTMIXEDFIELD0",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy="all", encoder=encoder_capitalizer
+            ),
+            {"meta": ["META:TESTMIXEDFIELD0"]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["dc"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy=["meta"])[
+                "meta"
+            ],
+            ["meta:TestMixedField0"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField0", strategy="all"),
+            {"meta": ["meta:TestMixedField0"]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy=["dc"], encoder=encoder_capitalizer
+            ),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"],
+            ["META:TESTMIXEDFIELD0"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField0", strategy="all", encoder=encoder_capitalizer
+            ),
+            {"meta": ["META:TESTMIXEDFIELD0"]},
+        )
+
+    def test__TestMixedField1(self):
+        parsed = self._MakeOneParsed()
+        # TestMixedField1
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["dc"])[
+                "dc"
+            ][0],
+            {"content": "dc:TestMixedField1"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["meta"])[
+                "meta"
+            ][0],
+            "meta:TestMixedField1",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy="all"),
+            {
+                "dc": [{"content": "dc:TestMixedField1"}],
+                "meta": ["meta:TestMixedField1"],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"][0],
+            {"CONTENT": "DC:TESTMIXEDFIELD1"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"][0],
+            "META:TESTMIXEDFIELD1",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField1", strategy="all", encoder=encoder_capitalizer
+            ),
+            {
+                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
+                "meta": ["META:TESTMIXEDFIELD1"],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["dc"])[
+                "dc"
+            ],
+            [{"content": "dc:TestMixedField1"}],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy=["meta"])[
+                "meta"
+            ],
+            ["meta:TestMixedField1"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField1", strategy="all"),
+            {
+                "meta": ["meta:TestMixedField1"],
+                "dc": [{"content": "dc:TestMixedField1"}],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField1", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField1", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"],
+            ["META:TESTMIXEDFIELD1"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField1", strategy="all", encoder=encoder_capitalizer
+            ),
+            {
+                "meta": ["META:TESTMIXEDFIELD1"],
+                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD1"}],
+            },
+        )
+
+    def test__TestMixedField2(self):
+        parsed = self._MakeOneParsed()
+        # TestMixedField2
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["dc"])[
+                "dc"
+            ][0],
+            {"content": "dc:TestMixedField2"},
+            # {"con[45 chars]dc"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["meta"])[
+                "meta"
+            ][0],
+            "meta:TestMixedField2",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy="all"),
+            {
+                "dc": [
+                    {"content": "dc:TestMixedField2"},
+                    {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
+                ],
+                "meta": ["meta:TestMixedField2"],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"][0],
+            {"CONTENT": "DC:TESTMIXEDFIELD2"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"][0],
+            "META:TESTMIXEDFIELD2",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField2", strategy="all", encoder=encoder_capitalizer
+            ),
+            {
+                "dc": [
+                    {"CONTENT": "DC:TESTMIXEDFIELD2"},
+                    {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
+                ],
+                "meta": ["META:TESTMIXEDFIELD2"],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["dc"])[
+                "dc"
+            ],
+            [
+                {"content": "dc:TestMixedField2"},
+                {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
+            ],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy=["meta"])[
+                "meta"
+            ],
+            ["meta:TestMixedField2"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField2", strategy="all"),
+            {
+                "meta": ["meta:TestMixedField2"],
+                "dc": [
+                    {"content": "dc:TestMixedField2"},
+                    {"content": "dc:TestMixedField2.ddc", "scheme": "ddc"},
+                ],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField2", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [
+                {"CONTENT": "DC:TESTMIXEDFIELD2"},
+                {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
+            ],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField2", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"],
+            ["META:TESTMIXEDFIELD2"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField2", strategy="all", encoder=encoder_capitalizer
+            ),
+            {
+                "meta": ["META:TESTMIXEDFIELD2"],
+                "dc": [
+                    {"CONTENT": "DC:TESTMIXEDFIELD2"},
+                    {"CONTENT": "DC:TESTMIXEDFIELD2.DDC", "SCHEME": "DDC"},
+                ],
+            },
+        )
+
+    def test__TestMixedField3(self):
+        parsed = self._MakeOneParsed()
+        # TestMixedField3
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"])[
+                "dc"
+            ][0],
+            {"content": "dc:TestMixedField3"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"])[
+                "meta"
+            ][0],
+            "meta:TestMixedField3",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy="all"),
+            {
+                "dc": [{"content": "dc:TestMixedField3"}],
+                "meta": ["meta:TestMixedField3"],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"][0],
+            {"CONTENT": "DC:TESTMIXEDFIELD3"},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"][0],
+            "META:TESTMIXEDFIELD3",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3", strategy="all", encoder=encoder_capitalizer
+            ),
+            {
+                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
+                "meta": ["META:TESTMIXEDFIELD3"],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"])[
+                "dc"
+            ],
+            [{"content": "dc:TestMixedField3"}],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"])[
+                "meta"
+            ],
+            ["meta:TestMixedField3"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy="all"),
+            {
+                "meta": ["meta:TestMixedField3"],
+                "dc": [{"content": "dc:TestMixedField3"}],
+            },
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3", strategy=["dc"], encoder=encoder_capitalizer
+            )["dc"],
+            [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3", strategy=["meta"], encoder=encoder_capitalizer
+            )["meta"],
+            ["META:TESTMIXEDFIELD3"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3", strategy="all", encoder=encoder_capitalizer
+            ),
+            {
+                "meta": ["META:TESTMIXEDFIELD3"],
+                "dc": [{"CONTENT": "DC:TESTMIXEDFIELD3"}],
+            },
+        )
+
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("news_keywords", strategy=["meta"])[
+                "meta"
+            ][0],
+            "",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("auto-publish", strategy=["meta"])[
+                "meta"
+            ][0],
+            "timely",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "article:modified_time", strategy=["meta"]
+            )["meta"][0],
+            "2017-10-11 01:01:01",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "msapplication-tap-highlight", strategy=["meta"]
+            )["meta"][0],
+            "no",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "google-site-verification", strategy=["meta"]
+            )["meta"][0],
+            "123123123",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("twitter:data1", strategy=["meta"])[
+                "meta"
+            ][0],
+            "8 min read",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("google", strategy=["meta"])["meta"][0],
+            "notranslate",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("news_keywords", strategy=["meta"])[
+                "meta"
+            ][0],
+            "",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("viewport", strategy=["meta"])["meta"],
+            [
+                "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no",
+                "width=device-width, initial-scale=1, maximum-scale=1",
+            ],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("thumbnail", strategy=["meta"])["meta"][
+                0
+            ],
+            "https://example.com/path/to/image.jpg",
+        )
+        self.assertEqual(
+            parsed.get_metadata_link("thumbnail", strategy=["meta"]),
+            "https://example.com/path/to/image.jpg",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("thumbnail-2", strategy=["meta"])[
+                "meta"
+            ][0],
+            "//example.com/path/to/image.jpg",
+        )
+        self.assertEqual(
+            parsed.get_metadata_link("thumbnail-2", strategy=["meta"]), None
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("thumbnail-3", strategy=["meta"])[
+                "meta"
+            ][0],
+            "/path/to/image.jpg",
+        )
+        self.assertEqual(
+            parsed.get_metadata_link("thumbnail-3", strategy=["meta"]), None
+        )
+
+    def test__canonical(self):
+        parsed = self._MakeOneParsed()
+        # this should error!
+        with self.assertRaises(ValueError) as cm:
+            parsed.parsed_result.get_metadatas("canonical", strategy=["all"])
+        self.assertEqual(
+            cm.exception.args[0],
+            'Submit "all" as a `str`, not in a `list`.',
+        )
+
+        # ok, now test the return types
+        # some behavior was changed in the .7 release
+
+        # get_metadatas - single section
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy=["page"])["page"][
+                0
+            ],
+            "http://example.com/meta/rel=canonical",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy=["meta"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy="all"),
+            {"page": ["http://example.com/meta/rel=canonical"]},
+        )
+
+        # get_metadatas - single section
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy=["page"])["page"],
+            ["http://example.com/meta/rel=canonical"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy=["meta"]),
+            None,
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("canonical", strategy="all"),
+            {"page": ["http://example.com/meta/rel=canonical"]},
+        )
+
+    def test__description(self):
+        parsed = self._MakeOneParsed()
+        # get_metadatas - multiple section
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", strategy=["meta"])[
+                "meta"
+            ][0],
+            "meta.description",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", strategy="all"),
+            {
+                "og": ["meta.property=og:description"],
+                "meta": ["meta.description"],
+                "twitter": ["meta.name=twitter:description"],
+            },
+        )
+        # get_metadatas - multiple section
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", strategy=["meta"])[
+                "meta"
+            ],
+            ["meta.description"],
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("description", strategy="all"),
+            {
+                "og": ["meta.property=og:description"],
+                "meta": ["meta.description"],
+                "twitter": ["meta.name=twitter:description"],
+            },
+        )
+
+    def test__keywords(self):
+        parsed = self._MakeOneParsed()
+        # multiple candidates!
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords", strategy=["meta"])["meta"][
+                0
+            ],
+            "meta.keywords:1",
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords", strategy=["meta"])["meta"],
+            ["meta.keywords:1", "meta.keywords:2"],
+        )
+
+    def test_complex_html__encoder(self):
+        """
+        pytest tests/test_document_parsing.py::TestDocumentParsing::test_complex_html__encoder
+        """
+        html = self._MakeOne("duplicates.html")
+        parsed = metadata_parser.MetadataParser(url=None, html=html)
+
+        # we should be tracking the verison now
+        self.assertIn("_v", parsed.parsed_result.metadata)
+
+        # it should be the same version
+        self.assertEqual(
+            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
+        )
+
+        # Test a few things with and without encoding
+
+        # Test A1
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["meta"]),
+            {"meta": ["meta:TestMixedField3"]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3",
+                strategy=["meta"],
+                encoder=metadata_parser.utils.encode_ascii,
+            ),
+            {"meta": ["meta:TestMixedField3"]},
+        )
+
+        # Test A2 - dc only
+        # without an encoder, DC generates a dict
+        # with the encoder, DC generates a str
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("TestMixedField3", strategy=["dc"]),
+            {"dc": [{"content": "dc:TestMixedField3"}]},
+        )
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3",
+                strategy=["dc"],
+                encoder=metadata_parser.utils.encode_ascii,
+            ),
+            {"dc": ["dc:TestMixedField3"]},
+        )
+
+        # Test A3 -  dc within all
+        # without an encoder, DC generates a dict
+        # with the encoder, DC generates a str
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3",
+                strategy="all",
+                encoder=metadata_parser.utils.encode_ascii,
+            ),
+            {
+                "meta": ["meta:TestMixedField3"],
+                "dc": ["dc:TestMixedField3"],
+            },
+        )
+
+        # Test A3 -  dc + meta
+        # without an encoder, DC generates a dict
+        # with the encoder, DC generates a str
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas(
+                "TestMixedField3",
+                strategy=["dc", "meta"],
+                encoder=metadata_parser.utils.encode_ascii,
+            ),
+            {
+                "meta": ["meta:TestMixedField3"],
+                "dc": ["dc:TestMixedField3"],
+            },
+        )
 
 
 class Test_UrlParserCacheable(unittest.TestCase):
