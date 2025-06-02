@@ -663,7 +663,7 @@ class ParsedResult(object):
         self,
         strategy: "TYPES_STRATEGY" = None,
     ) -> List[str]:
-        """normalize a strategy into a valid option"""
+        """normalize a strategy into a list of valid options."""
         _strategy = None
         if strategy:
             if strategy == self.strategy:
@@ -720,7 +720,9 @@ class ParsedResult(object):
         :type encoder:
           bool
         """
+        # normalize a strategy into a list of valid options.
         strategy = self._coerce_validate_strategy(strategy)
+        assert isinstance(strategy, list)
 
         if encoder is None:
             encoder = self.default_encoder
@@ -737,28 +739,14 @@ class ParsedResult(object):
                 return val
             return None
 
+        # returns List or None
         rval: Dict = {}
-
-        # `_coerce_validate_strategy` ensured a compliant strategy
-        if isinstance(strategy, list):
-            # returns List or None
-            for store in strategy:
-                if store in self.metadata:
-                    val = _lookup(store)
-                    if val is not None:
-                        rval[store] = val
-            return rval or None
-        elif strategy == "all":
-            # returns Dict or None
-            for store in self.metadata:
-                if store == "_v":
-                    continue
-                if field in self.metadata[store]:
-                    val = _lookup(store)
+        for store in strategy:
+            if store in self.metadata:
+                val = _lookup(store)
+                if val is not None:
                     rval[store] = val
-            return rval
-        else:
-            raise ValueError("unsupported strategy")
+        return rval or None
 
     def is_opengraph_minimum(self) -> bool:
         """
