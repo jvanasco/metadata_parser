@@ -24,6 +24,7 @@ from typing_extensions import Literal  # py38
 # local
 from . import config
 from .exceptions import InvalidDocument
+from .exceptions import InvalidStrategy
 from .exceptions import NotParsable
 from .exceptions import NotParsableFetchError
 from .exceptions import NotParsableJson
@@ -296,6 +297,33 @@ def is_parsed_valid_relative(parsed: ParseResult) -> bool:
     return False
 
 
+def is_url_valid(
+    url: str,
+    require_public_netloc: Optional[bool] = None,
+    allow_localhosts: Optional[bool] = None,
+    urlparser: "TYPE_URLPARSE" = urlparse,
+) -> Union[Literal[False], ParseResult]:
+    """
+    tries to parse a url. if valid returns `ParseResult`
+    (boolean eval is True); if invalid returns `False`
+    kwargs:
+        `require_public_netloc` -
+        `allow_localhosts` -
+        `urlparser` - defaults to standard `urlparse`, can be substituted with
+                      a cacheable version.
+    """
+    if url is None:
+        return False
+    parsed = urlparser(url)
+    if is_parsed_valid_url(
+        parsed,
+        require_public_netloc=require_public_netloc,
+        allow_localhosts=allow_localhosts,
+    ):
+        return parsed
+    return False
+
+
 def parsed_to_relative(
     parsed: ParseResult,
     parsed_fallback: Optional[ParseResult] = None,
@@ -322,33 +350,6 @@ def parsed_to_relative(
     if parsed.fragment:
         _path += "#" + parsed.fragment
     return _path
-
-
-def is_url_valid(
-    url: str,
-    require_public_netloc: Optional[bool] = None,
-    allow_localhosts: Optional[bool] = None,
-    urlparser: "TYPE_URLPARSE" = urlparse,
-) -> Union[Literal[False], ParseResult]:
-    """
-    tries to parse a url. if valid returns `ParseResult`
-    (boolean eval is True); if invalid returns `False`
-    kwargs:
-        `require_public_netloc` -
-        `allow_localhosts` -
-        `urlparser` - defaults to standard `urlparse`, can be substituted with
-                      a cacheable version.
-    """
-    if url is None:
-        return False
-    parsed = urlparser(url)
-    if is_parsed_valid_url(
-        parsed,
-        require_public_netloc=require_public_netloc,
-        allow_localhosts=allow_localhosts,
-    ):
-        return parsed
-    return False
 
 
 def url_to_absolute_url(
@@ -470,6 +471,37 @@ def url_to_absolute_url(
             _path,
         )
     return rval
+
+
+def validate_strategy(
+    strategy: "TYPES_STRATEGY",
+) -> List[str]:
+    """
+    Used by `MetadataParser.__init__` to validate a strategy on set
+    Used by ParsedResult to
+    """
+    if not strategy:
+        raise InvalidStrategy("Missing `strategy`")
+    if isinstance(strategy, str):
+        if strategy != "all":
+            raise InvalidStrategy('If `strategy` is not a `list`, it must be "all".')
+        strategy = STRATEGY_ALL.copy()
+    elif isinstance(strategy, list):
+        _msgs = []
+        _invalids = []
+        for _candidate in strategy:
+            if _candidate == "all":
+                _msgs.append('Submit "all" as a `str`, not in a `list`.')
+                continue
+            if _candidate not in STRATEGY_ALL:
+                _invalids.append(_candidate)
+        if _invalids:
+            _msgs.append(
+                "Invalid strategy: %s." % ", ".join(['"%s"' % i for i in _invalids])
+            )
+        if _msgs:
+            raise InvalidStrategy(" ".join(_msgs))
+    return strategy
 
 
 # ------------------------------------------------------------------------------
@@ -630,25 +662,22 @@ class ParsedResult(object):
     def _coerce_validate_strategy(
         self,
         strategy: "TYPES_STRATEGY" = None,
-    ) -> Union[List, str]:
+    ) -> List[str]:
         """normalize a strategy into a valid option"""
+        _strategy = None
         if strategy:
-            if isinstance(strategy, str):
-                if strategy != "all":
-                    raise ValueError("If `strategy` is not a `list`, it must be 'all'.")
-            elif isinstance(strategy, list):
-                _invalids = []
-                for _candidate in strategy:
-                    if _candidate not in self.strategy:
-                        _invalids.append(_candidate)
-                if "all" in strategy:
-                    raise ValueError('Submit "all" as a `str`, not in a `list`.')
-                if _invalids:
-                    raise ValueError("invalid strategy: %s" % _invalids)
+            if strategy == self.strategy:
+                _strategy = self.strategy
+            else:
+                _strategy = validate_strategy(strategy)
         else:
             # use our default list
-            strategy = self.strategy
-        return strategy
+            _strategy = self.strategy or "all"
+        if _strategy == "all":
+            _strategy = STRATEGY_ALL.copy()
+        if TYPE_CHECKING:
+            assert isinstance(_strategy, list)
+        return _strategy
 
     def get_metadatas(
         self,
@@ -747,20 +776,23 @@ class ParsedResult(object):
         field: str,
         strategy: "TYPES_STRATEGY" = None,
     ) -> Optional[str]:
+        # default
+        strategy = strategy or self.strategy
+
         candidates = self.get_metadatas(field, strategy=strategy)
         if not candidates:
             return None
-        # invoke the default strategy if needed
-        strategy = strategy or self.strategy
-        # act on the strategy
+
+        # handle "all"
         if strategy == "all":
-            first_strategy = list(candidates.keys())[0]
+            strategy = validate_strategy(strategy)  # convert to ordered list
         else:
             assert isinstance(strategy, list)
-            for _strategy in strategy:
-                if _strategy in candidates:
-                    first_strategy = _strategy
-                    break
+
+        for _strategy in strategy:
+            if _strategy in candidates:
+                first_strategy = _strategy
+                break
         first_value = candidates[first_strategy][0]
         if isinstance(first_value, dict):
             if first_strategy == "dc":
@@ -1016,6 +1048,10 @@ class MetadataParser(object):
         else:
             self.urlparse = urlparse
         if strategy:
+            # this method is used for setting default strategy
+            # as such, validate it on set
+            validate_strategy(strategy)  # will raise `InvalidStrategy`
+            self.strategy = strategy
             self.parsed_result.strategy = strategy
         self.url = self.parsed_result.metadata["_internal"]["url"] = url
         self.url_actual = self.parsed_result.metadata["_internal"]["url_actual"] = url
@@ -1790,7 +1826,9 @@ class MetadataParser(object):
             url_fallback=True
             allow_unicode_url=True
         """
-        _candidates = self.parsed_result.get_metadatas("canonical", strategy=["page"])
+        _candidates = self.parsed_result.get_metadatas(
+            "canonical", strategy=["page", "meta"]
+        )
         candidates = _candidates["page"] if _candidates else _candidates
 
         # get_metadatas returns a list, so find the first canonical item
@@ -1866,7 +1904,9 @@ class MetadataParser(object):
             url_fallback=None
             allow_unicode_url=True
         """
-        _candidates = self.parsed_result.get_metadatas("url", strategy=["og"])
+        _candidates = self.parsed_result.get_metadatas(
+            "url", strategy=["og", "page", "meta"]
+        )
         candidates = _candidates["og"] if _candidates else _candidates
 
         # get_metadatas returns a list, so find the first og item

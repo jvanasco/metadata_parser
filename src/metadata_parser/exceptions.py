@@ -24,6 +24,12 @@ class InvalidDocument(Exception):
         return "InvalidDocument: %s" % (self.message)
 
 
+class InvalidStrategy(ValueError):
+
+    def __str__(self) -> str:
+        return "InvalidStrategy: %s" % (self.args[0])
+
+
 class NotParsable(Exception):
     code: Optional[int]
     metadataParser: Optional["MetadataParser"]

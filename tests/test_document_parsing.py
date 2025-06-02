@@ -10,7 +10,9 @@ import unittest
 
 # local
 import metadata_parser
+from metadata_parser import MetadataParser
 from metadata_parser import urlparse
+from metadata_parser.exceptions import InvalidStrategy
 
 
 # ==============================================================================
@@ -446,6 +448,74 @@ class _TestDocumentParsingCore:
             ).read()
         return CACHED_FILESYSTEM_DOCUMENTS[filename]
 
+    def _MakeOneParsed(self, **kwargs) -> metadata_parser.MetadataParser:
+        html = self._MakeOne("duplicates.html")
+
+        mp_kwargs = {}
+        if "strategy" in kwargs:
+            mp_kwargs["strategy"] = kwargs["strategy"]
+
+        parsed = metadata_parser.MetadataParser(url=None, html=html, **mp_kwargs)
+
+        # we should be tracking the verison now
+        self.assertIn("_v", parsed.parsed_result.metadata)
+
+        # it should be the same version
+        self.assertEqual(
+            parsed.parsed_result.metadata_version,
+            metadata_parser.ParsedResult._version,
+        )
+
+        # we should be tracking the verison now
+        self.assertIn("_v", parsed.parsed_result.metadata)
+
+        # it should be the same version
+        self.assertEqual(
+            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
+        )
+        return parsed
+
+
+class TestDocumentParsing_Exceptions(unittest.TestCase, _TestDocumentParsingCore):
+
+    def test__all_in_list(self):
+        parsed = self._MakeOneParsed()
+        # this should error!
+        with self.assertRaises(InvalidStrategy) as cm:
+            parsed.parsed_result.get_metadatas("canonical", strategy=["all"])
+        self.assertEqual(
+            cm.exception.args[0],
+            'Submit "all" as a `str`, not in a `list`.',
+        )
+
+    def test__known_as_str(self):
+        parsed = self._MakeOneParsed()
+        # this should error!
+        with self.assertRaises(InvalidStrategy) as cm:
+            parsed.parsed_result.get_metadatas("TestMixedCandidates1a", strategy="dc")
+        self.assertEqual(
+            cm.exception.args[0],
+            'If `strategy` is not a `list`, it must be "all".',
+        )
+
+    def test__unknown_in_list(self):
+        parsed = self._MakeOneParsed()
+        # this should error!
+        with self.assertRaises(InvalidStrategy) as cm:
+            parsed.parsed_result.get_metadatas("canonical", strategy=["unknown"])
+        self.assertEqual(
+            cm.exception.args[0],
+            'Invalid strategy: "unknown".',
+        )
+        with self.assertRaises(InvalidStrategy) as cm:
+            parsed.parsed_result.get_metadatas(
+                "canonical", strategy=["unknown", "unknown-too"]
+            )
+        self.assertEqual(
+            cm.exception.args[0],
+            'Invalid strategy: "unknown", "unknown-too".',
+        )
+
 
 class TestDocumentParsing(unittest.TestCase, _TestDocumentParsingCore):
     """
@@ -696,21 +766,6 @@ class TestDocumentParsing_Complex(unittest.TestCase, _TestDocumentParsingCore):
     this tests duplicates.html to have certain fields under complex conditions
     """
 
-    def _MakeOneParsed(self) -> metadata_parser.MetadataParser:
-        html = self._MakeOne("duplicates.html")
-        parsed = metadata_parser.MetadataParser(url=None, html=html)
-
-        # we should be tracking the verison now
-        self.assertIn("_v", parsed.parsed_result.metadata)
-
-        # it should be the same version
-        self.assertEqual(
-            parsed.parsed_result.metadata_version,
-            metadata_parser.ParsedResult._version,
-        )
-
-        return parsed
-
     def test_og_image(self):
         parsed = self._MakeOneParsed()
 
@@ -908,11 +963,11 @@ class TestDocumentParsing_Complex(unittest.TestCase, _TestDocumentParsingCore):
             )
 
         # test get_metadatas
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(InvalidStrategy) as cm:
             parsed.parsed_result.get_metadatas("TestMixedCandidates1a", strategy="dc")
         self.assertEqual(
             cm.exception.args[0],
-            "If `strategy` is not a `list`, it must be 'all'.",
+            'If `strategy` is not a `list`, it must be "all".',
         )
 
         self.assertEqual(
@@ -1517,7 +1572,7 @@ class TestDocumentParsing_Complex(unittest.TestCase, _TestDocumentParsingCore):
     def test__canonical(self):
         parsed = self._MakeOneParsed()
         # this should error!
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(InvalidStrategy) as cm:
             parsed.parsed_result.get_metadatas("canonical", strategy=["all"])
         self.assertEqual(
             cm.exception.args[0],
@@ -1611,14 +1666,6 @@ class TestDocumentParsing_Complex(unittest.TestCase, _TestDocumentParsingCore):
         html = self._MakeOne("duplicates.html")
         parsed = metadata_parser.MetadataParser(url=None, html=html)
 
-        # we should be tracking the verison now
-        self.assertIn("_v", parsed.parsed_result.metadata)
-
-        # it should be the same version
-        self.assertEqual(
-            parsed.parsed_result.metadata_version, metadata_parser.ParsedResult._version
-        )
-
         # Test a few things with and without encoding
 
         # Test A1
@@ -1679,6 +1726,165 @@ class TestDocumentParsing_Complex(unittest.TestCase, _TestDocumentParsingCore):
                 "meta": ["meta:TestMixedField3"],
                 "dc": ["dc:TestMixedField3"],
             },
+        )
+
+
+class TestDocumentParsing_SelectFirstMatch(unittest.TestCase, _TestDocumentParsingCore):
+
+    def _test__shared(self, parsed: MetadataParser):
+        # but the data is still there...
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords.order", strategy="all"),
+            {
+                "dc": [
+                    {"content": "dc:keywords.order::1"},
+                    {"content": "dc:keywords.order::2"},
+                ],
+                "meta": [
+                    "meta.keywords.order::1",
+                    "meta.keywords.order::2",
+                ],
+                "og": [
+                    "meta.property=og:keywords.order::1",
+                    "meta.property=og:keywords.order::2",
+                ],
+                "twitter": [
+                    "meta.name=twitter:keywords.order::1",
+                    "meta.name=twitter:keywords.order::2",
+                ],
+            },
+        )
+
+        # all gets meta first
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order", strategy="all"),
+            "meta.keywords.order::1",
+        )
+
+        # only look in: meta
+        self.assertEqual(
+            parsed.parsed_result.select_first_match(
+                "keywords.order", strategy=["meta"]
+            ),
+            "meta.keywords.order::1",
+        )
+        # only look in: page
+        self.assertEqual(
+            parsed.parsed_result.select_first_match(
+                "keywords.order", strategy=["page"]
+            ),
+            None,
+        )
+        # only look in: dc
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order", strategy=["dc"]),
+            "dc:keywords.order::1",
+        )
+        # only look in: og
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order", strategy=["og"]),
+            "meta.property=og:keywords.order::1",
+        )
+        # only look in: twitter
+        self.assertEqual(
+            parsed.parsed_result.select_first_match(
+                "keywords.order", strategy=["twitter"]
+            ),
+            "meta.name=twitter:keywords.order::1",
+        )
+
+    def test__basic(self):
+        parsed = self._MakeOneParsed()
+        self._test__shared(parsed)
+
+        # multiple candidates!
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords.order"),
+            {
+                "dc": [
+                    {"content": "dc:keywords.order::1"},
+                    {"content": "dc:keywords.order::2"},
+                ],
+                "meta": [
+                    "meta.keywords.order::1",
+                    "meta.keywords.order::2",
+                ],
+                "og": [
+                    "meta.property=og:keywords.order::1",
+                    "meta.property=og:keywords.order::2",
+                ],
+                "twitter": [
+                    "meta.name=twitter:keywords.order::1",
+                    "meta.name=twitter:keywords.order::2",
+                ],
+            },
+        )
+
+        # default gets meta first
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order"),
+            "meta.keywords.order::1",
+        )
+
+    def test__all(self):
+        parsed = self._MakeOneParsed(strategy="all")
+        self._test__shared(parsed)
+
+        # multiple candidates!
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords.order"),
+            {
+                "dc": [
+                    {"content": "dc:keywords.order::1"},
+                    {"content": "dc:keywords.order::2"},
+                ],
+                "meta": [
+                    "meta.keywords.order::1",
+                    "meta.keywords.order::2",
+                ],
+                "og": [
+                    "meta.property=og:keywords.order::1",
+                    "meta.property=og:keywords.order::2",
+                ],
+                "twitter": [
+                    "meta.name=twitter:keywords.order::1",
+                    "meta.name=twitter:keywords.order::2",
+                ],
+            },
+        )
+
+        # default gets meta first
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order"),
+            "meta.keywords.order::1",
+        )
+
+    def test__meta(self):
+        parsed = self._MakeOneParsed(strategy=["meta"])
+        self._test__shared(parsed)
+
+        # multiple candidates!
+        # only shows the meta, because of the init
+        self.assertEqual(
+            parsed.parsed_result.get_metadatas("keywords.order"),
+            {"meta": ["meta.keywords.order::1", "meta.keywords.order::2"]},
+        )
+
+        # default gets meta first
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order"),
+            "meta.keywords.order::1",
+        )
+
+    def test__reversed(self):
+        parsed = self._MakeOneParsed(strategy=["twitter", "dc", "og", "page", "meta"])
+
+        self._test__shared(parsed)
+
+        # default gets TWITTER first
+        self.assertEqual(
+            parsed.parsed_result.select_first_match("keywords.order"),
+            "meta.name=twitter:keywords.order::1",
         )
 
 

@@ -7,10 +7,10 @@ Build Status: |build_status|
 
 MetadataParser is a Python module for pulling metadata out of web documents.
 
-It requires `BeautifulSoup` for parsing. `Requests` is required for installation
-at this time, but not for operation. Additional functionality is automatically
-enabled if the `tldextract` project is installed, but can be disabled by
-setting an environment variable.
+`BeautifulSoup` is required for parsing.
+`Requests` is required for fetching remote documents.
+`tldextract` is utilized to parse domains, but can be disabled by setting an
+environment variable.
 
 This project has been used in production for many years, and has successfully
 parsed billions of documents.
@@ -29,7 +29,8 @@ For example:
 * if the current release is: `0.10.6`
 * the advised pin is:  `metadata_parser<0.11`
 
-PATCH releases will usually be bug fixes and new features that support backwards compatibility with Public Methods.  Private Methods are not guaranteed to be
+PATCH releases will usually be bug fixes and new features that support backwards
+compatibility with Public Methods.  Private Methods are not guaranteed to be
 backwards compatible.
 
 MINOR releases are triggered when there is a breaking change to Public Methods.
@@ -37,12 +38,10 @@ Once a new MINOR release is triggered, first-party support for the previous MINO
 release is EOL (end of life). PRs for previous releases are welcome, but giving
 them proper attention is not guaranteed.
 
-The current MAJOR release is `0`.
-A `1` MAJOR release is planned, and will have an entirely different structure and API.
-
 Future deprecations will raise warnings.
 
 By populating the following environment variable, future deprecations will raise exceptions:
+
     export METADATA_PARSER_FUTURE=1
 
 Installation
@@ -74,7 +73,7 @@ Features
 Logging
 =======
 
-This file has extensive logging to help developers pinpoint problems.
+This file utilizes extensive logging to help developers pinpoint problems.
 
 * ``log.debug``
   This log level is mostly used to handle library maintenance and
@@ -133,7 +132,7 @@ Notes
 
 1. This package requires BeautifulSoup 4.
 2. For speed, it will instantiate a BeautifulSoup parser with lxml, and
-   fallback to 'none' (the internal pure Python) if it can't load lxml.
+   fallback to 'None' (the internal pure Python) if it can not load lxml.
 3. URL Validation is not RFC compliant, but tries to be "Real World" compliant.
 
 It is HIGHLY recommended that you install lxml for usage.
@@ -146,7 +145,7 @@ Using at least the most recent 3.x versions is strongly recommended
 
 The default 'strategy' is to look in this order::
 
-    og,dc,meta,page
+    meta,page,og,dc,
 
 Which stands for the following::
 
@@ -240,12 +239,12 @@ is extracted from the metadata payload::
 
     >>> import metadata_parser
     >>> page = metadata_parser.MetadataParser(url="http://www.example.com")
-    >>> print page.get_metadata_link('image')
+    >>> print(page.get_metadata_link('image'))
 
 This method accepts a kwarg ``allow_encoded_uri`` (default False) which will
 return the image without further processing::
 
-    >>> print page.get_metadata_link('image', allow_encoded_uri=True)
+    >>> print(page.get_metadata_link('image', allow_encoded_uri=True))
 
 Similarly, if a url is local::
 
@@ -253,14 +252,14 @@ Similarly, if a url is local::
 
 The ``get_metadata_link`` method will automatically upgrade it onto the domain::
 
-    >>> print page.get_metadata_link('image')
+    >>> print(page.get_metadata_link('image'))
     http://example.com/image.jpg
 
 Poorly Constructed Canonical URLs
 ---------------------------------
 
-Many website publishers implement canonical URLs incorrectly.  This package
-tries to fix that.
+Many website publishers implement canonical URLs incorrectly.
+This package tries to fix that.
 
 By default ``MetadataParser`` is constructed with ``require_public_netloc=True``
 and ``allow_localhosts=True``.
@@ -299,17 +298,17 @@ improper canonical url, and remount the local part "/alt-path/to/foo" onto the
 domain that served the file.  The vast majority of times this 'behavior'
 has been encountered, this is the intended canonical::
 
-    print page.get_discrete_url()
+    print(page.get_discrete_url())
     >>> http://example.com/alt-path/to/foo
 
 In contrast, versions 0.8.3 and earlier will not catch this situation::
 
-    print page.get_discrete_url()
+    print(page.get_discrete_url())
     >>> http://localhost:8000/alt-path/to/foo
 
 In order to preserve the earlier behavior, just submit ``require_public_global=False``::
 
-    print page.get_discrete_url(require_public_global=False)
+    print(page.get_discrete_url(require_public_global=False))
     >>> http://localhost:8000/alt-path/to/foo
 
 
@@ -341,43 +340,7 @@ content, not just templates/Site-Operators.
 WARNING
 =============
 
-1.0 will be a complete API overhaul.  pin your releases to avoid sadness.
-
-
-Version 0.9.19 Breaking Changes
-===============================
-
-Issue #12 exposed some flaws in the existing package
-
-1. ``MetadataParser.get_metadatas`` replaces ``MetadataParser.get_metadata``
-----------------------------------------------------------------------------
-
-Until version 0.9.19, the recommended way to get metadata was to use
-``get_metadata`` which will either return a string (or None).
-
-Starting with version 0.9.19, the recommended way to get metadata is to use
-``get_metadatas`` which will always return a list (or None).
-
-This change was made because the library incorrectly stored a single metadata
-key value when there were duplicates.
-
-2. The ``ParsedResult`` payload stores mixed content and tracks it's version
-==--------------------------------------------------------------------------
-
-Many users (including the maintainer) archive the parsed metadata. After
-testing a variety of payloads with an all-list format and a mixed format
-(string or list), a mixed format had a much smaller payload size with a
-negligible performance hit. A new ``_v`` attribute tracks the payload version.
-In the future, payloads without a ``_v`` attribute will be interpreted as the
-pre-versioning format.
-
-3. ``DublinCore`` payloads might be a dict
-------------------------------------------
-
-Tests were added to handle dublincore data. An extra attribute may be needed to
-properly represent the payload, so always returning a dict with at least a
-name+content (and possibly ``lang`` or ``scheme`` is the best approach.
-
+Please pin your releases.
 
 
 Usage

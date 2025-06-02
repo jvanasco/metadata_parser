@@ -13,24 +13,24 @@
 
     Backwards Incompatible Changes:
         Remove Deprecated Functions:
-            `MetadataParser.get_metadata`
-            `MetadataParser.get_metadatas`
-            `MetadataParser.is_opengraph_minimum`
-            `MetadataParser.metadata`
-            `MetadataParser.metadata_encoding`
-            `MetadataParser.metadata_version`
-            `MetadataParser.soup`
-            `ParsedResult.get_metadata`
+            ``MetadataParser.get_metadata``
+            ``MetadataParser.get_metadatas``
+            ``MetadataParser.is_opengraph_minimum``
+            ``MetadataParser.metadata``
+            ``MetadataParser.metadata_encoding``
+            ``MetadataParser.metadata_version``
+            ``MetadataParser.soup``
+            ``ParsedResult.get_metadata``
         Remove Deprecated Functionality:
-            `MetadataParser.__init__::cached_urlparser`
+            ``MetadataParser.__init__::cached_urlparser``
                     no longer accepts `int` to control `cached_urlparser_maxitems`
         Encoder changes
             affected functions:
-                `decode_html`
-                `encode_ascii`
-                `ParsedResult.default_encoder`
-                `ParsedResult.get_metadatas::encoder`
-                `MetadataParser.__init__::default_encoder`
+                ``decode_html``
+                ``encode_ascii``
+                ``ParsedResult.default_encoder``
+                ``ParsedResult.get_metadatas::encoder``
+                ``MetadataParser.__init__::default_encoder``
             previously, encoders accepted one argument, which was documented to
                 be a string. This would cause issues if the elements were DC, as
                 that storage uses a dict. The new behavior is to send a first
@@ -38,16 +38,22 @@
                 second value that is a string identifiying the storage type.
             now they accept two arguments:
                 Arg 1 is a string or dict
-                Arg 2 is string, identifying the strategy/store
+                Arg 2 is optional string, identifying the strategy/store
         New Function
-            `ParsedResult.select_first_match(field, strategy)`
+            ```ParsedResult.select_first_match(field, strategy)```
                 will return the first match for the given, or default strategy
         API Changes
-            `ParsedResult.get_metadatas` will now return a dict or None.
-            A bug was discovered in which it would return the first matched
-            elements when there were multiple options
+            The package was split into namespaces.
+            ``MetadataParser.__init__`` now validates submitted `strategy` args
 
-        Split package into namespaces
+            ``MetadataParser.strategy`` now defaults to: `["meta", "page", "og", "dc", "twitter"]`
+                previously this was: `["og", "dc", "meta", "page", "twitter"]`
+
+            ``ParsedResult.get_metadatas`` will now return a dict or None.
+                A bug was discovered in which it would return the first matched
+                elements when there were multiple options
+
+            An invalid strategy will now raise `InvalidStrategy`, a subclass of `ValueError`
 
 0.13.0
     * drop py36; no test options due to github deprecation of ubuntu20.04
