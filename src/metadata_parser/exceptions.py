@@ -15,13 +15,9 @@ class AllowableError(Exception):
 
 
 class InvalidDocument(Exception):
-    message: str
-
-    def __init__(self, message: str = ""):
-        self.message = message
 
     def __str__(self) -> str:
-        return "InvalidDocument: %s" % (self.message)
+        return "InvalidDocument: %s" % (self.args[0])
 
 
 class InvalidStrategy(ValueError):
@@ -44,6 +40,7 @@ class NotParsable(Exception):
         metadataParser: Optional["MetadataParser"] = None,
         response: Optional["TYPES_RESPONSE"] = None,
     ):
+        super().__init__(message, raised, code, metadataParser, response)
         self.code = code
         self.message = message
         self.metadataParser = metadataParser
@@ -101,6 +98,7 @@ class RedirectDetected(Exception):
         response: Optional["TYPES_RESPONSE"] = None,
         metadataParser: Optional["MetadataParser"] = None,
     ):
+        super().__init__(location, code, response, metadataParser)
         self.code = code
         self.location = location
         self.metadataParser = metadataParser

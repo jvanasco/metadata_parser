@@ -12,6 +12,7 @@
 
 
     Backwards Incompatible Changes:
+
         Remove Deprecated Functions:
             ``MetadataParser.get_metadata``
             ``MetadataParser.get_metadatas``
@@ -21,9 +22,11 @@
             ``MetadataParser.metadata_version``
             ``MetadataParser.soup``
             ``ParsedResult.get_metadata``
+
         Remove Deprecated Functionality:
             ``MetadataParser.__init__::cached_urlparser``
                     no longer accepts `int` to control `cached_urlparser_maxitems`
+
         Encoder changes
             affected functions:
                 ``decode_html``
@@ -39,9 +42,7 @@
             now they accept two arguments:
                 Arg 1 is a string or dict
                 Arg 2 is optional string, identifying the strategy/store
-        New Function
-            ```ParsedResult.select_first_match(field, strategy)```
-                will return the first match for the given, or default strategy
+
         API Changes
             The package was split into namespaces.
             ``MetadataParser.__init__`` now validates submitted `strategy` args
@@ -54,6 +55,17 @@
                 elements when there were multiple options
 
             An invalid strategy will now raise `InvalidStrategy`, a subclass of `ValueError`
+            
+            `InvalidDocument` no longer has a .message attribute
+            
+            Exceptions now invoke `super().__init__(args)`
+
+    New Functionality
+
+        ```ParsedResult.select_first_match(field, strategy)```
+            will return the first match for the given, or default strategy
+
+
 
 0.13.0
     * drop py36; no test options due to github deprecation of ubuntu20.04
