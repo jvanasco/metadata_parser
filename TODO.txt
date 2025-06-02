@@ -1,0 +1,5 @@
+1.0.0
+    tests needed for:
+        select_first_strategy
+            try to break it
+            select different strategies, different data on each

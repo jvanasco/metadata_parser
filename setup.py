@@ -32,8 +32,6 @@ requires = [
     "requests-toolbelt>=0.8.0",
     "typing_extensions",
 ]
-if sys.version_info.major == 2:
-    requires.append("backports.html")
 
 if sys.version_info >= (3, 13):
     requires.append("legacy-cgi")
