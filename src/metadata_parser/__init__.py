@@ -1,15 +1,6 @@
-import _socket  # noqa: I100,I201  # peername hack, see below
-
 # stdlib
-import cgi  # noqa: I100,I201
 import collections
-import datetime
-from html import unescape as html_unescape
 import logging
-import os
-import re
-import socket  # peername hack, see below
-import typing
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -19,194 +10,84 @@ from typing import Optional
 from typing import Tuple
 from typing import TYPE_CHECKING
 from typing import Union
-import unicodedata
 from urllib.parse import _ResultMixinStr  # what happens if you decode
 from urllib.parse import ParseResult
 from urllib.parse import ParseResultBytes
-from urllib.parse import quote as url_quote
-from urllib.parse import unquote as url_unquote
 from urllib.parse import urlparse
-from urllib.parse import urlunparse
-import warnings
 
 # pypi
 from bs4 import BeautifulSoup
 import requests
 from requests.structures import CaseInsensitiveDict
-from requests_toolbelt.utils.deprecated import get_encodings_from_content
 from typing_extensions import Literal  # py38
-from typing_extensions import Protocol  # py38
+
+# local
+from . import config
+from .exceptions import InvalidDocument
+from .exceptions import InvalidStrategy
+from .exceptions import NotParsable
+from .exceptions import NotParsableFetchError
+from .exceptions import NotParsableJson
+from .exceptions import NotParsableRedirect
+from .exceptions import RedirectDetected
+from .regex import RE_ALL_NUMERIC
+from .regex import RE_canonical
+from .regex import RE_doctype
+from .regex import RE_DOMAIN_NAME
+from .regex import RE_IPV4_ADDRESS
+from .regex import RE_prefix_opengraph
+from .regex import RE_prefix_rel_img_src
+from .regex import RE_prefix_twitter
+from .regex import RE_rfc3986_valid_characters
+from .regex import RE_shortlink
+from .regex import RE_VALID_NETLOC
+from .regex import RE_whitespace
+from .requests_extensions import derive_encoding__hook
+from .requests_extensions import get_response_peername
+from .requests_extensions import response_peername__hook
+from .typing import _UrlParserCacheable
+from .utils import DummyResponse
+from .utils import fix_unicode_url
+from .utils import warn_user
 
 if TYPE_CHECKING:
     from bs4 import Tag as _bs4_Tag
+    from .typing import TYPE_ENCODER
+    from .typing import TYPE_REQUESTS_TIMEOUT
+    from .typing import TYPE_URL_FETCH
+    from .typing import TYPE_URLPARSE
+    from .typing import TYPES_PEERNAME
+    from .typing import TYPES_RESPONSE
+    from .typing import TYPES_STRATEGY
 
 if __debug__:
     # only used for testing. turn off in most production env with -o flags
     import pprint  # noqa: F401
 
-FUTURE_BEHAVIOR = bool(int(os.getenv("METADATA_PARSER_FUTURE", "0")))
 
 # ==============================================================================
 
 
-__VERSION__ = "0.13.1"
+__VERSION__ = "1.0.0dev"
 
 
 # ------------------------------------------------------------------------------
 
 
-log = logging.getLogger(__name__)
-
-
-def warn_future(message: str) -> None:
-    warnings.warn(message, FutureWarning, stacklevel=2)
-    if FUTURE_BEHAVIOR:
-        raise ValueError(message)
-
-
-def warn_user(message: str) -> None:
-    warnings.warn(message, UserWarning, stacklevel=2)
+log = logging.getLogger("metdata_parser")
 
 
 # ------------------------------------------------------------------------------
 
-# defaults
-DUMMY_URL = os.environ.get(
-    "METADATA_PARSER__DUMMY_URL", "http://example.com/index.html"
-)
-ENCODING_FALLBACK = os.environ.get("METADATA_PARSER__ENCODING_FALLBACK", "ISO-8859-1")
-TESTING = bool(int(os.environ.get("METADATA_PARSER__TESTING", "0")))
 
-"""
-# currently unused
-MAX_CONNECTIONTIME = int(
-    os.environ.get("METADATA_PARSER__MAX_CONNECTIONTIME", 20)
-)  # in seconds
-MAX_FILESIZE = int(
-    os.environ.get("METADATA_PARSER__MAX_FILESIZE", 2 ** 19)
-)  # bytes; this is .5MB
-"""
+USE_TLDEXTRACT = False
+if not config.DISABLE_TLDEXTRACT:
+    import tldextract
 
-
-TYPES_RESPONSE = Union["DummyResponse", requests.Response]
-TYPES_PEERNAME = Tuple[str, int]  # (ip, port)
-TYPE_URL_FETCH = Tuple[str, str, "ResponseHistory"]
-TYPE_REQUESTS_TIMEOUT = Optional[
-    Union[int, float, Tuple[int, int], Tuple[float, float]]
-]
+    USE_TLDEXTRACT = True
 
 # ------------------------------------------------------------------------------
 
-_DISABLE_TLDEXTRACT = bool(
-    int(os.environ.get("METADATA_PARSER__DISABLE_TLDEXTRACT", "0"))
-)
-USE_TLDEXTRACT = None
-if not _DISABLE_TLDEXTRACT:
-    try:
-        import tldextract
-
-        USE_TLDEXTRACT = True
-    except ImportError:
-        log.info(
-            "tldextract is not available on this system. "
-            "medatadata_parser recommends installing tldextract"
-        )
-        USE_TLDEXTRACT = False
-
-# ------------------------------------------------------------------------------
-
-
-# peername hacks
-# only use for these stdlib packages
-# eventually will not be needed thanks to upstream changes in `requests`
-try:
-    _compatible_sockets: Tuple = (
-        _socket.socket,
-        socket._socketobject,  # type: ignore[attr-defined]
-    )
-except AttributeError:
-    _compatible_sockets: Tuple = (_socket.socket,)  # type: ignore[no-redef]
-
-# ------------------------------------------------------------------------------
-
-# regex library
-
-RE_ALL_NUMERIC = re.compile(r"^[\d\.]+$")
-RE_bad_title = re.compile(
-    r"""(?:<title>|&lt;title&gt;)(.*)(?:<?/title>|(?:&lt;)?/title&gt;)""", re.I
-)
-RE_canonical = re.compile("^canonical$", re.I)
-RE_doctype = re.compile(r"^\s*<!DOCTYPE[^>]*>", re.IGNORECASE)
-RE_DOMAIN_NAME = re.compile(
-    r"""(^
-            (?:
-                [A-Z0-9]
-                (?:
-                    [A-Z0-9-]{0,61}
-                    [A-Z0-9]
-                )?
-                \.
-            )+
-            (?:
-                [A-Z]{2,6}\.?
-                |
-                [A-Z0-9-]{2,}
-            (?<!-)\.?)
-        $)""",
-    re.VERBOSE | re.IGNORECASE,
-)
-RE_IPV4_ADDRESS = re.compile(
-    r"^(\d{1,3})\.(\d{1,3}).(\d{1,3}).(\d{1,3})$"  # grab 4 octets
-)
-RE_PORT = re.compile(r"^" r"(?P<main>.+)" r":" r"(?P<port>\d+)" r"$", re.IGNORECASE)
-RE_prefix_opengraph = re.compile(r"^og")
-RE_prefix_rel_img_src = re.compile("^image_src$", re.I)
-RE_prefix_twitter = re.compile(r"^twitter")
-
-# we may need to test general validity of url components
-RE_rfc3986_valid_characters = re.compile(
-    r"""^[a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%]+$""", re.I
-)
-r"""
-What is valid in the RFC?
-    # don't need escaping
-    rfc3986_unreserved__noescape = ['a-z', '0-9', ]
-
-    # do need escaping
-    rfc3986_unreserved__escape = ['-', '.', '_', '~', ]
-    rfc3986_gen_delims__escape = [":", "/", "?", "#", "[", "]", "@", ]
-    rfc3986_sub_delims__escape = ["!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=", ]
-    rfc3986_pct_encoded__escape = ["%", ]
-    rfc3986__escape = rfc3986_unreserved__escape  + rfc3986_gen_delims__escape + rfc3986_sub_delims__escape + rfc3986_pct_encoded__escape
-    rfc3986__escaped = re.escape(''.join(rfc3986__escape))
-    rfc3986_chars = ''.join(rfc3986_unreserved__noescape) + rfc3986__escaped
-    print rfc3986_chars
-
-    a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%
-"""
-
-RE_shortlink = re.compile("^shortlink$", re.I)
-RE_whitespace = re.compile(r"\s+")
-
-# based on DJANGO
-# https://github.com/django/django/blob/master/django/core/validators.py
-# not testing ipv6 right now, because rules are needed for ensuring they
-# are correct
-RE_VALID_NETLOC = re.compile(
-    r"(?:"
-    r"(?P<ipv4>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
-    r"|"  # ...or ipv4
-    #  r'(?P<ipv6>\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # ...or ipv6
-    #  r'|'
-    r"(?P<localhost>localhost)"  # localhost...
-    r"|"
-    r"(?P<domain>([A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}(?<!-)\.?))"  # domain...
-    r"(?P<port>:\d+)?"  # optional port
-    r")",
-    re.IGNORECASE,
-)
-
-# ------------------------------------------------------------------------------
 
 # globals library
 
@@ -261,181 +142,12 @@ SCHEMELESS_FIELDS_UPGRADEABLE = (
 )
 
 
-# ------------------------------------------------------------------------------
-
-
-def encode_ascii(text: str) -> str:
-    """
-    helper function to force ascii; some edge-cases have unicode line breaks in titles/etc.
-    """
-    if not text:
-        text = ""
-    _as_bytes = unicodedata.normalize("NFKD", text).encode("ascii", "ignore")
-    _as_str = _as_bytes.decode("utf-8", "ignore")
-    return _as_str
-
-
-def decode_html(text: str) -> str:
-    """
-    helper function to decode text that has both HTML and non-ascii characters
-    """
-    text = encode_ascii(html_unescape(text))
-    return text
-
+STRATEGY_ALL = ["meta", "page", "og", "dc", "twitter"]
 
 # ------------------------------------------------------------------------------
 
 
-def get_encoding_from_headers(headers: CaseInsensitiveDict) -> Optional[str]:
-    """
-    Returns encodings from given HTTP Header Dict.
-
-    :param headers: dictionary to extract encoding from.
-    :rtype: str
-
-    `requests.get("http://example.com").headers` should be `requests.structures.CaseInsensitiveDict`
-
-    ----------------------------------------------------------------------------
-
-    Modified from `requests` version 2.x
-
-    The Requests Library:
-
-        Copyright 2017 Kenneth Reitz
-
-        Licensed under the Apache License, Version 2.0 (the "License");
-        you may not use this file except in compliance with the License.
-        You may obtain a copy of the License at
-
-            http://www.apache.org/licenses/LICENSE-2.0
-
-        Unless required by applicable law or agreed to in writing, software
-        distributed under the License is distributed on an "AS IS" BASIS,
-        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-        See the License for the specific language governing permissions and
-        limitations under the License.
-    """
-    content_type = headers.get("content-type")
-    if not content_type:
-        return None
-    content_type, params = cgi.parse_header(content_type)
-    if "charset" in params:
-        return params["charset"].strip("'\"")
-    return None
-
-
 # ------------------------------------------------------------------------------
-
-
-def get_response_peername(resp: TYPES_RESPONSE) -> Optional[TYPES_PEERNAME]:
-    """
-    used to get the peername (ip+port) data from the request
-    if a socket is found, caches this onto the request object
-
-    IMPORTANT. this must happen BEFORE any content is consumed.
-
-    `response` is really `requests.models.Response`
-
-    This will UPGRADE the response object to have the following attribute:
-
-        * _mp_peername
-    """
-    if not isinstance(resp, requests.Response) and not isinstance(resp, DummyResponse):
-        # raise AllowableError("Not a HTTPResponse")
-        log.debug("Not a supported HTTPResponse | %s", resp)
-        log.debug("-> received a type of: %s", type(resp))
-        return None
-
-    if hasattr(resp, "_mp_peername"):
-        return resp._mp_peername
-
-    def _get_socket() -> Optional[socket.socket]:
-        if isinstance(resp, DummyResponse):
-            return None
-        i = 0
-        while True:
-            i += 1
-            try:
-                if i == 1:
-                    sock = resp.raw._connection.sock  # type: ignore[union-attr]
-                elif i == 2:
-                    sock = resp.raw._connection.sock.socket  # type: ignore[union-attr]
-                elif i == 3:
-                    sock = resp.raw._fp.fp._sock  # type: ignore[union-attr]
-                elif i == 4:
-                    sock = resp.raw._fp.fp._sock.socket  # type: ignore[union-attr]
-                elif i == 5:
-                    sock = resp.raw._fp.fp.raw._sock  # type: ignore[union-attr]
-                else:
-                    break
-                if not isinstance(sock, _compatible_sockets):
-                    raise AllowableError()
-                return sock
-            except Exception:
-                pass
-        return None
-
-    sock = _get_socket()
-    if sock:
-        # only cache if we have a sock
-        # we may want/need to call again
-        resp._mp_peername = sock.getpeername()  # type: ignore [union-attr]
-    else:
-        resp._mp_peername = None  # type: ignore [union-attr]
-    return resp._mp_peername  # type: ignore [union-attr]
-
-
-# ------------------------------------------------------------------------------
-
-
-def response_peername__hook(resp: TYPES_RESPONSE, *args, **kwargs) -> None:
-    get_response_peername(resp)
-    # do not return anything
-
-
-def safe_sample(source: Union[str, bytes]) -> bytes:
-    if isinstance(source, bytes):
-        _sample = source[:1024]
-    else:
-        # this block can cause an error on PY3 depending on where the data came
-        # from such as what the source is (from a request vs a document/test)
-        # thanks, @keyz182 for the PR/investigation https://github.com/jvanasco/metadata_parser/pull/16
-        _sample = (source.encode())[:1024]
-    return _sample
-
-
-def derive_encoding__hook(resp: TYPES_RESPONSE, *args, **kwargs) -> None:
-    """
-    a note about `requests`
-
-    `response.content` is the raw response bytes
-    `response.text` is `response.content` decoded to the identified codec or
-                    the fallback codec.
-
-    This fallback codec is normally iso-8859-1 (latin-1) which is defined by the
-    RFC for HTTP as the default when no codec is provided in the headers or
-    body. This hook exists because users in certain regions may expect the
-    servers to not follow RFC and for the default encoding to be different.
-    """
-    if TYPE_CHECKING:
-        assert hasattr(resp, "_encoding_fallback")
-        assert hasattr(resp, "_encoding_content")
-        assert hasattr(resp, "_encoding_headers")
-
-    resp._encoding_fallback = ENCODING_FALLBACK
-    # modified version, returns `None` if no charset available
-    resp._encoding_headers = get_encoding_from_headers(resp.headers)
-    resp._encoding_content = None
-    if not resp._encoding_headers and resp.content:
-        # html5 spec requires a meta-charset in the first 1024 bytes
-        _sample = safe_sample(resp.content)
-        resp._encoding_content = get_encodings_from_content(_sample)
-    if resp._encoding_content:
-        # it's a list
-        resp.encoding = resp._encoding_content[0]
-    else:
-        resp.encoding = resp._encoding_headers or resp._encoding_fallback
-    # do not return anything
 
 
 # ------------------------------------------------------------------------------
@@ -585,6 +297,33 @@ def is_parsed_valid_relative(parsed: ParseResult) -> bool:
     return False
 
 
+def is_url_valid(
+    url: str,
+    require_public_netloc: Optional[bool] = None,
+    allow_localhosts: Optional[bool] = None,
+    urlparser: "TYPE_URLPARSE" = urlparse,
+) -> Union[Literal[False], ParseResult]:
+    """
+    tries to parse a url. if valid returns `ParseResult`
+    (boolean eval is True); if invalid returns `False`
+    kwargs:
+        `require_public_netloc` -
+        `allow_localhosts` -
+        `urlparser` - defaults to standard `urlparse`, can be substituted with
+                      a cacheable version.
+    """
+    if url is None:
+        return False
+    parsed = urlparser(url)
+    if is_parsed_valid_url(
+        parsed,
+        require_public_netloc=require_public_netloc,
+        allow_localhosts=allow_localhosts,
+    ):
+        return parsed
+    return False
+
+
 def parsed_to_relative(
     parsed: ParseResult,
     parsed_fallback: Optional[ParseResult] = None,
@@ -613,77 +352,12 @@ def parsed_to_relative(
     return _path
 
 
-def fix_unicode_url(
-    url: str,
-    encoding: Optional[str] = None,
-    urlparser: Callable[[str], ParseResult] = urlparse,
-) -> str:
-    """
-    some cms systems will put unicode in their canonical url
-    this is not allowed by rfc.
-    currently this function will update the PATH but not the kwargs.
-    perhaps it should.
-    rfc3986 says that characters should be put into utf8 then percent encoded
-
-    kwargs:
-        `encoding` - used for python2 encoding
-        `urlparser` - defaults to standard `urlparse`, can be substituted with
-                      a cacheable version.
-    """
-    parsed = urlparser(url)
-    if parsed.path in ("", "/"):
-        # can't do anything
-        return url
-    if RE_rfc3986_valid_characters.match(parsed.path):
-        # again, can't do anything
-        return url
-    # okay, we know we have bad items in the path, so try and upgrade!
-    # turn the namedtuple from urlparse into something we can edit
-    candidate = [i for i in parsed]
-    for _idx in [2]:  # 2=path, 3=params, 4=queryparams, 5fragment
-        try:
-            candidate[_idx] = parsed[_idx]
-            candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
-        except Exception as exc:
-            log.debug("fix_unicode_url failure: %s | %s | %s", url, encoding, exc)
-            return url
-    _url = urlunparse(candidate)
-    return _url
-
-
-def is_url_valid(
-    url: str,
-    require_public_netloc: Optional[bool] = None,
-    allow_localhosts: Optional[bool] = None,
-    urlparser: Callable[[str], ParseResult] = urlparse,
-) -> Union[Literal[False], ParseResult]:
-    """
-    tries to parse a url. if valid returns `ParseResult`
-    (boolean eval is True); if invalid returns `False`
-    kwargs:
-        `require_public_netloc` -
-        `allow_localhosts` -
-        `urlparser` - defaults to standard `urlparse`, can be substituted with
-                      a cacheable version.
-    """
-    if url is None:
-        return False
-    parsed = urlparser(url)
-    if is_parsed_valid_url(
-        parsed,
-        require_public_netloc=require_public_netloc,
-        allow_localhosts=allow_localhosts,
-    ):
-        return parsed
-    return False
-
-
 def url_to_absolute_url(
     url_test: Optional[str],
     url_fallback: Optional[str] = None,
     require_public_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
-    urlparser: Callable[[str], ParseResult] = urlparse,
+    urlparser: "TYPE_URLPARSE" = urlparse,
 ) -> Optional[str]:
     """
     returns an "absolute url" if we have one.
@@ -799,153 +473,35 @@ def url_to_absolute_url(
     return rval
 
 
-# ------------------------------------------------------------------------------
-
-
-class InvalidDocument(Exception):
-    message: str
-
-    def __init__(self, message: str = ""):
-        self.message = message
-
-    def __str__(self) -> str:
-        return "InvalidDocument: %s" % (self.message)
-
-
-class NotParsable(Exception):
-    raised: Optional[requests.exceptions.RequestException]
-    code: Optional[int]
-    metadataParser: Optional["MetadataParser"]
-    response: Optional[TYPES_RESPONSE]
-
-    def __init__(
-        self,
-        message: str = "",
-        raised: Optional[requests.exceptions.RequestException] = None,
-        code: Optional[int] = None,
-        metadataParser: Optional["MetadataParser"] = None,
-        response: Optional[TYPES_RESPONSE] = None,
-    ):
-        self.message = message
-        self.raised = raised
-        self.code = code
-        self.metadataParser = metadataParser
-        self.response = response
-
-    def __str__(self) -> str:
-        return "NotParsable: %s | %s | %s" % (self.message, self.code, self.raised)
-
-
-class NotParsableJson(NotParsable):
-    def __str__(self) -> str:
-        return "NotParsableJson: %s | %s | %s" % (self.message, self.code, self.raised)
-
-
-class NotParsableRedirect(NotParsable):
-    """Raised if a redirect is detected, but there is no Location header."""
-
-    def __str__(self) -> str:
-        return "NotParsableRedirect: %s | %s | %s" % (
-            self.message,
-            self.code,
-            self.raised,
-        )
-
-
-class NotParsableFetchError(NotParsable):
-    def __str__(self) -> str:
-        return "NotParsableFetchError: %s | %s | %s" % (
-            self.message,
-            self.code,
-            self.raised,
-        )
-
-
-class AllowableError(Exception):
-    pass
-
-
-class RedirectDetected(Exception):
+def validate_strategy(
+    strategy: "TYPES_STRATEGY",
+) -> List[str]:
     """
-    Raised if a redirect is detected
-    Instance properties:
-
-    ``location``: redirect location
-    ``code``: status code of the response
-    ``response``: actual response object
+    Used by `MetadataParser.__init__` to validate a strategy on set
+    Used by ParsedResult to
     """
-
-    location: str
-    code: Optional[int]
-    response: Optional[TYPES_RESPONSE]
-    metadataParser: Optional["MetadataParser"]
-
-    def __init__(
-        self,
-        location: str = "",
-        code: Optional[int] = None,
-        response: Optional[TYPES_RESPONSE] = None,
-        metadataParser: Optional["MetadataParser"] = None,
-    ):
-        self.location = location
-        self.code = code
-        self.response = response
-        self.metadataParser = metadataParser
-
-
-# ------------------------------------------------------------------------------
-
-
-class DummyResponse(object):
-    """
-    A DummyResponse is used to ensure compatibility between url fetching
-    and html data
-    """
-
-    text: str
-    url: str
-    status_code: int
-    encoding: str
-    elapsed_seconds: float = 0
-    history: List
-    headers: CaseInsensitiveDict
-    content: Optional[Union[str, bytes]] = None
-    default_encoding: str
-
-    def __init__(
-        self,
-        text: str = "",
-        url: str = "",
-        status_code: int = 200,
-        encoding: Optional[str] = None,
-        elapsed_seconds: float = 0,
-        headers: Optional[CaseInsensitiveDict] = None,
-        content: Optional[typing.AnyStr] = None,
-        derive_encoding: Optional[bool] = None,
-        default_encoding: Optional[str] = None,
-    ):
-        self.text = text
-        self.url = url
-        self.status_code = status_code
-        self.elapsed = datetime.timedelta(0, elapsed_seconds)
-        self.headers = headers if headers is not None else CaseInsensitiveDict()
-        self.history = []
-        self.content = content
-
-        # start `encoding` block
-        if encoding:
-            self.encoding = encoding
-        elif derive_encoding:
-            # only examine first 1024 bytes. in this case chars. utf could be 4x chars
-            _sample = safe_sample(text)
-            encodings = get_encodings_from_content(_sample)
-            if encodings:
-                self.encoding = encoding = encodings[0]
-        self.default_encoding = default_encoding or ENCODING_FALLBACK
-        # second phase cleanup
-        if not encoding:
-            self.encoding = self.default_encoding
-        # end `encoding` block
+    if not strategy:
+        raise InvalidStrategy("Missing `strategy`")
+    if isinstance(strategy, str):
+        if strategy != "all":
+            raise InvalidStrategy('If `strategy` is not a `list`, it must be "all".')
+        strategy = STRATEGY_ALL.copy()
+    elif isinstance(strategy, list):
+        _msgs = []
+        _invalids = []
+        for _candidate in strategy:
+            if _candidate == "all":
+                _msgs.append('Submit "all" as a `str`, not in a `list`.')
+                continue
+            if _candidate not in STRATEGY_ALL:
+                _invalids.append(_candidate)
+        if _invalids:
+            _msgs.append(
+                "Invalid strategy: %s." % ", ".join(['"%s"' % i for i in _invalids])
+            )
+        if _msgs:
+            raise InvalidStrategy(" ".join(_msgs))
+    return strategy
 
 
 # ------------------------------------------------------------------------------
@@ -954,7 +510,7 @@ class DummyResponse(object):
 class ResponseHistory(object):
     history: Optional[Iterable] = None
 
-    def __init__(self, resp: TYPES_RESPONSE):
+    def __init__(self, resp: "TYPES_RESPONSE"):
         """
         :param resp: A :class:`requests.Response` object to compute history of
         :type resp: class:`requests.Response`
@@ -988,10 +544,6 @@ class ResponseHistory(object):
                 )
 
 
-class _UrlParserCacheable(Protocol):
-    urlparse: Callable[[str], ParseResult]
-
-
 class UrlParserCacheable(_UrlParserCacheable):
     """
     class for caching calls to urlparse
@@ -1001,12 +553,12 @@ class UrlParserCacheable(_UrlParserCacheable):
 
     cache: collections.OrderedDict
     maxitems: int
-    urlparser: Callable[[str], ParseResult]
+    urlparser: "TYPE_URLPARSE"
 
     def __init__(
         self,
         maxitems: int = 30,
-        urlparser: Callable[[str], ParseResult] = urlparse,
+        urlparser: "TYPE_URLPARSE" = urlparse,
     ):
         """
         :param maxitems: maximum items to cache, default 30
@@ -1042,24 +594,26 @@ class ParsedResult(object):
     readme/docs are not necessarily installed locally.
     """
 
+    _og_minimum_requirements: List = ["title", "type", "image", "url"]
+    _version: int = 1  # version tracking
+
+    # unused
+    # _get_metadata__last_strategy: Optional[str] = None
+    # twitter_sections: List = ["card", "title", "site", "description"]
+
+    default_encoder: Optional["TYPE_ENCODER"] = None
     metadata: Dict
-    soup: Optional[BeautifulSoup] = None
     response_history: Optional[ResponseHistory] = (
         None  # only stashing `ResponseHistory` if we have it
     )
-    _version: int = 1  # version tracking
-    default_encoder: Optional[Callable[[str], str]] = None
-    og_minimum_requirements: List = ["title", "type", "image", "url"]
-    twitter_sections: List = ["card", "title", "site", "description"]
-    strategy: Union[List[str], str] = ["og", "dc", "meta", "page", "twitter"]
-
-    _get_metadata__last_strategy: Optional[str] = None
+    soup: Optional[BeautifulSoup] = None
+    strategy: Union[List[str], str] = STRATEGY_ALL
 
     def __init__(self):
         self.metadata = {
-            "og": {},
-            "meta": {},
             "dc": {},
+            "meta": {},
+            "og": {},
             "page": {},
             "twitter": {},
             "_internal": {},
@@ -1107,149 +661,34 @@ class ParsedResult(object):
 
     def _coerce_validate_strategy(
         self,
-        strategy: Union[List[str], str, None] = None,
-    ) -> Union[List, str]:
-        """normalize a strategy into a valid option"""
+        strategy: "TYPES_STRATEGY" = None,
+    ) -> List[str]:
+        """normalize a strategy into a list of valid options."""
+        _strategy = None
         if strategy:
-            if isinstance(strategy, str):
-                if strategy != "all":
-                    raise ValueError("If `strategy` is not a `list`, it must be 'all'.")
-            elif isinstance(strategy, list):
-                _invalids = []
-                for _candidate in strategy:
-                    if _candidate not in self.strategy:
-                        _invalids.append(_candidate)
-                if "all" in strategy:
-                    raise ValueError('Submit "all" as a `str`, not in a `list`.')
-                if _invalids:
-                    raise ValueError("invalid strategy: %s" % _invalids)
+            if strategy == self.strategy:
+                _strategy = self.strategy
+            else:
+                _strategy = validate_strategy(strategy)
         else:
             # use our default list
-            strategy = self.strategy
-        return strategy
-
-    def get_metadata(
-        self,
-        field: str,
-        strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Union[str, Dict[str, Union[str, Dict]], None]:
-        """
-        LEGACY. DEPRECATED.  DO NOT USE THIS.
-
-        `get_metadata`
-        looks for the field in various stores.  defaults to the core
-        strategy, though you may specify a certain item.  if you search for
-        'all' it will return a dict of all values.
-
-        This is a legacy method and is being deprecated in favor of `get_metadatas`
-        This method will always return a string for the field value, however it
-        is possible the field contains multiple elements or even a dict if the
-        source was dublincore.
-
-        In comparison, `get_metadatas` will always return a list for the values.
-
-        In the case of DC/DublinCore metadata, this will return the first 'simple'
-        pairing (key/value - without a scheme/language) or the first element if no
-        simple match exists.
-
-        This function will return different types depending on the input:
-
-        if `strategy` is a single type:
-            `str` or `None`
-
-        if `strategy` is a list:
-            `str` or `None`, with `str` being the first match
-            self._get_metadata__last_strategy will persist the matching strategy
-
-        if `strategy` is "all":
-            `dict` of {strategy: result}
-
-        :param field:
-          The field to retrieve
-        :type field: str
-
-        :param strategy:
-          Where to search for the metadata. such as 'all' or
-          iterable like ['og', 'dc', 'meta', 'page', 'twitter', ]
-        :type strategy: string or list
-
-        :param encoder:
-          a function, such as `encode_ascii`, to encode values before returning.
-          a valid `encoder` accepts one(1) arg.
-          if a `default_encoder` is registered, the string "raw" will disable it.
-        :type encoder:
-          function or "raw"
-        """
-        warn_future(
-            """`ParsedResult.get_metadata` returns a string and is deprecated """
-            """in favor of `get_metadatas` which returns a list. """
-            """This will be removed in the next minor or major release."""
-        )
-        strategy = self._coerce_validate_strategy(strategy)
-        self._get_metadata__last_strategy = None
-
-        if encoder is None:
-            encoder = self.default_encoder
-        elif encoder == "raw":
-            encoder = None
-
-        def _lookup(store: str) -> Optional[Union[str, Dict]]:
-            if field in self.metadata[store]:
-                val = self.metadata[store][field]
-                if store == "dc":
-                    # dublincore will be different. it uses dicts by default
-                    # this is a one-element match
-                    if isinstance(val, dict):
-                        val = val["content"]
-                    else:
-                        _opt = None
-                        for _val in val:
-                            if len(_val.keys()) == 1:
-                                _opt = _val["content"]
-                                break
-                        if _opt is None:
-                            _opt = val[0]["content"]
-                        val = _opt
-                else:
-                    if isinstance(val, list):
-                        val = val[0]
-                if encoder:
-                    val = encoder(val)
-                return val
-            return None
-
-        # `_coerce_validate_strategy` ensured a compliant strategy
-        if isinstance(strategy, list):
-            for store in strategy:
-                if store in self.metadata:
-                    val = _lookup(store)
-                    if val is not None:
-                        self._get_metadata__last_strategy = store
-                        return val
-            return None
-        elif strategy == "all":
-            rval: Dict = {}
-            for store in self.metadata:
-                if store == "_v":
-                    continue
-                if field in self.metadata[store]:
-                    val = _lookup(store)
-                    rval[store] = val
-            return rval
-        else:
-            raise ValueError("unsupported strategy")
+            _strategy = self.strategy or "all"
+        if _strategy == "all":
+            _strategy = STRATEGY_ALL.copy()
+        if TYPE_CHECKING:
+            assert isinstance(_strategy, list)
+        return _strategy
 
     def get_metadatas(
         self,
         field: str,
-        strategy: Union[List[str], str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Optional[Union[Dict, List]]:
+        strategy: "TYPES_STRATEGY" = None,
+        encoder: Optional["TYPE_ENCODER"] = None,
+    ) -> Optional[Dict[str, Union[Dict, List]]]:
         """
         looks for the field in various stores.  defaults to the core
         strategy, though you may specify a certain item.  if you search for
-        'all' it will return a dict of all values.
+        "all" it will return a dict of all values.
 
         This method replaced the legacy method `get_metadatas`.
         This method will always return a list.
@@ -1259,18 +698,31 @@ class ParsedResult(object):
         :type field: str
 
         :param strategy:
-          Where to search for the metadata. such as 'all' or
-          iterable like ['og', 'dc', 'meta', 'page', 'twitter', ]
+          Where to search for the metadata. such as "all" or
+          iterable like ["meta", "page", "og", "dc", "twitter", ]
         :type strategy: string or list
 
         :param encoder:
           a function, such as `encode_ascii`, to encode values before returning.
-          a valid `encoder` accepts one(1) arg.
+          a valid `encoder` requires one arg and accepts one optional arg:.
+
+            def encode(value: Union[str, dict], store:Optional[str]=None) -> str:
+                if store == "dc":
+                    return value["content"].lower() if "content" in value else None
+                return value.lower() if value is not None else None
+
           if a `default_encoder` is registered, the string "raw" will disable it.
         :type encoder:
           function or "raw"
+
+        :param dc_simple:
+          simplify dc elements into just the 'content' text, not dict
+        :type encoder:
+          bool
         """
+        # normalize a strategy into a list of valid options.
         strategy = self._coerce_validate_strategy(strategy)
+        assert isinstance(strategy, list)
 
         if encoder is None:
             encoder = self.default_encoder
@@ -1281,35 +733,20 @@ class ParsedResult(object):
             if field in self.metadata[store]:
                 val = self.metadata[store][field]
                 if not isinstance(val, list):
-                    val = [
-                        val,
-                    ]
+                    val = [val]
                 if encoder:
-                    val = [encoder(v) for v in val]
+                    val = [encoder(v, store) for v in val]
                 return val
             return None
 
-        # `_coerce_validate_strategy` ensured a compliant strategy
-        if isinstance(strategy, list):
-            # returns List or None
-            for store in strategy:
-                if store in self.metadata:
-                    val = _lookup(store)
-                    if val is not None:
-                        return val
-            return None
-        elif strategy == "all":
-            # returns Dict or None
-            rval: Dict = {}
-            for store in self.metadata:
-                if store == "_v":
-                    continue
-                if field in self.metadata[store]:
-                    val = _lookup(store)
+        # returns List or None
+        rval: Dict = {}
+        for store in strategy:
+            if store in self.metadata:
+                val = _lookup(store)
+                if val is not None:
                     rval[store] = val
-            return rval
-        else:
-            raise ValueError("unsupported strategy")
+        return rval or None
 
     def is_opengraph_minimum(self) -> bool:
         """
@@ -1318,9 +755,40 @@ class ParsedResult(object):
         return all(
             [
                 self.metadata["og"].get(attr, None)
-                for attr in self.og_minimum_requirements
+                for attr in self._og_minimum_requirements
             ]
         )
+
+    def select_first_match(
+        self,
+        field: str,
+        strategy: "TYPES_STRATEGY" = None,
+    ) -> Optional[str]:
+        # default
+        strategy = strategy or self.strategy
+
+        candidates = self.get_metadatas(field, strategy=strategy)
+        if not candidates:
+            return None
+
+        # handle "all"
+        if strategy == "all":
+            strategy = validate_strategy(strategy)  # convert to ordered list
+        else:
+            assert isinstance(strategy, list)
+
+        for _strategy in strategy:
+            if _strategy in candidates:
+                first_strategy = _strategy
+                break
+        first_value = candidates[first_strategy][0]
+        if isinstance(first_value, dict):
+            if first_strategy == "dc":
+                return first_value["content"]
+            msg = "unknown dict handling for strategy=`%s`" % first_strategy
+            raise ValueError(msg)
+            # return None
+        return first_value
 
 
 # ------------------------------------------------------------------------------
@@ -1377,14 +845,14 @@ class MetadataParser(object):
 
     url: Optional[str] = None
     url_actual: Optional[str] = None
-    strategy: Union[List[str], str, None] = None
+    strategy: "TYPES_STRATEGY" = None
     LEN_MAX_TITLE: int = 255
     only_parse_file_extensions: Optional[List[str]] = None
     allow_localhosts: Optional[bool] = None
     require_public_netloc: Optional[bool] = None
     force_doctype: Optional[bool] = None
-    requests_timeout: TYPE_REQUESTS_TIMEOUT = None
-    peername: Optional[TYPES_PEERNAME] = None
+    requests_timeout: "TYPE_REQUESTS_TIMEOUT" = None
+    peername: Optional["TYPES_PEERNAME"] = None
     is_redirect: Optional[bool] = None
     is_redirect_unique: Optional[bool] = None
     is_redirect_same_host: Optional[bool] = None
@@ -1395,10 +863,10 @@ class MetadataParser(object):
     requests_session: Optional[requests.Session] = None
     derive_encoding: Optional[bool] = None
     default_encoding: Optional[str] = None
-    default_encoder: Optional[Callable[[str], str]] = None
+    default_encoder: Optional["TYPE_ENCODER"] = None
     support_malformed: Optional[bool] = None
 
-    urlparse: Callable[[str], ParseResult]
+    urlparse: "TYPE_URLPARSE"
     _cached_urlparser: Optional[_UrlParserCacheable]
 
     # this has a per-parser default tuple
@@ -1409,13 +877,13 @@ class MetadataParser(object):
     _content_types_parse: Tuple[str, ...] = ("text/html",)
     _content_types_noparse: Tuple[str, ...] = ("application/json",)
 
-    response: Optional[TYPES_RESPONSE]
+    response: Optional["TYPES_RESPONSE"]
 
     def __init__(
         self,
         url: Optional[str] = None,
         html: Optional[str] = None,
-        strategy: Union[List[str], str, None] = None,
+        strategy: "TYPES_STRATEGY" = None,
         url_data: Optional[Dict[str, Any]] = None,
         url_headers: Optional[Dict[str, str]] = None,
         force_parse: bool = False,
@@ -1425,7 +893,7 @@ class MetadataParser(object):
         require_public_netloc: bool = True,
         allow_localhosts: Optional[bool] = None,
         force_doctype: bool = False,
-        requests_timeout: TYPE_REQUESTS_TIMEOUT = None,
+        requests_timeout: "TYPE_REQUESTS_TIMEOUT" = None,
         raise_on_invalid: bool = False,
         search_head_only: bool = False,
         allow_redirects: bool = True,
@@ -1435,10 +903,10 @@ class MetadataParser(object):
         derive_encoding: bool = True,
         html_encoding: Optional[str] = None,
         default_encoding: Optional[str] = None,
-        default_encoder: Optional[Callable[[str], str]] = None,
+        default_encoder: Optional["TYPE_ENCODER"] = None,
         retry_dropped_without_headers: Optional[bool] = None,
         support_malformed: Optional[bool] = None,
-        cached_urlparser: Union[bool, int, Callable[[str], ParseResult]] = True,
+        cached_urlparser: Union[bool, "TYPE_URLPARSE"] = True,
         cached_urlparser_maxitems: Optional[int] = None,
     ):
         """
@@ -1533,9 +1001,6 @@ class MetadataParser(object):
             `cached_urlparser`
                 default: True
                 options: True: use a instance of UrlParserCacheable(maxitems=30)
-                       : INT: use a instance of UrlParserCacheable(maxitems=cached_urlparser)
-                            DEPRECATED in v13.0
-                            instead, set `cached_urlparser=True, cached_urlparser_maxitems=maxitems
                        : None/False - use native urlparse
                        : callable - use as a custom urlparse
             `cached_urlparser_maxitems`
@@ -1552,26 +1017,7 @@ class MetadataParser(object):
                 raise ValueError(
                     "`cached_urlparser_maxitems` requires `cached_urlparser=True`"
                 )
-        if cached_urlparser == 0:
-            warn_future(
-                "Supplying `0` to `cached_urlparser` to set maxitems is deprecated. "
-                "This will be removed in the next major or minor release."
-                "Supply `cached_urlparser=False` instead."
-            )
-            cached_urlparser = False
         if cached_urlparser:
-            if isinstance(cached_urlparser, int) and not isinstance(
-                cached_urlparser, bool
-            ):
-                # build a default parser with maxitems
-                warn_future(
-                    "Supplying an int to `cached_urlparser` to set maxitems is deprecated. "
-                    "This will be removed in the next major or minor release."
-                    "Supply `cached_urlparser=True, cached_urlparser_maxitems=int` instead."
-                )
-                # coerce args for the next block
-                cached_urlparser_maxitems = cached_urlparser
-                cached_urlparser = True
             if cached_urlparser is True:
                 # build a default parser
                 if cached_urlparser_maxitems is not None:
@@ -1590,6 +1036,10 @@ class MetadataParser(object):
         else:
             self.urlparse = urlparse
         if strategy:
+            # this method is used for setting default strategy
+            # as such, validate it on set
+            validate_strategy(strategy)  # will raise `InvalidStrategy`
+            self.strategy = strategy
             self.parsed_result.strategy = strategy
         self.url = self.parsed_result.metadata["_internal"]["url"] = url
         self.url_actual = self.parsed_result.metadata["_internal"]["url_actual"] = url
@@ -1621,7 +1071,7 @@ class MetadataParser(object):
             # if `html_encoding` was provided as a kwarg, it becomes the encoding
             self.response = DummyResponse(
                 text=html,
-                url=(url or DUMMY_URL),
+                url=(url or config.DUMMY_URL),
                 encoding=html_encoding,
                 derive_encoding=derive_encoding,
                 default_encoding=default_encoding,
@@ -1672,75 +1122,6 @@ class MetadataParser(object):
 
     # --------------------------------------------------------------------------
 
-    @property
-    def metadata(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.metadata is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.metadata
-
-    @property
-    def metadata_version(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.metadata_version is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.metadata_version
-
-    @property
-    def metadata_encoding(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.metadata_encoding is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.metadata_encoding
-
-    @property
-    def soup(self):
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.soup is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.soup
-
-    def get_metadata(
-        self,
-        field: str,
-        strategy: Union[list, str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Union[str, Dict[str, Union[str, Dict]], None]:
-        # deprecating in 1.0; operate on the result instead
-        warn_future(
-            "MetadataParser.get_metadata is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.get_metadata(
-            field, strategy=strategy, encoder=encoder
-        )
-
-    def get_metadatas(
-        self,
-        field,
-        strategy: Union[List[str], str, None] = None,
-        encoder: Optional[Callable[[str], str]] = None,
-    ) -> Optional[Union[Dict, List]]:
-        # deprecating in 1.0; operate on the result instead
-        warn_future(
-            "MetadataParser.get_metadatas is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.get_metadatas(
-            field, strategy=strategy, encoder=encoder
-        )
-
-    def is_opengraph_minimum(self) -> bool:
-        # deprecating in 1.0
-        warn_future(
-            "MetadataParser.is_opengraph_minimum is deprecated in 1.0; Operate on the parsed result directly."
-        )
-        return self.parsed_result.is_opengraph_minimum()
-
-    # --------------------------------------------------------------------------
-
     def deferred_fetch(self):
         # allows for a deferrable fetch; override in __init__
         raise ValueError("no `deferred_fetch` set")
@@ -1750,7 +1131,7 @@ class MetadataParser(object):
     def _response_encoding(self) -> Optional[str]:
         if self.response:
             return self.response.encoding
-        return self.default_encoding or ENCODING_FALLBACK
+        return self.default_encoding or config.ENCODING_FALLBACK
 
     def fetch_url(
         self,
@@ -1760,13 +1141,13 @@ class MetadataParser(object):
         force_parse_invalid_content_type: Optional[bool] = None,
         allow_redirects: Optional[bool] = None,
         ssl_verify: Optional[bool] = None,
-        requests_timeout: TYPE_REQUESTS_TIMEOUT = None,
+        requests_timeout: "TYPE_REQUESTS_TIMEOUT" = None,
         requests_session: Optional[requests.Session] = None,
         only_parse_http_ok: Optional[bool] = None,
         derive_encoding: Optional[bool] = None,
         default_encoding: Optional[str] = None,
         retry_dropped_without_headers: Optional[bool] = None,
-    ) -> TYPE_URL_FETCH:
+    ) -> "TYPE_URL_FETCH":
         """
         fetches the url and returns a tuple of (html, html_encoding).
         this was busted out so you could subclass.
@@ -2355,7 +1736,7 @@ class MetadataParser(object):
                 pass
         # optimize this away on cpython production servers
         if __debug__:
-            if TESTING:
+            if config.TESTING:
                 pprint.pprint(self.parsed_result.__dict__)
 
     def get_url_scheme(self) -> Optional[str]:
@@ -2433,13 +1814,16 @@ class MetadataParser(object):
             url_fallback=True
             allow_unicode_url=True
         """
-        _candidates = self.parsed_result.get_metadatas("canonical", strategy=["page"])
+        _candidates = self.parsed_result.get_metadatas(
+            "canonical", strategy=["page", "meta"]
+        )
+        candidates = _candidates["page"] if _candidates else _candidates
 
         # get_metadatas returns a list, so find the first canonical item
-        _candidates = [c for c in _candidates if c] if _candidates else []
-        if not _candidates:
+        candidates = [c for c in candidates if c] if candidates else []
+        if not candidates:
             return None
-        canonical = _candidates[0]
+        canonical = candidates[0]
 
         # does the canonical have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
@@ -2508,12 +1892,16 @@ class MetadataParser(object):
             url_fallback=None
             allow_unicode_url=True
         """
-        _candidates = self.parsed_result.get_metadatas("url", strategy=["og"])
+        _candidates = self.parsed_result.get_metadatas(
+            "url", strategy=["og", "page", "meta"]
+        )
+        candidates = _candidates["og"] if _candidates else _candidates
+
         # get_metadatas returns a list, so find the first og item
-        _candidates = [c for c in _candidates if c] if _candidates else []
-        if not _candidates:
+        candidates = [c for c in candidates if c] if candidates else []
+        if not candidates:
             return None
-        og = _candidates[0]
+        og = candidates[0]
 
         # does the og have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
@@ -2628,7 +2016,7 @@ class MetadataParser(object):
     def get_metadata_link(
         self,
         field: str,
-        strategy: Union[List[str], str, None] = None,
+        strategy: "TYPES_STRATEGY" = None,
         allow_encoded_uri: bool = False,
         require_public_global: bool = True,
     ) -> Optional[str]:
@@ -2639,7 +2027,7 @@ class MetadataParser(object):
 
         kwargs:
             strategy=None
-                'all' or List ['og', 'dc', 'meta', 'page', 'twitter', ]
+                "all" or List ["og", "dc", "meta", "page", "twitter", ]
             allow_encoded_uri=False
             require_public_global=True
 
@@ -2648,12 +2036,10 @@ class MetadataParser(object):
             also require the fallback url to be on the public internet and not a
             localhost value.
         """
-        _candidates = self.parsed_result.get_metadatas(field, strategy=strategy)
-        _candidates = [c for c in _candidates if c] if _candidates else []
-        if not _candidates:
-            return None
         # `_value` will be our raw value
-        _value = _candidates[0]
+        _value = self.parsed_result.select_first_match(field, strategy=strategy)
+        if not _value:
+            return None
 
         # `value` will be our clean value
         # remove whitespace, because some bad blogging platforms add in whitespace by printing elements on multiple lines. d'oh!
