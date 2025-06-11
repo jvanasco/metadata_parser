@@ -67,6 +67,10 @@
 
 
 
+0.13.1
+    * guard against incorrect warnings; see Issue#52
+    * add support for branches in github actions
+    
 0.13.0
     * drop py36; no test options due to github deprecation of ubuntu20.04
     * `_coerce_validate_strategy` (invoked by `get_metadatas`) will now raise a
