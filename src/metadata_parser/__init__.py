@@ -49,7 +49,7 @@ FUTURE_BEHAVIOR = bool(int(os.getenv("METADATA_PARSER_FUTURE", "0")))
 # ==============================================================================
 
 
-__VERSION__ = "0.13.0"
+__VERSION__ = "0.13.1"
 
 
 # ------------------------------------------------------------------------------
@@ -1560,7 +1560,9 @@ class MetadataParser(object):
             )
             cached_urlparser = False
         if cached_urlparser:
-            if isinstance(cached_urlparser, int):
+            if isinstance(cached_urlparser, int) and not isinstance(
+                cached_urlparser, bool
+            ):
                 # build a default parser with maxitems
                 warn_future(
                     "Supplying an int to `cached_urlparser` to set maxitems is deprecated. "
