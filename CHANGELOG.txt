@@ -65,8 +65,6 @@
         ```ParsedResult.select_first_match(field, strategy)```
             will return the first match for the given, or default strategy
 
-
-
 0.13.1
     * guard against incorrect warnings; see Issue#52
     * add support for branches in github actions

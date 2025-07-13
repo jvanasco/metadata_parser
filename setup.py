@@ -41,7 +41,7 @@ tests_require = [
     "pytest",
     "pytest-httpbin",
     "responses",
-    "tldextract",
+    "tldextract<6.0.0",  # `.registered_domain` deprecation
     "types-beautifulsoup4",
     "types-requests",
     "werkzeug<2.1.0",  # httpbin compat issue
