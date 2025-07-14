@@ -30,6 +30,7 @@ requires = [
     "BeautifulSoup4>4.13.0,<4.14.0",
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
+    "tldextract<6.0.0",  # `.registered_domain` deprecation
     "typing_extensions",
 ]
 
@@ -38,10 +39,11 @@ if sys.version_info >= (3, 13):
 
 tests_require = [
     "httpbin",
+    "flake8",
+    "flake8-import-order>=0.19.2",
     "pytest",
     "pytest-httpbin",
     "responses",
-    "tldextract<6.0.0",  # `.registered_domain` deprecation
     "types-beautifulsoup4",
     "types-requests",
     "werkzeug<2.1.0",  # httpbin compat issue

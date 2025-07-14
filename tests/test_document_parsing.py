@@ -439,6 +439,9 @@ class TestEncoders(unittest.TestCase):
 
 class _TestDocumentParsingCore:
 
+    assertIn: Callable
+    assertEqual: Callable
+
     def _MakeOne(self, filename):
         """lazy cache of files as needed"""
         global CACHED_FILESYSTEM_DOCUMENTS

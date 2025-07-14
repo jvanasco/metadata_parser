@@ -1,7 +1,7 @@
 import _socket  # noqa: I201
 
 # stdlib
-import cgi  # noqa: I100
+import cgi  # noqa: I202
 import logging
 import socket
 from typing import Optional
@@ -18,9 +18,9 @@ from .exceptions import AllowableError
 from .utils import DummyResponse
 from .utils import safe_sample
 
-
 if TYPE_CHECKING:
     from requests.structures import CaseInsensitiveDict
+
     from .typing import TYPES_PEERNAME
     from .typing import TYPES_RESPONSE
 

@@ -75,7 +75,7 @@ Logging
 
 This file utilizes extensive logging to help developers pinpoint problems.
 
-* ``log.debug``
+* ``log.debug`` (10)
   This log level is mostly used to handle library maintenance and
   troubleshooting, aka "Library Debugging".  Library Debugging is verbose, but
   is nested under ``if __debug__:`` statements, so it is compiled away when
@@ -83,24 +83,40 @@ This file utilizes extensive logging to help developers pinpoint problems.
   Several sections of logic useful to developers will also emit logging
   statements at the ``debug`` level, regardless of PYTHONOPTIMIZE.
 
-* ``log.info``
+* ``log.info`` (20)
+    This log level is only used during package initialization to notify if
+    the ``tldextract`` package is being utilized or not.
+
+* ``log.warning`` (30)
   Currently unused
 
-* ``log.warning``
-  Currently unused
+* ``log.error`` (40)
+  This log level will record each URL that a parse is attempted for.
 
-* ``log.error``
-  This log level is mostly used to alert developers of errors that were
+  This log level is mostly used to alert users of errors that were
   encountered during url fetching and document parsing, and often emits a log
   statement just before an Exception is raised. The log statements will contain
   at least the exception type, and may contain the active URL and additional
   debugging information, if any of that information is available.
+  
+  URLs that trigger error logging should be collected and run on a secondary
+  system that utilizes `log.debug` without PYTHONOPTIMIZE.
 
-* ``log.critical``
+
+* ``log.critical`` (50)
   Currently unused
 
 
-It is STRONGLY recommended to keep Python's logging at ``debug``.
+It is STRONGLY recommended to keep Python's logging at ``debug`` and not run
+PYTHONOPTIMIZE if you are new to this package.
+
+For experienced users, running under PYTHONOPTIMIZE to not emit debug logging is
+designed to make the system run as fast as possible.  The intent of
+``log.error`` is to present you with a feed of URLs as they are processed, and
+show any errors that arise.  Any issues that arise should then be run on a
+second system that enables debug logging to pinpoint the error.  This allows one
+to split a deployment into production and R&D/troubleshooting, to maximize
+the throughput of the production system.
 
 
 Optional Integrations

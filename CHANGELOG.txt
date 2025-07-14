@@ -59,6 +59,8 @@
             `InvalidDocument` no longer has a .message attribute
             
             Exceptions now invoke `super().__init__(args)`
+            
+            `tldextract` is now required for installation and used by default.
 
     New Functionality
 

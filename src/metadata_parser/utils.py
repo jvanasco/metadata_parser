@@ -24,7 +24,6 @@ from requests_toolbelt.utils.deprecated import get_encodings_from_content
 from . import config
 from .regex import RE_rfc3986_valid_characters
 
-
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
 
@@ -156,7 +155,7 @@ def fix_unicode_url(
             candidate[_idx] = parsed[_idx]
             candidate[_idx] = url_quote(url_unquote(candidate[_idx]))
         except Exception as exc:
-            log.debug("fix_unicode_url failure: %s | %s | %s", url, encoding, exc)
+            log.error("fix_unicode_url failure: %s | %s | %s", url, encoding, exc)
             return url
     _url = urlunparse(candidate)
     return _url
