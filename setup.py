@@ -30,7 +30,7 @@ requires = [
     "BeautifulSoup4>4.13.0,<4.14.0",
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
-    "tldextract<6.0.0",  # `.registered_domain` deprecation
+    "tldextract<6.0.0",  # `.registered_domain` deprecation; see pytest.ini for warning
     "typing_extensions",
 ]
 
