@@ -11,8 +11,10 @@ from typing import Union
 from typing_extensions import Protocol  # py38
 
 if TYPE_CHECKING:
-    import requests
     from urllib.parse import ParseResult
+
+    import requests
+
     from . import DummyResponse
     from . import ResponseHistory
 

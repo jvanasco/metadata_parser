@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import requests
+
     from . import MetadataParser
     from .typing import TYPES_RESPONSE
 

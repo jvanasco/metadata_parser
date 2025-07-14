@@ -52,6 +52,7 @@ from .utils import warn_user
 
 if TYPE_CHECKING:
     from bs4 import Tag as _bs4_Tag
+
     from .typing import TYPE_ENCODER
     from .typing import TYPE_REQUESTS_TIMEOUT
     from .typing import TYPE_URL_FETCH
@@ -85,6 +86,10 @@ if not config.DISABLE_TLDEXTRACT:
     import tldextract
 
     USE_TLDEXTRACT = True
+
+    log.info("`tldextract` support enabled.")
+else:
+    log.info("`tldextract` support disabled.")
 
 # ------------------------------------------------------------------------------
 
@@ -189,7 +194,7 @@ def is_parsed_valid_url(
         parsed = parsed.decode()
     assert isinstance(parsed, ParseResult)
     if __debug__:
-        log.debug("is_parsed_valid_url = %s", parsed)
+        log.debug("is_parsed_valid_url(parsed=%s", parsed)
     if not all((parsed.scheme, parsed.netloc)):
         if __debug__:
             log.debug(" FALSE - missing `scheme` or `netloc`")
@@ -528,6 +533,9 @@ class ResponseHistory(object):
         logger: Callable[..., None] = log.error,
     ) -> None:
         """
+        Invoked to log troubleshooting information when an error is encountered.
+        By default this goes to `log.error`.
+
         :param prefix: Prefix for logging, defaults to "ResponseHistory"
         :type prefix: str
         :param logger: default `log.error`
@@ -1476,7 +1484,9 @@ class MetadataParser(object):
             doc = BeautifulSoup(html, "lxml", **kwargs_bs)
         except Exception as exc:  # noqa: F841
             if __debug__:
-                log.debug("`BeautifulSoup` could not parse with `lxml`")
+                log.error(
+                    "`BeautifulSoup` could not parse with `lxml`; attempting `html.parser`"
+                )
             doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
         return doc
 
@@ -1566,7 +1576,7 @@ class MetadataParser(object):
                 pass
             except Exception as exc:
                 if __debug__:
-                    log.debug("Ran into a serious error parsing `og`: %s", exc)
+                    log.error("Ran into a serious error parsing `og`: %s", exc)
                 pass
 
         twitters = doc_searchpath.find_all("meta", attrs={"name": RE_prefix_twitter})
