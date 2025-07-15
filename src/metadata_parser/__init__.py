@@ -317,7 +317,7 @@ def is_url_valid(
         `urlparser` - defaults to standard `urlparse`, can be substituted with
                       a cacheable version.
     """
-    if url is None:
+    if url in (None, ""):
         return False
     parsed = urlparser(url)
     if is_parsed_valid_url(
@@ -1864,7 +1864,7 @@ class MetadataParser(object):
                 url_fallback = self.get_fallback_url(
                     require_public_netloc=True, allow_localhosts=False
                 )
-            if canonical and not is_url_valid(
+            if (canonical is not None) and not is_url_valid(
                 canonical,
                 require_public_netloc=True,
                 allow_localhosts=False,
@@ -1878,7 +1878,7 @@ class MetadataParser(object):
                     allow_localhosts=False,
                     urlparser=self.urlparse,
                 )
-                if not is_url_valid(
+                if (canonical is not None) and not is_url_valid(
                     canonical,
                     require_public_netloc=True,
                     allow_localhosts=False,
@@ -1955,7 +1955,7 @@ class MetadataParser(object):
                     allow_localhosts=False,
                     urlparser=self.urlparse,
                 )
-                if not is_url_valid(
+                if (og is not None) and not is_url_valid(
                     og,
                     require_public_netloc=True,
                     allow_localhosts=False,
