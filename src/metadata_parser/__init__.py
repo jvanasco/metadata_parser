@@ -692,7 +692,7 @@ class ParsedResult(object):
         field: str,
         strategy: "TYPES_STRATEGY" = None,
         encoder: Optional["TYPE_ENCODER"] = None,
-    ) -> Optional[Dict[str, Union[Dict, List]]]:
+    ) -> Optional[Dict[str, List[str]]]:
         """
         looks for the field in various stores.  defaults to the core
         strategy, though you may specify a certain item.  if you search for
@@ -727,6 +727,17 @@ class ParsedResult(object):
           simplify dc elements into just the 'content' text, not dict
         :type encoder:
           bool
+
+        EXAMPLE:
+
+            metadataParserPage.parsed_result.get_metadatas("title",strategy=None)
+            >>> {'page': ['Title: Destination'],
+            >>>  'og': ['meta.property=og:title'],
+            >>>  'twitter': ['meta.name=twitter:title']}
+
+            metadataParserPage.parsed_result.get_metadatas("title",strategy=["og"])
+            >>> {'og': ['meta.property=og:title']}
+
         """
         # normalize a strategy into a list of valid options.
         strategy = self._coerce_validate_strategy(strategy)
@@ -737,7 +748,7 @@ class ParsedResult(object):
         elif encoder == "raw":
             encoder = None
 
-        def _lookup(store: str) -> Optional[List]:
+        def _lookup(store: str) -> Optional[List[str]]:
             if field in self.metadata[store]:
                 val = self.metadata[store][field]
                 if not isinstance(val, list):
@@ -748,7 +759,7 @@ class ParsedResult(object):
             return None
 
         # returns List or None
-        rval: Dict = {}
+        rval: Dict[str, List[str]] = {}
         for store in strategy:
             if store in self.metadata:
                 val = _lookup(store)
@@ -1833,7 +1844,9 @@ class MetadataParser(object):
         candidates = [c for c in candidates if c] if candidates else []
         if not candidates:
             return None
-        canonical = candidates[0]
+        canonical: Optional[str] = candidates[0]
+        if TYPE_CHECKING:
+            assert canonical
 
         # does the canonical have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
@@ -1911,7 +1924,9 @@ class MetadataParser(object):
         candidates = [c for c in candidates if c] if candidates else []
         if not candidates:
             return None
-        og = candidates[0]
+        og: Optional[str] = candidates[0]
+        if TYPE_CHECKING:
+            assert og
 
         # does the og have valid characters?
         # some websites, even BIG PROFESSIONAL ONES, will put html in here.
