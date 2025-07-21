@@ -444,7 +444,7 @@ class _TestDocumentParsingCore:
 
     def _MakeOne(self, filename):
         """lazy cache of files as needed"""
-        global CACHED_FILESYSTEM_DOCUMENTS
+        # global CACHED_FILESYSTEM_DOCUMENTS
         if filename not in CACHED_FILESYSTEM_DOCUMENTS:
             CACHED_FILESYSTEM_DOCUMENTS[filename] = open(
                 os.path.join(_examples_dir, filename)
