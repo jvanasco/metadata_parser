@@ -7,10 +7,12 @@ import socket
 from typing import Optional
 from typing import Tuple
 from typing import TYPE_CHECKING
+from typing import Union
 
 # pypi
 import requests
 from requests_toolbelt.utils.deprecated import get_encodings_from_content
+from typing_extensions import Protocol
 
 # local
 from . import config
@@ -25,9 +27,22 @@ if TYPE_CHECKING:
     from .typing import TYPES_RESPONSE
 
 
+TYPES_RESPONSE_EXTENDED = Union["TYPES_RESPONSE", "_SupportsContent"]
+
+
 # ==============================================================================
 
 log = logging.getLogger("metdata_parser")
+
+
+class _SupportsContent(Protocol):
+
+    _encoding_content: Optional[str]
+    _encoding_fallback: Optional[str]
+    content: str
+    encoding: Optional[str]
+    headers: "CaseInsensitiveDict"
+
 
 # ------------------------------------------------------------------------------
 
@@ -44,7 +59,7 @@ except AttributeError:
     _compatible_sockets: Tuple = (_socket.socket,)  # type: ignore[no-redef]
 
 
-def derive_encoding__hook(resp: "TYPES_RESPONSE", *args, **kwargs) -> None:
+def derive_encoding__hook(resp: TYPES_RESPONSE_EXTENDED, *args, **kwargs) -> None:
     """
     a note about `requests`
 
@@ -120,7 +135,7 @@ def get_encoding_from_headers(headers: "CaseInsensitiveDict") -> Optional[str]:
 # ------------------------------------------------------------------------------
 
 
-def get_response_peername(resp: "TYPES_RESPONSE") -> Optional["TYPES_PEERNAME"]:
+def get_response_peername(resp: TYPES_RESPONSE_EXTENDED) -> Optional["TYPES_PEERNAME"]:
     """
     used to get the peername (ip+port) data from the request
     if a socket is found, caches this onto the request object
@@ -181,6 +196,6 @@ def get_response_peername(resp: "TYPES_RESPONSE") -> Optional["TYPES_PEERNAME"]:
 # ------------------------------------------------------------------------------
 
 
-def response_peername__hook(resp: "TYPES_RESPONSE", *args, **kwargs) -> None:
+def response_peername__hook(resp: TYPES_RESPONSE_EXTENDED, *args, **kwargs) -> None:
     get_response_peername(resp)
     # do not return anything
