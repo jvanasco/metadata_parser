@@ -26,8 +26,8 @@ Users are advised to pin their installations to "metadata_parser<{MINOR +1}"
 
 For example:
 
-* if the current release is: `0.10.6`
-* the advised pin is:  `metadata_parser<0.11`
+* if the current release is: `1.0.0`
+* the advised pin is:  `metadata_parser<1.1.0`
 
 PATCH releases will usually be bug fixes and new features that support backwards
 compatibility with Public Methods.  Private Methods are not guaranteed to be

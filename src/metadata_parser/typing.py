@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 
     from requests import Response
 
-    # from requests.structures import CaseInsensitiveDict
-
     from . import ResponseHistory
     from .utils import DummyResponse
+
+    # from requests.structures import CaseInsensitiveDict
 
 # ==============================================================================
 
