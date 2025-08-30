@@ -4,18 +4,17 @@ import _socket  # noqa: I201
 import cgi  # noqa: I202
 import logging
 import socket
+from typing import Any
 from typing import Optional
 from typing import Tuple
 from typing import TYPE_CHECKING
 
 # pypi
-import requests
 from requests_toolbelt.utils.deprecated import get_encodings_from_content
 
 # local
 from . import config
 from .exceptions import AllowableError
-from .utils import DummyResponse
 from .utils import safe_sample
 
 if TYPE_CHECKING:
@@ -35,16 +34,17 @@ log = logging.getLogger("metdata_parser")
 # peername hacks
 # only use for these stdlib packages
 # eventually will not be needed thanks to upstream changes in `requests`
+_compatible_sockets: Tuple[Any, ...]
 try:
-    _compatible_sockets: Tuple = (
+    _compatible_sockets = (
         _socket.socket,
         socket._socketobject,  # type: ignore[attr-defined]
     )
 except AttributeError:
-    _compatible_sockets: Tuple = (_socket.socket,)  # type: ignore[no-redef]
+    _compatible_sockets = (_socket.socket,)  # type: ignore[no-redef]
 
 
-def derive_encoding__hook(resp: "TYPES_RESPONSE", *args, **kwargs) -> None:
+def derive_encoding__hook(resp: Any, *args, **kwargs) -> None:
     """
     a note about `requests`
 
@@ -58,14 +58,14 @@ def derive_encoding__hook(resp: "TYPES_RESPONSE", *args, **kwargs) -> None:
     servers to not follow RFC and for the default encoding to be different.
     """
     if TYPE_CHECKING:
-        assert hasattr(resp, "_encoding_fallback")
         assert hasattr(resp, "_encoding_content")
+        assert hasattr(resp, "_encoding_fallback")
         assert hasattr(resp, "_encoding_headers")
 
+    resp._encoding_content = None
     resp._encoding_fallback = config.ENCODING_FALLBACK
     # modified version, returns `None` if no charset available
     resp._encoding_headers = get_encoding_from_headers(resp.headers)
-    resp._encoding_content = None
     if not resp._encoding_headers and resp.content:
         # html5 spec requires a meta-charset in the first 1024 bytes
         _sample = safe_sample(resp.content)
@@ -120,7 +120,9 @@ def get_encoding_from_headers(headers: "CaseInsensitiveDict") -> Optional[str]:
 # ------------------------------------------------------------------------------
 
 
-def get_response_peername(resp: "TYPES_RESPONSE") -> Optional["TYPES_PEERNAME"]:
+def get_response_peername(
+    resp: Any,
+) -> Optional["TYPES_PEERNAME"]:
     """
     used to get the peername (ip+port) data from the request
     if a socket is found, caches this onto the request object
@@ -133,17 +135,19 @@ def get_response_peername(resp: "TYPES_RESPONSE") -> Optional["TYPES_PEERNAME"]:
 
         * _mp_peername
     """
-    if not isinstance(resp, requests.Response) and not isinstance(resp, DummyResponse):
-        # raise AllowableError("Not a HTTPResponse")
-        log.debug("Not a supported HTTPResponse | %s", resp)
-        log.debug("-> received a type of: %s", type(resp))
-        return None
+    # if not isinstance(resp, Response) and not isinstance(resp, DummyResponse):
+    #    # raise AllowableError("Not a HTTPResponse")
+    #    log.debug("Not a supported HTTPResponse | %s", resp)
+    #    log.debug("-> received a type of: %s", type(resp))
+    #    return None
 
     if hasattr(resp, "_mp_peername"):
         return resp._mp_peername
 
     def _get_socket() -> Optional[socket.socket]:
-        if isinstance(resp, DummyResponse):
+        # only socket to `requests.Response`
+        # if not isinstance(resp, "Response"):
+        if not hasattr(resp, "raw"):
             return None
         i = 0
         while True:
@@ -168,14 +172,14 @@ def get_response_peername(resp: "TYPES_RESPONSE") -> Optional["TYPES_PEERNAME"]:
                 pass
         return None
 
+    _mp_peername: Optional["TYPES_PEERNAME"] = None
     sock = _get_socket()
-    if sock:
+    if sock is not None:
         # only cache if we have a sock
         # we may want/need to call again
-        resp._mp_peername = sock.getpeername()  # type: ignore [union-attr]
-    else:
-        resp._mp_peername = None  # type: ignore [union-attr]
-    return resp._mp_peername  # type: ignore [union-attr]
+        _mp_peername = sock.getpeername()
+    setattr(resp, "_mp_peername", _mp_peername)  # type: ignore[union-attr]
+    return _mp_peername
 
 
 # ------------------------------------------------------------------------------
