@@ -1201,7 +1201,7 @@ class MetadataParser(object):
                 if true, will retry_dropped_without_headers
         """
         if __debug__:
-            log.error("MetadataParser.fetch_url(%s)", self.url)
+            log.debug("MetadataParser.fetch_url(%s)", self.url)
         # should we even download/parse this?
         force_parse = force_parse if force_parse is not None else self.force_parse
         force_parse_invalid_content_type = (
@@ -1495,7 +1495,7 @@ class MetadataParser(object):
             doc = BeautifulSoup(html, "lxml", **kwargs_bs)
         except Exception as exc:  # noqa: F841
             if __debug__:
-                log.error(
+                log.debug(
                     "`BeautifulSoup` could not parse with `lxml`; attempting `html.parser`"
                 )
             doc = BeautifulSoup(html, "html.parser", **kwargs_bs)
@@ -1587,7 +1587,7 @@ class MetadataParser(object):
                 pass
             except Exception as exc:
                 if __debug__:
-                    log.error("Ran into a serious error parsing `og`: %s", exc)
+                    log.debug("Ran into a serious error parsing `og`: %s", exc)
                 pass
 
         twitters = doc_searchpath.find_all("meta", attrs={"name": RE_prefix_twitter})
