@@ -27,7 +27,7 @@ if not _tests_dir.endswith("tests"):
 _examples_dir = os.path.join(_tests_dir, "html_scaffolds")
 
 # cache these lazily
-CACHED_FILESYSTEM_DOCUMENTS: dict[str, str] = {}
+CACHED_FILESYSTEM_DOCUMENTS: Dict[str, str] = {}
 
 
 doc_base = """<html><head>%(head)s</head><body></body></html>"""
