@@ -237,26 +237,52 @@ include bad data, you can submit a kwarg to ``MetadataParser.__init__``
 Security Concerns
 =================
 
-Like all Python and internet projects, this package has the ability to be leveraged in SSRF exploits.
+# Security Concerns
 
-As with Requests and the Python stdlib, developers should ALWAYS inspect the initial URL and
-redirect chains to ensure the activity is compliant with their own security policies.
-For convenience, ``MetadataParser.__init__`` and ``MetadataParser.fetch_url`` accept a 
-`func_hook_security_policy_url` kwarg to help analyze this.
+`metadata_parser` fetches URLs supplied by the calling application. As with any
+general-purpose HTTP client, applications which process untrusted or
+attacker-controlled URLs should consider SSRF and establish an appropriate
+security policy for the URLs they permit the library to fetch.
 
-``func_security_policy_url`` is a Callable function that accepts a URL string and returns
-True (pass) or False (fail).  It is run against the requested URL **BEFORE** attempting a
-fetch, and every item in the redirect chain **AFTER** fetching and following redirects.
+As with Requests and the Python standard library, developers should ALWAYS
+inspect the initial URL and the resulting redirect chain to ensure that the
+requests made by the application comply with its security policies.
 
-`metadata_parser` is a library, not an HTTP proxy, webhook, browser, or service endpoint.
-It does not communicate with the party who supplied the URL.
-The response returned by Requests remains within the process which invoked `metadata_parser`.
+For convenience, `MetadataParser.__init__` and `MetadataParser.fetch_url`
+accept a `func_hook_security_policy_url` kwarg which provides an explicit
+integration point for implementing such a policy.
 
-If a developer takes an attacker-supplied (or malfeasant actor's) URL and passes it to
-`MetadataParser`, the potential result is that the developer's process makes an HTTP request
-to the attacker's selected destination. If that destination is an internal service, the
-response is returned to the developer's own process. It is **not** returned to the attacker
-merely because the attacker supplied the initial URL.
+`func_hook_security_policy_url` is a Callable which accepts a URL string and,
+when inspecting a fetched response, the active `requests.Response` object.
+It should return `True` to permit the operation or `False` to reject it.
+
+The hook is invoked against the requested URL **BEFORE** attempting the initial
+fetch. After Requests has completed its normal redirect processing, the hook
+is also invoked with the requested URL and the active response, allowing the
+application to inspect the resulting response and redirect chain. A failed
+check raises an exception of `metadata_parser.exceptions.SecurityPolicyViolation`
+or one of it's subclasses.
+
+`metadata_parser` is a library, not an HTTP proxy, webhook, browser, or
+service endpoint. It does not communicate with the party who supplied the URL.
+The response returned by Requests remains within the process which invoked
+`metadata_parser`.
+
+If an application accepts an attacker-controlled URL and passes it to
+`MetadataParser`, the application may cause its own process to make an HTTP
+request to that destination. If the destination is an internal service, the
+response is returned to the application's own process; it is **not** returned
+to the attacker merely because the attacker supplied the initial URL.
+
+An attacker may use redirects to cause `metadata_parser` / Requests to make
+requests to destinations that the application did not intend to access.
+Applications which accept untrusted URLs should therefore apply their own
+security policy to both the initial URL and the resulting redirect chain.
+
+The `func_hook_security_policy_url` hook is provided as a convenience for
+implementing that application-specific policy. It does not impose a
+"public Internet only" policy, since private, loopback, or internal URLs may
+be legitimate for some applications.
 
 
 Handling Bad URLs and Encoded URIs
