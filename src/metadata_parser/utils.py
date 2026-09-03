@@ -5,6 +5,7 @@ import logging
 from typing import AnyStr
 from typing import Callable
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -26,6 +27,8 @@ from .regex import RE_rfc3986_valid_characters
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
+
+    from .typing import TYPES_RESPONSE
 
 
 # ==============================================================================
@@ -159,6 +162,46 @@ def fix_unicode_url(
             return url
     _url = urlunparse(candidate)
     return _url
+
+
+class ResponseHistory(object):
+    history: Optional[Iterable] = None
+
+    def __init__(self, resp: "TYPES_RESPONSE"):
+        """
+        :param resp: A :class:`requests.Response` object to compute history of
+        :type resp: class:`requests.Response`
+        """
+        _history = []
+        if resp.history:
+            for _rh in resp.history:
+                _history.append((_rh.status_code, _rh.url))
+        _history.append((resp.status_code, resp.url))
+        self.history = _history
+
+    def log(
+        self,
+        prefix: str = "ResponseHistory",
+        logger: Callable[..., None] = log.error,
+    ) -> None:
+        """
+        Invoked to log troubleshooting information when an error is encountered.
+        By default this goes to `log.error`.
+
+        :param prefix: Prefix for logging, defaults to "ResponseHistory"
+        :type prefix: str
+        :param logger: default `log.error`
+        :type logger: logging stream
+        """
+        if self.history:
+            for _idx, _history in enumerate(self.history):
+                logger(
+                    "%s | %s | %s : %s ",
+                    prefix,
+                    _idx,
+                    _history[0],  # status_code
+                    _history[1],  # url
+                )
 
 
 def safe_sample(source: Union[str, bytes]) -> bytes:

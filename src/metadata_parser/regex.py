@@ -58,6 +58,11 @@ What is valid in the RFC?
     a-z0-9\-\.\_\~\:\/\?\#\[\]\@\!\$\&\'\(\)\*\+\,\;\=\%
 """
 
+RE_ipv6_zeroes = re.compile(
+    r"^(?:0{1,4}:){7}0{1,4}$|^::$|^(?:0{1,4}:){1,7}:$|^:(?::0{1,4}){1,7}$|^(?:0{1,4}:){1,6}(?::0{1,4}){1,5}$"
+)
+
+
 RE_shortlink = re.compile("^shortlink$", re.I)
 RE_whitespace = re.compile(r"\s+")
 

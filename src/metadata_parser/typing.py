@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 
     from requests import Response
 
-    from . import ResponseHistory
     from .utils import DummyResponse
+    from .utils import ResponseHistory
 
     # from requests.structures import CaseInsensitiveDict
 
@@ -54,3 +54,10 @@ class _SupportsContent(Protocol):
 
 class _UrlParserCacheable(Protocol):
     urlparse: TYPE_URLPARSE
+
+
+class _Hook_SecurityPolicyUrl(Protocol):
+    def __call__(self, url: str, resp: Optional["Response"] = None) -> bool: ...
+    
+    
+    

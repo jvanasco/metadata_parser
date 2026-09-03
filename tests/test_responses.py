@@ -44,7 +44,7 @@ class TestMockedResponse(unittest.TestCase):
 
             # set up the header tests
             for url in URLS_HEADER.keys():
-                (_header, _expected, _body_char) = URLS_HEADER[url]
+                _header, _expected, _body_char = URLS_HEADER[url]
                 _content_type = "text/html"
                 if _header:
                     _content_type = "text/html; charset=%s" % _header
@@ -60,7 +60,7 @@ class TestMockedResponse(unittest.TestCase):
 
             # set up the meta tests
             for url in URLS_META.keys():
-                (_header, _expected, _body_char) = URLS_META[url]
+                _header, _expected, _body_char = URLS_META[url]
                 _body = "<html><head></head><body>%s</body></html>" % _body_char
                 if _header:
                     _body = (
@@ -73,7 +73,7 @@ class TestMockedResponse(unittest.TestCase):
                 to_test[url] = (_expected, _body)
 
             for url in to_test:
-                (_expected, _body) = to_test[url]
+                _expected, _body = to_test[url]
                 r = requests_session.get(url)
                 self.assertEqual(r.status_code, 200)
                 self.assertEqual(r.encoding, _expected)

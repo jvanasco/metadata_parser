@@ -151,12 +151,12 @@ class TestUrlParsing(unittest.TestCase):
             parsed = urlparse(i)
             self.assertFalse(
                 metadata_parser.is_parsed_valid_url(
-                    parsed, require_public_netloc=True, allow_localhosts=False
+                    parsed, require_valid_netloc=True, allow_localhosts=False
                 )
             )
             self.assertTrue(
                 metadata_parser.is_parsed_valid_url(
-                    parsed, require_public_netloc=False, allow_localhosts=True
+                    parsed, require_valid_netloc=False, allow_localhosts=True
                 )
             )
 
@@ -476,3 +476,18 @@ class TestCommands(unittest.TestCase, _DocumentCanonicalsMixin):
         self.assertIsInstance(parsed, ParseResultBytes)
         is_valid = metadata_parser.is_parsed_valid_url(parsed)
         self.assertTrue(is_valid)
+
+
+class TestLocalhosts(unittest.TestCase):
+
+    def test_is_localhost__true(self):
+
+        for hostname in metadata_parser.LOCALHOSTS:
+            result = metadata_parser.is_localhost(hostname)
+            self.assertTrue(result)
+
+    def test_is_localhost__false(self):
+
+        for hostname in URLS_VALID:
+            result = metadata_parser.is_localhost(hostname)
+            self.assertFalse(result)
