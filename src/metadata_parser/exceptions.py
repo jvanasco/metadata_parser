@@ -104,3 +104,26 @@ class RedirectDetected(Exception):
         self.location = location
         self.metadataParser = metadataParser
         self.response = response
+
+
+class SecurityPolicyViolation(Exception):
+    def __init__(
+        self,
+        message: str = "",
+        metadataParser: Optional["MetadataParser"] = None,
+    ):
+        super().__init__(message, metadataParser)
+        self.message = message
+        self.metadataParser = metadataParser
+
+
+class SecurityPolicyViolation_URL(SecurityPolicyViolation):
+    pass
+
+
+class SecurityPolicyViolation_URL_Initial(SecurityPolicyViolation):
+    pass
+
+
+class SecurityPolicyViolation_URL_Redirect(SecurityPolicyViolation):
+    pass

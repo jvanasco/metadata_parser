@@ -1,3 +1,29 @@
+2.0.0
+
+	Several bugs and areas for improvement were discovered after a potential Security Report was disclosed by mohammad adnan (cystack.ps redteam ; @mohammedix88).
+	
+	Breaking changes::
+
+		``metadata_parser.PRIVATE_HOSTNAMES`` is now ``metadata_parser.LOCALHOSTS``.
+		
+		Checks against ``allow_localhosts=False`` now include ipv6 options.
+
+		The kwarg ``require_public_netloc`` is now ``require_valid_netloc``, which better reflects it's documented and actual behavior.
+		
+		`is_hostname_valid()` no longer accepts `require_public_netloc` or it's replacement `require_public_netloc`
+			
+	Deprecations::
+		
+		The following classes have been moved. They are still available in the root namespace, but will be removed from it in a future release.
+
+			``metadata_parser.ResponseHistory`` -> ``metadata_parser.utils.ResponseHistory``
+
+		New functionality
+		
+			``MetadataParser.__init__`` and ``MetadataParser.fetch_url`` now accept ``func_security_policy_url``, a Callable function. This hook allows for developers to more easily implement a security policy.  See `MetadataParser.fetch_url` for more info.
+
+            Whether this hook is utilized or not, developers should always inspect URLs and redirect chains.			
+
 1.0.0
 
     IMPORTANT

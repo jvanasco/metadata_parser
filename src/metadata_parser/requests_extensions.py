@@ -2,7 +2,7 @@ import _socket  # noqa: I201
 
 # stdlib
 import cgi  # noqa: I202
-import logging
+import logging  # noqa: I100 I201
 import socket
 from typing import Any
 from typing import Optional

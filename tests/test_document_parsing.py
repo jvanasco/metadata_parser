@@ -14,18 +14,20 @@ from metadata_parser import MetadataParser
 from metadata_parser import urlparse
 from metadata_parser.exceptions import InvalidStrategy
 
-
 # ==============================================================================
 
 
 # this bit lets us run the tests directly during development
 _tests_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if _tests_dir.endswith("metadata_parser"):
+if not _tests_dir.endswith("tests"):
+    # previously checked for "metadata_parser",
+    #    but that conflicted with custom directories
+    # now, just check if we're in the tests directory or not,
     _tests_dir = os.path.join(_tests_dir, "tests")
 _examples_dir = os.path.join(_tests_dir, "html_scaffolds")
 
 # cache these lazily
-CACHED_FILESYSTEM_DOCUMENTS = {}
+CACHED_FILESYSTEM_DOCUMENTS: dict[str, str] = {}
 
 
 doc_base = """<html><head>%(head)s</head><body></body></html>"""

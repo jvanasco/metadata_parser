@@ -234,6 +234,31 @@ Although this behavior breaks RFCs, it greatly reduces the number of
 include bad data, you can submit a kwarg to ``MetadataParser.__init__``
 
 
+Security Concerns
+=================
+
+Like all Python and internet projects, this package has the ability to be leveraged in SSRF exploits.
+
+As with Requests and the Python stdlib, developers should ALWAYS inspect the initial URL and
+redirect chains to ensure the activity is compliant with their own security policies.
+For convenience, ``MetadataParser.__init__`` and ``MetadataParser.fetch_url`` accept a 
+`func_hook_security_policy_url` kwarg to help analyze this.
+
+``func_security_policy_url`` is a Callable function that accepts a URL string and returns
+True (pass) or False (fail).  It is run against the requested URL **BEFORE** attempting a
+fetch, and every item in the redirect chain **AFTER** fetching and following redirects.
+
+`metadata_parser` is a library, not an HTTP proxy, webhook, browser, or service endpoint.
+It does not communicate with the party who supplied the URL.
+The response returned by Requests remains within the process which invoked `metadata_parser`.
+
+If a developer takes an attacker-supplied (or malfeasant actor's) URL and passes it to
+`MetadataParser`, the potential result is that the developer's process makes an HTTP request
+to the attacker's selected destination. If that destination is an internal service, the
+response is returned to the developer's own process. It is **not** returned to the attacker
+merely because the attacker supplied the initial URL.
+
+
 Handling Bad URLs and Encoded URIs
 ==================================
 

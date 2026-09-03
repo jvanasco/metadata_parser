@@ -30,6 +30,7 @@ requires = [
     "BeautifulSoup4>4.13.0,<4.14.0",
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
+    "setuptools",
     "tldextract<6.0.0",  # `.registered_domain` deprecation; see pytest.ini for warning
     "typing_extensions",
 ]
@@ -41,12 +42,13 @@ tests_require = [
     "httpbin",
     "flake8",
     "flake8-import-order>=0.19.2",
+    "flask<3.0",  # httpbin compat issue
     "pytest",
     "pytest-httpbin",
     "responses",
     "types-beautifulsoup4",
     "types-requests",
-    "werkzeug<2.1.0",  # httpbin compat issue
+    "werkzeug<3.0",  # httpbin compat issue
 ]
 testing_extras = tests_require + []
 
@@ -66,6 +68,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Text Processing :: Markup :: HTML",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],

@@ -2,9 +2,7 @@
 import collections
 import logging
 from typing import Any
-from typing import Callable
 from typing import Dict
-from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -30,11 +28,14 @@ from .exceptions import NotParsableFetchError
 from .exceptions import NotParsableJson
 from .exceptions import NotParsableRedirect
 from .exceptions import RedirectDetected
+from .exceptions import SecurityPolicyViolation_URL_Initial
+from .exceptions import SecurityPolicyViolation_URL_Redirect
 from .regex import RE_ALL_NUMERIC
 from .regex import RE_canonical
 from .regex import RE_doctype
 from .regex import RE_DOMAIN_NAME
 from .regex import RE_IPV4_ADDRESS
+from .regex import RE_ipv6_zeroes
 from .regex import RE_prefix_opengraph
 from .regex import RE_prefix_rel_img_src
 from .regex import RE_prefix_twitter
@@ -45,9 +46,11 @@ from .regex import RE_whitespace
 from .requests_extensions import derive_encoding__hook
 from .requests_extensions import get_response_peername
 from .requests_extensions import response_peername__hook
+from .typing import _Hook_SecurityPolicyUrl
 from .typing import _UrlParserCacheable
 from .utils import DummyResponse
 from .utils import fix_unicode_url
+from .utils import ResponseHistory
 from .utils import warn_user
 
 if TYPE_CHECKING:
@@ -69,7 +72,7 @@ if __debug__:
 # ==============================================================================
 
 
-__VERSION__ = "1.0.0"
+__VERSION__ = "2.0.0"
 
 
 # ------------------------------------------------------------------------------
@@ -119,11 +122,14 @@ PARSE_SAFE_FILES = (
     "cfm",
     "cgi",
 )
-# these aren't on the public internet
-PRIVATE_HOSTNAMES = (
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
+
+LOCALHOSTS = (
+    "localhost",  # hostname
+    "127.0.0.1",  # ipv4 loopback
+    "0.0.0.0",  # ipv4 destination=source
+    "::1",  # ipv6 loopback
+    "::",  # ipv4 destination=source - simplified
+    "0000:0000:0000:0000:0000:0000:0000:0000",  # ipv4 destination=source - verbose
 )
 SCHEMELESS_FIELDS_DISALLOW = (
     "canonical",
@@ -152,21 +158,34 @@ STRATEGY_ALL = ["meta", "page", "og", "dc", "twitter"]
 # ------------------------------------------------------------------------------
 
 
-# ------------------------------------------------------------------------------
-
-
-# ------------------------------------------------------------------------------
+def is_localhost(hostname: str) -> bool:
+    """
+    validates a `hostname` against LOCALHOSTS
+    if ipv6, will regex for compressed values
+    """
+    # quick check
+    if hostname.lower() in LOCALHOSTS:
+        return True
+    # ipv6 can be compressed
+    if ":" in hostname:
+        if RE_ipv6_zeroes.match(hostname):
+            return True
+    return False
 
 
 def is_hostname_valid(
     hostname: str,
     allow_localhosts: bool = True,
-    require_public_netloc: bool = False,
 ) -> bool:
-    if hostname.lower() in PRIVATE_HOSTNAMES:
+    """
+    This function checks the validity of a `hostname`.
+
+    `allow_localhosts`
+        default True
+        Filters hostname against ``is_localhost``.
+    """
+    if is_localhost(hostname):
         if not allow_localhosts:
-            return False
-        if require_public_netloc:
             return False
         return True
     if USE_TLDEXTRACT:
@@ -181,11 +200,17 @@ def is_hostname_valid(
 
 def is_parsed_valid_url(
     parsed: Union[ParseResult, ParseResultBytes, _ResultMixinStr],
-    require_public_netloc: Optional[bool] = True,
+    require_valid_netloc: Optional[bool] = True,
     allow_localhosts: Optional[bool] = True,
     http_only: Optional[bool] = True,
 ) -> bool:
-    """returns bool
+    """
+    returns bool
+
+    `allow_localhosts`
+        default True
+        Filters hostname against ``is_localhost``.
+
     `http_only`
         defaults True
         requires http or https for the scheme
@@ -204,7 +229,7 @@ def is_parsed_valid_url(
             if __debug__:
                 log.debug(" FALSE - invalid `scheme`")
             return False
-    if require_public_netloc:
+    if require_valid_netloc:
         if __debug__:
             log.debug(" validating netloc")
         _netloc_match = RE_VALID_NETLOC.match(parsed.netloc)
@@ -227,10 +252,10 @@ def is_parsed_valid_url(
         # note this is done AFTER we clean up a potential port grouping
         if _hostname:
             if __debug__:
-                log.debug(" validating against PRIVATE_HOSTNAMES")
-            if _hostname.lower() in PRIVATE_HOSTNAMES:
+                log.debug(" validating `is_localhost`")
+            if is_localhost(_hostname):
                 if __debug__:
-                    log.debug(" matched PRIVATE_HOSTNAMES")
+                    log.debug(" determined `is_localhost`")
                 if allow_localhosts:
                     return True
                 return False
@@ -304,25 +329,30 @@ def is_parsed_valid_relative(parsed: ParseResult) -> bool:
 
 def is_url_valid(
     url: str,
-    require_public_netloc: Optional[bool] = None,
+    require_valid_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
     urlparser: "TYPE_URLPARSE" = urlparse,
 ) -> Union[Literal[False], ParseResult]:
     """
-    tries to parse a url. if valid returns `ParseResult`
-    (boolean eval is True); if invalid returns `False`
+    Tries to parse a url.
+    If valid, returns `ParseResult` (boolean eval is True).
+    If invalid, returns `False`.
+
     kwargs:
-        `require_public_netloc` -
-        `allow_localhosts` -
-        `urlparser` - defaults to standard `urlparse`, can be substituted with
-                      a cacheable version.
+        `require_valid_netloc`
+            passthrough to `is_parsed_valid_url`
+        `allow_localhosts`
+            passthrough to `is_parsed_valid_url`
+            Filters hostname against ``is_localhost``.
+        `urlparser`
+            defaults to standard `urlparse`, can be substituted with a cacheable version.
     """
     if url in (None, ""):
         return False
     parsed = urlparser(url)
     if is_parsed_valid_url(
         parsed,
-        require_public_netloc=require_public_netloc,
+        require_valid_netloc=require_valid_netloc,
         allow_localhosts=allow_localhosts,
     ):
         return parsed
@@ -360,7 +390,7 @@ def parsed_to_relative(
 def url_to_absolute_url(
     url_test: Optional[str],
     url_fallback: Optional[str] = None,
-    require_public_netloc: Optional[bool] = None,
+    require_valid_netloc: Optional[bool] = None,
     allow_localhosts: Optional[bool] = None,
     urlparser: "TYPE_URLPARSE" = urlparse,
 ) -> Optional[str]:
@@ -380,9 +410,11 @@ def url_to_absolute_url(
         `url_fallback` - a fallback url.  this is returned in VERY bad
             errors. in "not so bad" errors, this is parsed and used as the
             base to construct a new url.
-        `require_public_netloc` - requires the hostname/netloc to be a
+        `require_valid_netloc` - requires the hostname/netloc to be a
             valid IPV4 or public dns domain name
-        `allow_localhosts` - filters localhost values
+        `allow_localhosts`
+            Filters hostname against ``is_localhost``.
+
         `urlparser` - defaults to standard `urlparse`, can be substituted with
                       a cacheable version.
     """
@@ -405,6 +437,7 @@ def url_to_absolute_url(
 
     # if we passed in a url, we can't remount it onto another domain
     if parsed.hostname:
+        # allow_localhosts MUST be true, because we are constructing a URL
         if not is_hostname_valid(parsed.hostname, allow_localhosts=True):
             return None
 
@@ -452,7 +485,7 @@ def url_to_absolute_url(
     # if we have a valid URL (OMFG, PLEASE)...
     if is_parsed_valid_url(
         parsed,
-        require_public_netloc=require_public_netloc,
+        require_valid_netloc=require_valid_netloc,
         allow_localhosts=allow_localhosts,
     ):
         parsed_domain_source = parsed
@@ -464,7 +497,7 @@ def url_to_absolute_url(
                 assert parsed_fallback is not None
             if is_parsed_valid_url(
                 parsed_fallback,
-                require_public_netloc=require_public_netloc,
+                require_valid_netloc=require_valid_netloc,
                 allow_localhosts=allow_localhosts,
             ):
                 parsed_domain_source = parsed_fallback
@@ -510,46 +543,6 @@ def validate_strategy(
 
 
 # ------------------------------------------------------------------------------
-
-
-class ResponseHistory(object):
-    history: Optional[Iterable] = None
-
-    def __init__(self, resp: "TYPES_RESPONSE"):
-        """
-        :param resp: A :class:`requests.Response` object to compute history of
-        :type resp: class:`requests.Response`
-        """
-        _history = []
-        if resp.history:
-            for _rh in resp.history:
-                _history.append((_rh.status_code, _rh.url))
-        _history.append((resp.status_code, resp.url))
-        self.history = _history
-
-    def log(
-        self,
-        prefix: str = "ResponseHistory",
-        logger: Callable[..., None] = log.error,
-    ) -> None:
-        """
-        Invoked to log troubleshooting information when an error is encountered.
-        By default this goes to `log.error`.
-
-        :param prefix: Prefix for logging, defaults to "ResponseHistory"
-        :type prefix: str
-        :param logger: default `log.error`
-        :type logger: logging stream
-        """
-        if self.history:
-            for _idx, _history in enumerate(self.history):
-                logger(
-                    "%s | %s | %s : %s ",
-                    prefix,
-                    _idx,
-                    _history[0],  # status_code
-                    _history[1],  # url
-                )
 
 
 class UrlParserCacheable(_UrlParserCacheable):
@@ -868,7 +861,7 @@ class MetadataParser(object):
     LEN_MAX_TITLE: int = 255
     only_parse_file_extensions: Optional[List[str]] = None
     allow_localhosts: Optional[bool] = None
-    require_public_netloc: Optional[bool] = None
+    require_valid_netloc: Optional[bool] = None
     force_doctype: Optional[bool] = None
     requests_timeout: "TYPE_REQUESTS_TIMEOUT" = None
     peername: Optional["TYPES_PEERNAME"] = None
@@ -887,6 +880,7 @@ class MetadataParser(object):
 
     urlparse: "TYPE_URLPARSE"
     _cached_urlparser: Optional[_UrlParserCacheable]
+    func_hook_security_policy_url: Optional[_Hook_SecurityPolicyUrl]
 
     # this has a per-parser default tuple
     # it can be upgraded manually
@@ -909,7 +903,7 @@ class MetadataParser(object):
         ssl_verify: bool = True,
         only_parse_file_extensions: Optional[List[str]] = None,
         force_parse_invalid_content_type: bool = False,
-        require_public_netloc: bool = True,
+        require_valid_netloc: bool = True,
         allow_localhosts: Optional[bool] = None,
         force_doctype: bool = False,
         requests_timeout: "TYPE_REQUESTS_TIMEOUT" = None,
@@ -927,6 +921,7 @@ class MetadataParser(object):
         support_malformed: Optional[bool] = None,
         cached_urlparser: Union[bool, "TYPE_URLPARSE"] = True,
         cached_urlparser_maxitems: Optional[int] = None,
+        func_hook_security_policy_url: Optional[_Hook_SecurityPolicyUrl] = None,
     ):
         """
         creates a new `MetadataParser` instance.
@@ -962,15 +957,18 @@ class MetadataParser(object):
                 default: None
                 set a list of valid file extensions.
                 see `metadata_parser.PARSE_SAFE_FILES` for an example list
-            `require_public_netloc`
+            `require_valid_netloc`
                 default: True
                 require a valid `netloc` for the host.  if `True`, valid hosts
                 must be a properly formatted public domain name, IPV4 address
                 or "localhost"
             `allow_localhosts`
                 default: True
-                If True, `localhost`, '127.0.0.1`, and `0.0.0.0` values will be
-                valid.
+                If ``False``, hostname values matching ``metadata_parser.LOCALHOSTS`` will
+                not be considered valid.
+
+                See docs for `metadata_parser.LOCALHOSTS`
+
             `force_doctype`
                 default: False
                 if set to true, will replace a doctype with 'html'
@@ -1025,6 +1023,9 @@ class MetadataParser(object):
             `cached_urlparser_maxitems`
                 default: None
                 options: int: sets maxitems
+            `func_hook_security_policy_url`
+                default: None
+                options: callable function. See `MetadataParser.fetch_url` for more info.
         """
         if __debug__:
             log.debug("MetadataParser.__init__(%s)", url)
@@ -1066,7 +1067,7 @@ class MetadataParser(object):
         self.force_doctype = force_doctype
         self.response = None
         self.response_headers: Dict = {}
-        self.require_public_netloc = require_public_netloc
+        self.require_valid_netloc = require_valid_netloc
         self.allow_localhosts = allow_localhosts
         self.requests_timeout = requests_timeout
         self.allow_redirects = allow_redirects
@@ -1079,6 +1080,7 @@ class MetadataParser(object):
         self.derive_encoding = derive_encoding
         self.default_encoding = default_encoding
         self.support_malformed = support_malformed
+        self.func_hook_security_policy_url = func_hook_security_policy_url
         if only_parse_file_extensions is not None:
             self.only_parse_file_extensions = only_parse_file_extensions
         if default_encoder is not None:
@@ -1107,7 +1109,7 @@ class MetadataParser(object):
                 if defer_fetch:
 
                     def deferred_fetch() -> None:
-                        (html, html_encoding, _response_history) = self.fetch_url(
+                        html, html_encoding, _response_history = self.fetch_url(
                             url_data=url_data,
                             url_headers=url_headers,
                             retry_dropped_without_headers=retry_dropped_without_headers,
@@ -1122,7 +1124,7 @@ class MetadataParser(object):
 
                     self.deferred_fetch = deferred_fetch  # type: ignore[method-assign]
                     return
-                (html, html_encoding, _response_history) = self.fetch_url(
+                html, html_encoding, _response_history = self.fetch_url(
                     url_data=url_data,
                     url_headers=url_headers,
                     retry_dropped_without_headers=retry_dropped_without_headers,
@@ -1166,6 +1168,7 @@ class MetadataParser(object):
         derive_encoding: Optional[bool] = None,
         default_encoding: Optional[str] = None,
         retry_dropped_without_headers: Optional[bool] = None,
+        func_hook_security_policy_url: Optional[_Hook_SecurityPolicyUrl] = None,
     ) -> "TYPE_URL_FETCH":
         """
         fetches the url and returns a tuple of (html, html_encoding).
@@ -1199,6 +1202,41 @@ class MetadataParser(object):
                 defaults to self.default_encoding if None
             retry_dropped_without_headers=None
                 if true, will retry_dropped_without_headers
+            `func_hook_security_policy_url=None`
+                This hook allows for developers to more easily implement a security policy.
+                
+                The hook requires the requested URL, and must optionally accept the instant
+                `requests.Response` object as a second value. It should return `True` on a 
+                pass and `False` on a failure. For typing support, the signature is defined
+                in `typing._Hook_SecurityPolicyUrl`.
+
+                Example:
+                
+                    def func_hook_security_policy_url(self, url: str, resp: "requests.Response" | None = None):
+                        if is_url_security_violation(url):
+                            return False
+                        if resp:
+                            for h in resp.history:
+                                if is_url_security_violation(h.url):
+                                    return False
+                        return True
+
+                On hook failures, `fetch_url` will raise `SecurityPolicyViolation_URL_Initial`
+                for the initial URL, or `SecurityPolicyViolation_URL_Redirect` for a redirect.
+
+                `SecurityPolicyViolation_URL_Initial` will be raised
+                BEFORE any URLs are fetched; it is only invoked with the requested URL.
+
+                `SecurityPolicyViolation_URL_Redirect` will be raised
+                AFTTER the requested URL is fetched AND all redirects are followed; it is
+                invoked with both the requested URL and the active `requests.Response`
+                object.  This gives developers a hook within this library to analyze URLs.
+
+                Both exceptions are derived from `exceptions.SecurityPolicyViolation_URL`,
+                which is derived from `exceptions.SecurityPolicyViolation`.
+
+                Whether this hook is utilized or not, developers should
+                always inspect URLs and redirect chains.
         """
         if __debug__:
             log.error("MetadataParser.fetch_url(%s)", self.url)
@@ -1248,6 +1286,16 @@ class MetadataParser(object):
         # that fucks things up.
         assert self.url
         url = self.url.split("#")[0]
+
+        _func_hook_security_policy_url = (
+            func_hook_security_policy_url or self.func_hook_security_policy_url
+        )
+        if _func_hook_security_policy_url is not None:
+            if not _func_hook_security_policy_url(url):
+                raise SecurityPolicyViolation_URL_Initial(
+                    "Initial URL (%s) violates SecurityPolicy",
+                    metadataParser=self,
+                )
 
         # scoping for return values
         html = html_encoding = response_history = None
@@ -1445,14 +1493,23 @@ class MetadataParser(object):
                 error,
             )
             raise NotParsableFetchError(
-                message="Error with `requests` library.  Inspect the `raised`"
+                message="Error with `requests` library. Inspect the `raised`"
                 " attribute of this error.",
                 raised=error,
                 metadataParser=self,
             )
+        finally:
+            if _func_hook_security_policy_url is not None:
+                if not _func_hook_security_policy_url(url, resp):
+                    raise SecurityPolicyViolation_URL_Redirect(
+                        "Redirect URL via (%s) violates SecurityPolicy",
+                        metadataParser=self,
+                    )
+
         if TYPE_CHECKING:
             assert html is not None
             assert html_encoding is not None
+
         return (html, html_encoding, response_history)
 
     def absolute_url(self, link: Optional[str] = None) -> Optional[str]:
@@ -1466,7 +1523,7 @@ class MetadataParser(object):
         return url_to_absolute_url(
             link,
             url_fallback=url_fallback,
-            require_public_netloc=self.require_public_netloc,
+            require_valid_netloc=self.require_valid_netloc,
             allow_localhosts=self.allow_localhosts,
             urlparser=self.urlparse,
         )
@@ -1800,16 +1857,16 @@ class MetadataParser(object):
 
     def get_fallback_url(
         self,
-        require_public_netloc: bool = True,
+        require_valid_netloc: bool = True,
         allow_localhosts: bool = True,
     ) -> Optional[str]:
         for _fallback_candndiate in (self.url_actual, self.url):
             if not _fallback_candndiate:
                 continue
-            if require_public_netloc or allow_localhosts:
+            if require_valid_netloc or allow_localhosts:
                 _parsed = is_url_valid(
                     _fallback_candndiate,
-                    require_public_netloc=require_public_netloc,
+                    require_valid_netloc=require_valid_netloc,
                     allow_localhosts=allow_localhosts,
                     urlparser=self.urlparse,
                 )
@@ -1875,11 +1932,12 @@ class MetadataParser(object):
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
                 url_fallback = self.get_fallback_url(
-                    require_public_netloc=True, allow_localhosts=False
+                    require_valid_netloc=True,
+                    allow_localhosts=False,
                 )
             if (canonical is not None) and not is_url_valid(
                 canonical,
-                require_public_netloc=True,
+                require_valid_netloc=True,
                 allow_localhosts=False,
                 urlparser=self.urlparse,
             ):
@@ -1887,13 +1945,13 @@ class MetadataParser(object):
                 canonical = url_to_absolute_url(
                     canonical,
                     url_fallback=url_fallback,
-                    require_public_netloc=True,
+                    require_valid_netloc=True,
                     allow_localhosts=False,
                     urlparser=self.urlparse,
                 )
                 if (canonical is not None) and not is_url_valid(
                     canonical,
-                    require_public_netloc=True,
+                    require_valid_netloc=True,
                     allow_localhosts=False,
                     urlparser=self.urlparse,
                 ):
@@ -1954,11 +2012,12 @@ class MetadataParser(object):
             if url_fallback is None:
                 # derive a fallback url, and ensure it is valid
                 url_fallback = self.get_fallback_url(
-                    require_public_netloc=True, allow_localhosts=False
+                    require_valid_netloc=True,
+                    allow_localhosts=False,
                 )
             if og and not is_url_valid(
                 og,
-                require_public_netloc=True,
+                require_valid_netloc=True,
                 allow_localhosts=False,
                 urlparser=self.urlparse,
             ):
@@ -1966,13 +2025,13 @@ class MetadataParser(object):
                 og = url_to_absolute_url(
                     og,
                     url_fallback=url_fallback,
-                    require_public_netloc=True,
+                    require_valid_netloc=True,
                     allow_localhosts=False,
                     urlparser=self.urlparse,
                 )
                 if (og is not None) and not is_url_valid(
                     og,
-                    require_public_netloc=True,
+                    require_valid_netloc=True,
                     allow_localhosts=False,
                     urlparser=self.urlparse,
                 ):
@@ -2009,7 +2068,8 @@ class MetadataParser(object):
         url_fallback = None
         if require_public_global:
             url_fallback = self.get_fallback_url(
-                require_public_netloc=True, allow_localhosts=False
+                require_valid_netloc=True,
+                allow_localhosts=False,
             )
 
         if og_first:
@@ -2092,16 +2152,16 @@ class MetadataParser(object):
                 return None
 
         if require_public_global:
-            _require_public_netloc = True
+            _require_valid_netloc = True
             _allow_localhosts = False
         else:
-            _require_public_netloc = False
+            _require_valid_netloc = False
             _allow_localhosts = True
 
         # if the url is valid, RETURN IT
         if is_url_valid(
             value,
-            require_public_netloc=_require_public_netloc,
+            require_valid_netloc=_require_valid_netloc,
             allow_localhosts=_allow_localhosts,
             urlparser=self.urlparse,
         ):
@@ -2109,7 +2169,7 @@ class MetadataParser(object):
 
         # fallback url is used to drop to the domain
         url_fallback = self.get_fallback_url(
-            require_public_netloc=_require_public_netloc,
+            require_valid_netloc=_require_valid_netloc,
             allow_localhosts=_allow_localhosts,
         )
 
@@ -2117,14 +2177,14 @@ class MetadataParser(object):
         value_fixed = url_to_absolute_url(
             value,
             url_fallback=url_fallback,
-            require_public_netloc=_require_public_netloc,
+            require_valid_netloc=_require_valid_netloc,
             allow_localhosts=_allow_localhosts,
             urlparser=self.urlparse,
         )
         if value_fixed:
             if is_url_valid(
                 value_fixed,
-                require_public_netloc=_require_public_netloc,
+                require_valid_netloc=_require_valid_netloc,
                 allow_localhosts=_allow_localhosts,
                 urlparser=self.urlparse,
             ):
