@@ -127,7 +127,7 @@ class TestSessionsHttpBin(unittest.TestCase):
 
 class TestSessionsHttpBin_HookFuncSecurityPolicy(TestSessionsHttpBin):
 
-    def func_hook_security_policy_url(self, url: str, resp: "Response" | None = None):
+    def func_hook_security_policy_url(self, url: str, resp: Optional["Response"] = None):
         """
         Example security policy hook.
         

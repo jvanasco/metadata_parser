@@ -57,7 +57,7 @@ class _UrlParserCacheable(Protocol):
 
 
 class _Hook_SecurityPolicyUrl(Protocol):
-    def __call__(self, url: str, resp: "Response"|None = None) -> bool: ...
+    def __call__(self, url: str, resp: Optional["Response"] = None) -> bool: ...
     
     
     

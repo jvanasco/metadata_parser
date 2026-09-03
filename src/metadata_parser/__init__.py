@@ -1212,7 +1212,7 @@ class MetadataParser(object):
 
                 Example:
                 
-                    def func_hook_security_policy_url(self, url: str, resp: "requests.Response" | None = None):
+                    def func_hook_security_policy_url(self, url: str, resp: Optional["requests.Response"] = None):
                         if is_url_security_violation(url):
                             return False
                         if resp:
