@@ -72,7 +72,7 @@ if __debug__:
 # ==============================================================================
 
 
-__VERSION__ = "2.0.0"
+__VERSION__ = "2.1.0"
 
 
 # ------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ def is_hostname_valid(
         return True
     if USE_TLDEXTRACT:
         extracted = tldextract.extract(hostname)
-        if not extracted.registered_domain:
+        if not extracted.top_domain_under_public_suffix:
             return False
         return True
     if RE_DOMAIN_NAME.match(hostname):
@@ -306,7 +306,7 @@ def is_parsed_valid_url(
             if _hostname:
                 if USE_TLDEXTRACT:
                     _extracted = tldextract.extract(_hostname)
-                    if not _extracted.registered_domain:
+                    if not _extracted.top_domain_under_public_suffix:
                         return False
                     return True
                 if RE_DOMAIN_NAME.match(_hostname):
@@ -1204,14 +1204,14 @@ class MetadataParser(object):
                 if true, will retry_dropped_without_headers
             `func_hook_security_policy_url=None`
                 This hook allows for developers to more easily implement a security policy.
-                
+
                 The hook requires the requested URL, and must optionally accept the instant
-                `requests.Response` object as a second value. It should return `True` on a 
+                `requests.Response` object as a second value. It should return `True` on a
                 pass and `False` on a failure. For typing support, the signature is defined
                 in `typing._Hook_SecurityPolicyUrl`.
 
                 Example:
-                
+
                     def func_hook_security_policy_url(self, url: str, resp: Optional["requests.Response"] = None):
                         if is_url_security_violation(url):
                             return False
