@@ -1,3 +1,7 @@
+2.1.0 - unreleased
+    * adopt tldextract's `top_domain_under_public_suffix` to replace `registered_domain`
+      TLDextract deprecated `registered_domain`.
+
 2.0.0
 
 ## Security-related fixes and improvements

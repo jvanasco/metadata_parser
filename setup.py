@@ -31,7 +31,7 @@ requires = [
     "requests>=2.19.1",
     "requests-toolbelt>=0.8.0",
     "setuptools",
-    "tldextract<6.0.0",  # `.registered_domain` deprecation; see pytest.ini for warning
+    "tldextract>=5.3.2,<6.0.0",  # `.registered_domain` deprecation; replaced by `top_domain_under_public_suffix`
     "typing_extensions",
 ]
 
