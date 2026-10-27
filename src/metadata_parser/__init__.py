@@ -1,3 +1,19 @@
+"""
+Key concepts:
+
+`require_valid_netloc`
+    Checks hostname and IP-address formatting when interpreting or reconstructing
+    URLs. It does not determine whether a destination is safe to contact.
+
+`allow_localhosts`
+    Controls whether known localhost values are accepted during URL
+    reconstruction. It originated as a routing compatibility option, not a
+    private-network classification or request security policy.
+
+Applications can integrate their own request security policy through
+``func_hook_security_policy_url``.
+
+"""
 # stdlib
 import collections
 import logging
@@ -36,6 +52,7 @@ from .regex import RE_doctype
 from .regex import RE_DOMAIN_NAME
 from .regex import RE_IPV4_ADDRESS
 from .regex import RE_ipv6_zeroes
+from .regex import RE_ipv6_zeroes2
 from .regex import RE_prefix_opengraph
 from .regex import RE_prefix_rel_img_src
 from .regex import RE_prefix_twitter
@@ -162,6 +179,9 @@ def is_localhost(hostname: str) -> bool:
     """
     validates a `hostname` against LOCALHOSTS
     if ipv6, will regex for compressed values
+
+    A routing/URL reconstruction helper, not a request security policy or a
+    comprehensive private-network address check.
     """
     # quick check
     if hostname.lower() in LOCALHOSTS:
@@ -169,6 +189,8 @@ def is_localhost(hostname: str) -> bool:
     # ipv6 can be compressed
     if ":" in hostname:
         if RE_ipv6_zeroes.match(hostname):
+            return True
+        if RE_ipv6_zeroes2.match(hostname):
             return True
     return False
 
@@ -178,11 +200,13 @@ def is_hostname_valid(
     allow_localhosts: bool = True,
 ) -> bool:
     """
-    This function checks the validity of a `hostname`.
+    Check hostname suitability for URL interpretation and reconstruction.
+    This does not determine whether a destination is safe to contact.
 
     `allow_localhosts`
         default True
-        Filters hostname against ``is_localhost``.
+        Accept known localhost values when True; reject them when False.
+        Uses ``is_localhost``, not a comprehensive private-network check.
     """
     if is_localhost(hostname):
         if not allow_localhosts:
@@ -205,11 +229,17 @@ def is_parsed_valid_url(
     http_only: Optional[bool] = True,
 ) -> bool:
     """
-    returns bool
+    Check URL structure for interpretation and reconstruction, not request safety.
+
+    `require_valid_netloc`
+        default True
+        Enables hostname and IP-address format checks.
 
     `allow_localhosts`
         default True
-        Filters hostname against ``is_localhost``.
+        Controls acceptance of known localhost values during netloc checks.
+        Only applied when `require_valid_netloc` is enabled; it does not
+        classify private networks or enforce a request security policy.
 
     `http_only`
         defaults True
@@ -398,7 +428,8 @@ def url_to_absolute_url(
     returns an "absolute url" if we have one.
     if we don't, it tries to fix the current url based on the fallback
 
-    this shouldn't be needed, but it is.
+    The fallback also supplies document context when replaying saved HTML.
+    These URL reconstruction options do not enforce request security.
 
     called by:
 
@@ -855,8 +886,8 @@ class MetadataParser(object):
         this can be necessary on development machines
     """
 
-    url: Optional[str] = None
-    url_actual: Optional[str] = None
+    url: Optional[str] = None  # original requested URL
+    url_actual: Optional[str] = None  # response URL, fetched or restored from cache
     strategy: "TYPES_STRATEGY" = None
     LEN_MAX_TITLE: int = 255
     only_parse_file_extensions: Optional[List[str]] = None
@@ -922,13 +953,18 @@ class MetadataParser(object):
         cached_urlparser: Union[bool, "TYPE_URLPARSE"] = True,
         cached_urlparser_maxitems: Optional[int] = None,
         func_hook_security_policy_url: Optional[_Hook_SecurityPolicyUrl] = None,
+        *,
+        url_actual: Optional[str] = None,
     ):
         """
         creates a new `MetadataParser` instance.
 
         kwargs:
             `url`
-                url to parse
+                URL to fetch, or the original requested URL for cached HTML
+            `url_actual`
+                Final response URL when replaying cached HTML. Requires `html`.
+                Defaults to `url` when omitted. Live fetches use the response URL.
             `html`
                 instead of a url, parse raw html
             `html_encoding`
@@ -959,13 +995,13 @@ class MetadataParser(object):
                 see `metadata_parser.PARSE_SAFE_FILES` for an example list
             `require_valid_netloc`
                 default: True
-                require a valid `netloc` for the host.  if `True`, valid hosts
-                must be a properly formatted public domain name, IPV4 address
-                or "localhost"
+                Check hostname and IP-address formatting during URL
+                interpretation and reconstruction, not request safety.
             `allow_localhosts`
                 default: True
-                If ``False``, hostname values matching ``metadata_parser.LOCALHOSTS`` will
-                not be considered valid.
+                Controls acceptance of known localhost values during URL
+                reconstruction. A routing compatibility option, not a
+                private-network classification or request security policy.
 
                 See docs for `metadata_parser.LOCALHOSTS`
 
@@ -1031,6 +1067,10 @@ class MetadataParser(object):
             log.debug("MetadataParser.__init__(%s)", url)
         if url is not None:
             url = url.strip()
+        if url_actual is not None:
+            if html is None:
+                raise ValueError("`url_actual` requires cached `html`")
+            url_actual = url_actual.strip()
         self.parsed_result = ParsedResult()
         if cached_urlparser_maxitems:
             if cached_urlparser is not True:
@@ -1062,7 +1102,9 @@ class MetadataParser(object):
             self.strategy = strategy
             self.parsed_result.strategy = strategy
         self.url = self.parsed_result.metadata["_internal"]["url"] = url
-        self.url_actual = self.parsed_result.metadata["_internal"]["url_actual"] = url
+        self.url_actual = self.parsed_result.metadata["_internal"]["url_actual"] = (
+            url_actual if url_actual is not None else url
+        )
         self.ssl_verify = ssl_verify
         self.force_doctype = force_doctype
         self.response = None
@@ -1092,7 +1134,7 @@ class MetadataParser(object):
             # if `html_encoding` was provided as a kwarg, it becomes the encoding
             self.response = DummyResponse(
                 text=html,
-                url=(url or config.DUMMY_URL),
+                url=(self.url_actual or url or config.DUMMY_URL),
                 encoding=html_encoding,
                 derive_encoding=derive_encoding,
                 default_encoding=default_encoding,
@@ -1299,6 +1341,7 @@ class MetadataParser(object):
 
         # scoping for return values
         html = html_encoding = response_history = None
+        resp: Optional[requests.Response] = None
         try:
             # requests gives us unicode and the correct encoding, yay
             allow_redirects = (
@@ -1499,7 +1542,8 @@ class MetadataParser(object):
                 metadataParser=self,
             )
         finally:
-            if _func_hook_security_policy_url is not None:
+            # A failed request may not have produced a response to inspect.
+            if resp is not None and _func_hook_security_policy_url is not None:
                 if not _func_hook_security_policy_url(url, resp):
                     raise SecurityPolicyViolation_URL_Redirect(
                         "Redirect URL via (%s) violates SecurityPolicy",
@@ -1519,10 +1563,10 @@ class MetadataParser(object):
         kwargs:
             link=None
         """
-        url_fallback = self.url_actual or self.url or None
+        document_url = self.url_actual or self.url or None
         return url_to_absolute_url(
             link,
-            url_fallback=url_fallback,
+            url_fallback=document_url,
             require_valid_netloc=self.require_valid_netloc,
             allow_localhosts=self.allow_localhosts,
             urlparser=self.urlparse,
@@ -1860,12 +1904,17 @@ class MetadataParser(object):
         require_valid_netloc: bool = True,
         allow_localhosts: bool = True,
     ) -> Optional[str]:
-        for _fallback_candndiate in (self.url_actual, self.url):
-            if not _fallback_candndiate:
+        """Select document URL context, preferring the final URL to the original.
+
+        Used for URL reconstruction, including replaying saved HTML. The
+        validation flags are formatting/routing controls, not a security policy.
+        """
+        for candidate in (self.url_actual, self.url):
+            if not candidate:
                 continue
             if require_valid_netloc or allow_localhosts:
                 _parsed = is_url_valid(
-                    _fallback_candndiate,
+                    candidate,
                     require_valid_netloc=require_valid_netloc,
                     allow_localhosts=allow_localhosts,
                     urlparser=self.urlparse,
@@ -1873,7 +1922,7 @@ class MetadataParser(object):
                 if not _parsed:
                     continue
             # okay this works
-            return _fallback_candndiate
+            return candidate
         return None
 
     # --------------------------------------------------------------------------
@@ -2049,11 +2098,13 @@ class MetadataParser(object):
         allow_unicode_url: bool = True,
     ) -> Optional[str]:
         """
-        convenience method.
-        if `require_public_global` is True, it will try to correct
-            the data (relative to absolute) or reset to None.  This option will
-            also require the fallback url to be on the public internet and not
-            be a localhost value.
+        Select a metadata URL or fall back to the document URL context.
+
+        `require_public_global` controls metadata URL normalization, including
+        relative-to-absolute reconstruction and known localhost filtering.
+        It is not a request security policy or a global-routability check.
+        Currently the final no-metadata fallback can still return a local
+        document URL, unlike the filtered fallback used during normalization.
 
         kwargs:
             og_first=True
@@ -2117,9 +2168,10 @@ class MetadataParser(object):
             require_public_global=True
 
         if `require_public_global` is True, this will try to correct
-            the data (relative to absolute) or reset to None.  This option will
-            also require the fallback url to be on the public internet and not a
-            localhost value.
+            the data (relative to absolute) or reset to None, using hostname
+            format checks and known localhost filtering. This is a URL
+            reconstruction option, not a request security policy or a check
+            that the destination is globally routable.
         """
         # `_value` will be our raw value
         _value = self.parsed_result.select_first_match(field, strategy=strategy)

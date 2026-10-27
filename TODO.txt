@@ -1,3 +1,11 @@
+Future exploration
+    Explore the feasibility of a function that handles named HTML entities
+    unsupported or inconsistently decoded by particular parser backends, to
+    provide consistent metadata regardless of the selected backend. Use the
+    entity regression tests and documented backend differences to evaluate
+    handling of missing semicolons, legacy entity prefixes, and text versus
+    attribute contexts, without double-decoding entities or altering URL data.
+
 1.0.0
     tests needed for:
         select_first_strategy
