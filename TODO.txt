@@ -5,9 +5,3 @@ Future exploration
     entity regression tests and documented backend differences to evaluate
     handling of missing semicolons, legacy entity prefixes, and text versus
     attribute contexts, without double-decoding entities or altering URL data.
-
-1.0.0
-    tests needed for:
-        select_first_strategy
-            try to break it
-            select different strategies, different data on each

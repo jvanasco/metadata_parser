@@ -1,3 +1,14 @@
+Unreleased
+
+    Test coverage:
+
+        Added a shared conflicting-metadata document and adversarial tests for
+        ``select_first_match`` in ``tests/test_strategy_selection.py``, covering
+        all 325 ordered nonempty strategy subsets, sparse fields, duplicates,
+        empty values, constructor defaults, overrides, invalid strategies, and
+        custom encoders.
+
+
 2.0.0
 
 ## Security-related fixes and improvements
