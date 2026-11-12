@@ -143,6 +143,52 @@ Environment Variables
    Used as the fallback URL when calculating url data.
 
 
+Testing and coverage
+====================
+
+Install the testing dependencies and run pytest from the checkout::
+
+    python -m pip install -e '.[testing]'
+    python -m pytest
+
+The testing extra includes ``pytest-cov``. Each test run reports package line
+coverage and the uncovered line numbers. There is no minimum coverage threshold.
+The same reporting applies to the existing tox and CI test runs.
+
+Package metadata, dependencies, and pytest, mypy, tox, and flake8 configuration
+are consolidated in ``setup.cfg``. ``pyproject.toml`` declares the setuptools
+build backend and contains Black's configuration. Package versions continue to
+come from ``metadata_parser.__VERSION__``. Install with pip as shown above;
+to build source and wheel distributions, install ``build`` and run
+``python -m build`` instead of invoking ``setup.py``.
+
+The testing dependencies include ``lxml``, and a test verifies that the default
+parser selects it rather than silently using the fallback. Named-entity tests
+run against both ``lxml`` and Python's ``html.parser``. To also run the optional
+``html5lib`` cases, install ``'.[testing-backends]'`` instead of ``'.[testing]'``.
+These are separate BeautifulSoup backends; lxml does not use html5lib internally.
+The entity expectations record backend differences for title text and quoted
+metadata attributes, including names with and without trailing semicolons.
+The default suite covers 53 common names. An advanced suite checks every name
+in Python's HTML5 entity table in both semicolon forms::
+
+    python -m pytest tests/test_html_entities.py --html5-entities
+
+To select only the exhaustive cases, add ``-m html5_entities``. The backend
+differences, verified versions, and commands are documented in
+`HTML entity regression coverage <tests/HTML_ENTITIES.rst>`_. Differences have
+explicit expected results; unexpected changes fail rather than being ignored.
+
+For a browsable report, add ``--cov-report=html``. The report is written to
+``htmlcov/index.html``. Use ``--no-cov`` when coverage collection is not needed.
+
+While the fallback design remains under discussion, ``tests/test_url_fallbacks.py``
+contains candidate expectations that intentionally fail against current behavior.
+To measure coverage of the passing regression suite separately, run::
+
+    python -m pytest --ignore=tests/test_url_fallbacks.py
+
+
 Notes
 =====
 
@@ -288,7 +334,7 @@ be legitimate for some applications.
 Handling Bad URLs and Encoded URIs
 ==================================
 
-This library tries to safeguard against a few common situations.
+This library corrects several common metadata and URL formatting problems.
 
 Encoded URIs and relative urls
 ------------------------------
@@ -328,10 +374,21 @@ Poorly Constructed Canonical URLs
 Many website publishers implement canonical URLs incorrectly.
 This package tries to fix that.
 
-By default ``MetadataParser`` is constructed with ``require_public_netloc=True``
+By default ``MetadataParser`` is constructed with ``require_valid_netloc=True``
 and ``allow_localhosts=True``.
 
-This will require somewhat valid 'public' network locations in the url.
+``require_valid_netloc`` checks hostname and IP-address formatting when
+interpreting or reconstructing URLs. It does not determine whether a
+destination is safe to contact.
+
+``allow_localhosts`` controls whether known localhost values are accepted
+during URL reconstruction. It originated as a routing compatibility option
+and does not classify private networks or enforce request security. Both flags
+are retained for compatibility.
+
+Applications can integrate their own request security policy through
+``func_hook_security_policy_url``. See Security Concerns above for hook timing
+and redirect handling.
 
 For example, these will all be valid URLs::
 
@@ -355,6 +412,8 @@ calculate the effective url::
 * MetadataParser.get_metadata_link
 
 These both accept an argument ``require_public_global``, which defaults to ``True``.
+Despite its name, this option controls metadata URL normalization; it does not
+establish that an address is globally routable or enforce a security policy.
 
 Assuming we have the following content on the url ``http://example.com/path/to/foo``::
 
@@ -377,6 +436,52 @@ In order to preserve the earlier behavior, just submit ``require_public_global=F
 
     print(page.get_discrete_url(require_public_global=False))
     >>> http://localhost:8000/alt-path/to/foo
+
+
+Replaying saved HTML and URL context
+------------------------------------
+
+A fallback URL also supplies context when reconstructing a parser from saved
+data. An application may save a fetched HTML document and its parsed metadata,
+then parse the HTML again with a different configuration or a newer library.
+Supplying the saved document URL lets relative metadata links resolve in the
+same context as the original document::
+
+    page = MetadataParser(
+        url=saved_requested_url,
+        url_actual=saved_response_url,
+        html=saved_html,
+        html_encoding=saved_encoding,
+    )
+
+When ``html`` is supplied, this constructor does not fetch ``url``. The URL is
+document context, not a request to revisit the original server. Replaying HTML
+creates a new parsed result; it does not restore previously extracted metadata.
+For documents fetched through redirects, applications should retain both the
+requested URL and the final response URL. Pass these as ``url`` and
+``url_actual``, respectively. The final URL provides the base for relative links
+when replaying the saved document, and is also used by the synthetic response.
+Both values are retained in the parsed result's ``_internal`` metadata.
+If ``url_actual`` is omitted, it defaults to ``url`` for compatibility.
+Supplying ``url_actual`` requires ``html``; when fetching a live URL, the library
+sets ``url_actual`` from ``Response.url`` instead.
+
+URL reconstruction may be useful for public sites, local development servers,
+or internal systems. ``require_public_global=False`` preserves local metadata
+URLs where the corresponding normalization methods permit them.
+
+There is currently an inconsistency in ``get_discrete_url``: its metadata
+processing filters fallback candidates when ``require_public_global=True``,
+but if no usable metadata is found, its final fallback can still return a local
+source URL. The flag must not be interpreted as a guarantee that every returned
+URL excludes localhost. The desired fallback behavior is being evaluated
+separately from request security.
+
+Applications enforce request security through their own policy, using
+``func_hook_security_policy_url`` as an integration point. As described above,
+the initial check runs before fetching; the response check runs after Requests
+has followed redirects. URL normalization and replay options are independent
+of that policy.
 
 
 Handling Bad Data

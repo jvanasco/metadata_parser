@@ -6,7 +6,6 @@ import logging  # noqa: I100 I201
 import socket
 from typing import Any
 from typing import Optional
-from typing import Tuple
 from typing import TYPE_CHECKING
 
 # pypi
@@ -29,19 +28,6 @@ if TYPE_CHECKING:
 log = logging.getLogger("metdata_parser")
 
 # ------------------------------------------------------------------------------
-
-
-# peername hacks
-# only use for these stdlib packages
-# eventually will not be needed thanks to upstream changes in `requests`
-_compatible_sockets: Tuple[Any, ...]
-try:
-    _compatible_sockets = (
-        _socket.socket,
-        socket._socketobject,  # type: ignore[attr-defined]
-    )
-except AttributeError:
-    _compatible_sockets = (_socket.socket,)  # type: ignore[no-redef]
 
 
 def derive_encoding__hook(resp: Any, *args, **kwargs) -> None:
@@ -165,7 +151,7 @@ def get_response_peername(
                     sock = resp.raw._fp.fp.raw._sock  # type: ignore[union-attr]
                 else:
                     break
-                if not isinstance(sock, _compatible_sockets):
+                if not isinstance(sock, _socket.socket):
                     raise AllowableError()
                 return sock
             except Exception:

@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 88
-target-version = ['py37']
+target-version = ['py310']
 exclude = '''
 (
     /(

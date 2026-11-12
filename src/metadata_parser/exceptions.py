@@ -121,9 +121,9 @@ class SecurityPolicyViolation_URL(SecurityPolicyViolation):
     pass
 
 
-class SecurityPolicyViolation_URL_Initial(SecurityPolicyViolation):
+class SecurityPolicyViolation_URL_Initial(SecurityPolicyViolation_URL):
     pass
 
 
-class SecurityPolicyViolation_URL_Redirect(SecurityPolicyViolation):
+class SecurityPolicyViolation_URL_Redirect(SecurityPolicyViolation_URL):
     pass

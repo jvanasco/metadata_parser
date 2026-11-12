@@ -477,8 +477,64 @@ class TestCommands(unittest.TestCase, _DocumentCanonicalsMixin):
         is_valid = metadata_parser.is_parsed_valid_url(parsed)
         self.assertTrue(is_valid)
 
+    def test_is_parsed_valid_url__non_http_schemes(self):
+        for scheme in ("ftp", "email"):
+            with self.subTest(scheme=scheme):
+                parsed = urlparse("%s://localhost/resource" % scheme)
+                self.assertFalse(metadata_parser.is_parsed_valid_url(parsed))
+                self.assertFalse(
+                    metadata_parser.is_parsed_valid_url(parsed, http_only=True)
+                )
+                self.assertTrue(
+                    metadata_parser.is_parsed_valid_url(parsed, http_only=False)
+                )
+
 
 class TestLocalhosts(unittest.TestCase):
+
+    def test_all_zero_ipv6_compression_positions(self):
+        # Exercise every contiguous compression span in an eight-group address,
+        # with short, padded, and mixed-width representations of the zero groups.
+        for widths in ((1,) * 8, (2,) * 8, (3,) * 8, (4,) * 8, (1, 2, 3, 4) * 2):
+            groups = ["0" * width for width in widths]
+            expanded = ":".join(groups)
+            with self.subTest(hostname=expanded):
+                self.assertTrue(
+                    metadata_parser.RE_ipv6_zeroes.fullmatch(expanded)
+                    or metadata_parser.RE_ipv6_zeroes2.fullmatch(expanded)
+                )
+                self.assertTrue(metadata_parser.is_localhost(expanded))
+            for start in range(8):
+                for end in range(start + 1, 9):
+                    hostname = ":".join(groups[:start]) + "::" + ":".join(groups[end:])
+                    with self.subTest(hostname=hostname):
+                        self.assertTrue(
+                            metadata_parser.RE_ipv6_zeroes.fullmatch(hostname)
+                            or metadata_parser.RE_ipv6_zeroes2.fullmatch(hostname)
+                        )
+                        self.assertTrue(metadata_parser.is_localhost(hostname))
+
+    def test_all_zero_ipv6_uses_backup_regex(self):
+        # These valid compressions are missed by the primary regex. Verify that
+        # the backup matches and is_localhost reaches it successfully.
+        for hostname in (
+            "0::0:0:0:0:0:0",
+            "00::00:00:00:00:00:00",
+            "000::000:000:000:000:000:000",
+            "0000::0000:0000:0000:0000:0000:0000",
+            "0::000:0000:0:00:000:0000",
+        ):
+            with self.subTest(hostname=hostname):
+                self.assertIsNone(metadata_parser.RE_ipv6_zeroes.fullmatch(hostname))
+                self.assertIsNotNone(metadata_parser.RE_ipv6_zeroes2.fullmatch(hostname))
+                self.assertTrue(metadata_parser.is_localhost(hostname))
+
+    def test_compressed_nonzero_ipv6_is_not_all_zero(self):
+        for hostname in ("::2", "1::", "0:0:1::0", "2001:db8::"):
+            with self.subTest(hostname=hostname):
+                self.assertIsNone(metadata_parser.RE_ipv6_zeroes.fullmatch(hostname))
+                self.assertIsNone(metadata_parser.RE_ipv6_zeroes2.fullmatch(hostname))
+                self.assertFalse(metadata_parser.is_localhost(hostname))
 
     def test_is_localhost__true(self):
 

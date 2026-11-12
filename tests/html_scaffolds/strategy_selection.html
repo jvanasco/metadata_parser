@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Page title first</title>
+    <title>Page title ignored</title>
+    <link rel="canonical" href="https://example.com/page-canonical">
+    <link rel="image_src" href="https://example.com/page-image.jpg">
+
+    <!-- Deliberately disagree across stores and interleave their DOM order. -->
+    <meta name="twitter:title" content="Twitter title first">
+    <meta name="dc.title" content="DC title first" lang="en" scheme="example">
+    <meta property="og:title" content="OG title first">
+    <meta name="title" content="  Meta title first  ">
+    <meta name="twitter:title" content="Twitter title second">
+    <meta name="title" content="Meta title second">
+    <meta property="og:title" content="OG title second">
+    <meta name="dc.title" content="DC title second" lang="fr">
+    <!-- Non-adjacent duplicates should not reorder or multiply candidates. -->
+    <meta name="title" content="Meta title first">
+    <meta property="og:title" content="OG title first">
+    <meta name="dc.title" content="DC title first" lang="en" scheme="example">
+
+    <meta name="twitter:description" content="Twitter description">
+    <meta name="dc.description" content="DC description">
+    <meta property="og:description" content="OG description">
+    <meta name="description" content="Meta description">
+
+    <!-- Sparse fields exercise falling through absent stores. -->
+    <meta name="dc.creator" content="DC creator">
+    <meta name="creator" content="Meta creator">
+    <meta name="twitter:keywords" content="Twitter keywords">
+    <meta property="og:keywords" content="OG keywords">
+    <meta name="twitter:image" content="https://example.com/twitter-image.jpg">
+    <meta property="og:image" content="https://example.com/og-image.jpg">
+
+    <!-- An empty first candidate is present metadata, not an absent field. -->
+    <meta name="empty-first" content="   ">
+    <meta name="empty-first" content="Meta nonempty second">
+    <meta name="dc.empty-first" content="">
+    <meta name="dc.empty-first" content="DC nonempty second">
+    <meta property="og:empty-first" content="OG nonempty fallback">
+</head>
+<body>
+    <meta name="title" content="Meta title body">
+</body>
+</html>

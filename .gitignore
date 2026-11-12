@@ -1,1 +1,9 @@
 tests/private/*
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+build/
+dist/
+*.egg-info/
