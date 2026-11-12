@@ -1,7 +1,11 @@
 """Named entity regression cases for issue #65 and parser backend differences."""
 
 # stdlib
+from html import unescape
 from html.entities import html5 as HTML5_ENTITIES
+from importlib.metadata import version
+import sys
+from typing import Tuple
 
 # pypi
 from bs4 import BeautifulSoup
@@ -125,35 +129,59 @@ def expected_title_text(backend, name, decoded, legacy, semicolon):
     return "&" + name
 
 
-def check_entity(parser_class, name, decoded, legacy, semicolon):
+def entity_failure_details(
+    page: MetadataParser, backend: str, html: str, reference: str, legacy: bool
+) -> str:
+    """Capture parser output before metadata extraction on assertion failure."""
+    soup = page.parsed_result.soup
+    backend_version = sys.version if backend == "html.parser" else version(backend)
+    title = soup.title
+    parsed_title = title.get_text() if title is not None else None
+    return (
+        f"Python={sys.version}\n"
+        f"BeautifulSoup={version('beautifulsoup4')}\n"
+        f"backend={backend} ({backend_version}), builder={type(soup.builder)!r}\n"
+        f"reference={reference!a}, legacy={legacy}, "
+        f"html.unescape(reference)={unescape(reference)!a}\n"
+        f"input HTML={html!a}\n"
+        f"parsed title={parsed_title!a}\n"
+        f"parsed meta attributes={[tag.attrs for tag in soup.find_all('meta')]!a}"
+    )
+
+
+def check_entity(
+    parser_class: Tuple[str, type[MetadataParser]],
+    name: str,
+    decoded: str,
+    legacy: bool,
+    semicolon: bool,
+) -> None:
+    """Check title text and quoted attributes for the same entity reference."""
     backend, parser = parser_class
     reference = "&" + name + (";" if semicolon else "")
-    expected_attribute = decoded if semicolon or legacy else reference
-    expected_title = expected_title_text(backend, name, decoded, legacy, semicolon)
-    page = parser(
-        html=(
-            "<html><head><title>[%s]</title>"
-            '<meta name="description" content="[%s]">'
-            '<meta property="og:description" content="[%s]">'
-            "</head></html>"
-        )
-        % (reference, reference, reference)
+    expected_attribute = f"[{decoded if semicolon or legacy else reference}]"
+    title_text = expected_title_text(backend, name, decoded, legacy, semicolon)
+    expected_title = f"[{title_text}]"
+    html = (
+        f"<html><head><title>[{reference}]</title>"
+        f'<meta name="description" content="[{reference}]">'
+        f'<meta property="og:description" content="[{reference}]">'
+        "</head></html>"
     )
+    page = parser(html=html)
     # Surround with brackets to retain whitespace entities such as &nbsp;
     # through the package's normal metadata stripping.
     actual_title = page.parsed_result.select_first_match("title", ["page"])
-    assert actual_title == "[%s]" % expected_title, "%s title %s: %s" % (
-        backend,
-        reference,
-        ascii(actual_title),
+    assert actual_title == expected_title, (
+        f"title: expected={expected_title!a}, actual={actual_title!a}\n"
+        + entity_failure_details(page, backend, html, reference, legacy)
     )
     for strategy in ("meta", "og"):
         actual = page.parsed_result.select_first_match("description", [strategy])
-        assert actual == "[%s]" % expected_attribute, "%s %s %s: %s" % (
-            backend,
-            strategy,
-            reference,
-            ascii(actual),
+        assert actual == expected_attribute, (
+            f"{strategy} description: expected={expected_attribute!a}, "
+            f"actual={actual!a}\n"
+            + entity_failure_details(page, backend, html, reference, legacy)
         )
 
 

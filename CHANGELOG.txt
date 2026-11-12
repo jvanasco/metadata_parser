@@ -4,6 +4,11 @@ Unreleased
 
     Test coverage:
 
+        Added parser version and parsed HTML details to named entity failures.
+
+        Updated URL fallback tests to capture the existing behavior of
+        ``get_discrete_url()`` when the final document URL is local.
+
         Added a shared conflicting-metadata document and adversarial tests for
         ``select_first_match`` in ``tests/test_strategy_selection.py``, covering
         all 325 ordered nonempty strategy subsets, sparse fields, duplicates,

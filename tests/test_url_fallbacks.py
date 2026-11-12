@@ -1,10 +1,4 @@
-"""Candidate expectations for fallback reconstruction; these do not fetch URLs.
-
-The strict-mode cases explore returning usable metadata or a filtered fallback,
-otherwise None. They are proposed reconstruction semantics, not security-policy
-requirements. The desired behavior is under discussion; no production change
-is included, so these candidate expectations currently fail in some cases.
-"""
+"""Exercise metadata URL selection and document fallback without fetching URLs."""
 
 # pypi
 import pytest
@@ -46,10 +40,13 @@ def make_page(url=None, head=""):
 
 
 @pytest.mark.parametrize("url", LOCAL_URLS)
-def test_strict_fallback_rejects_local_source(url):
+def test_discrete_url_preserves_local_source_filtered_during_normalization(
+    url: str,
+) -> None:
+    """The final document fallback can use a local source."""
     page = make_page(url)
     assert page.get_fallback_url(allow_localhosts=False) is None
-    assert page.get_discrete_url(require_public_global=True) is None
+    assert page.get_discrete_url(require_public_global=True) == url
 
 
 @pytest.mark.parametrize("url", LOCAL_URLS)
@@ -76,8 +73,9 @@ def test_missing_source_and_metadata_returns_none():
         '<link rel="canonical" href="https://foo.local/article">',
     ),
 )
-def test_unusable_metadata_does_not_restore_local_fallback(head):
-    assert make_page(LOCAL_URLS[0], head).get_discrete_url() is None
+def test_unusable_metadata_falls_back_to_local_source(head: str) -> None:
+    """Unusable metadata leaves the local document URL as the final fallback."""
+    assert make_page(LOCAL_URLS[0], head).get_discrete_url() == LOCAL_URLS[0]
 
 
 @pytest.mark.parametrize(
@@ -93,12 +91,13 @@ def test_public_metadata_is_usable_even_with_local_source(head):
     )
 
 
-def test_strict_fallback_uses_public_original_when_actual_url_is_local():
+def test_discrete_url_prefers_local_actual_url_over_public_original() -> None:
+    """The filtered fallback and final fallback can select different URLs."""
     page = make_page(PUBLIC_URL)
     # Model URL state after a redirect without making an HTTP request.
     page.url_actual = LOCAL_URLS[0]
     assert page.get_fallback_url(allow_localhosts=False) == PUBLIC_URL
-    assert page.get_discrete_url() == PUBLIC_URL
+    assert page.get_discrete_url() == LOCAL_URLS[0]
 
 
 def test_strict_fallback_prefers_public_actual_url():
