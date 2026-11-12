@@ -4,6 +4,8 @@ Unreleased
     Raised the minimum supported Python version to 3.10 and removed the direct
     dependency on ``typing_extensions``.
     Removed the Python 2 socket compatibility branch from peer-address tracking.
+    Prefer ``tldextract``'s ``top_domain_under_public_suffix`` property and fall
+    back to ``registered_domain`` for older versions.
 
     Test coverage:
 

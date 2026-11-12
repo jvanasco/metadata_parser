@@ -195,6 +195,15 @@ def is_localhost(hostname: str) -> bool:
     return False
 
 
+def _has_registered_domain(hostname: str) -> bool:
+    """Check for a registrable domain across tldextract result APIs."""
+    extracted = tldextract.extract(hostname)
+    try:
+        return bool(extracted.top_domain_under_public_suffix)
+    except AttributeError:
+        return bool(extracted.registered_domain)
+
+
 def is_hostname_valid(
     hostname: str,
     allow_localhosts: bool = True,
@@ -213,10 +222,7 @@ def is_hostname_valid(
             return False
         return True
     if USE_TLDEXTRACT:
-        extracted = tldextract.extract(hostname)
-        if not extracted.registered_domain:
-            return False
-        return True
+        return _has_registered_domain(hostname)
     if RE_DOMAIN_NAME.match(hostname):
         return True
     return False
@@ -335,10 +341,7 @@ def is_parsed_valid_url(
                     return False
             if _hostname:
                 if USE_TLDEXTRACT:
-                    _extracted = tldextract.extract(_hostname)
-                    if not _extracted.registered_domain:
-                        return False
-                    return True
+                    return _has_registered_domain(_hostname)
                 if RE_DOMAIN_NAME.match(_hostname):
                     if __debug__:
                         log.debug(" valid public domain name format")

@@ -1,4 +1,5 @@
 # stdlib
+from types import SimpleNamespace
 from urllib.parse import urlparse
 
 # pypi
@@ -185,6 +186,32 @@ def test_hostname_validation_without_tldextract(monkeypatch):
     assert not metadata_parser.is_hostname_valid("invalid")
     assert not metadata_parser.is_hostname_valid("localhost", allow_localhosts=False)
     assert metadata_parser.is_parsed_valid_url(urlparse("https://example.com/"))
+
+
+@pytest.mark.parametrize(
+    "result,expected",
+    (
+        (SimpleNamespace(registered_domain="example.com"), True),
+        (SimpleNamespace(registered_domain=""), False),
+        (SimpleNamespace(top_domain_under_public_suffix="example.com"), True),
+        (
+            SimpleNamespace(
+                top_domain_under_public_suffix="", registered_domain="example.com"
+            ),
+            False,
+        ),
+    ),
+)
+def test_hostname_validation_supports_tldextract_result_properties(
+    monkeypatch: pytest.MonkeyPatch, result: SimpleNamespace, expected: bool
+) -> None:
+    """Both validators prefer the current property and accept legacy results."""
+    tldextract = pytest.importorskip("tldextract")
+    monkeypatch.setattr(metadata_parser, "USE_TLDEXTRACT", True)
+    monkeypatch.setattr(metadata_parser, "tldextract", tldextract, raising=False)
+    monkeypatch.setattr(tldextract, "extract", lambda hostname: result)
+    assert metadata_parser.is_hostname_valid("example.com") is expected
+    assert metadata_parser.is_parsed_valid_url(urlparse("https://example.com/")) is expected
 
 
 def test_scheme_and_encoding_without_response():
