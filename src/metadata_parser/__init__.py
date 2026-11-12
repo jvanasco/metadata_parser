@@ -20,6 +20,7 @@ import logging
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Tuple
 from typing import TYPE_CHECKING
@@ -33,7 +34,6 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import requests
 from requests.structures import CaseInsensitiveDict
-from typing_extensions import Literal  # py38
 
 # local
 from . import config
