@@ -1,26 +1,25 @@
-Unreleased
+2.1.0
 
-    Added Py3.15 support
-    Raised the minimum supported Python version to 3.10 and removed the direct
-    dependency on ``typing_extensions``.
-    Removed the Python 2 socket compatibility branch from peer-address tracking.
-    Prefer ``tldextract``'s ``top_domain_under_public_suffix`` property and fall
-    back to ``registered_domain`` for older versions.
+* Added Py3.15 support
+* Raised the minimum supported Python version to 3.10 and removed the direct dependency on ``typing_extensions``.
+* Removed the Python 2 socket compatibility branch from peer-address tracking.
+* Prefer ``tldextract``'s ``top_domain_under_public_suffix`` property and fall
+  back to ``registered_domain`` for older versions.
+* Better enforcement of contracts and expectations; fixed some regex on matching ipv6
 
-    Test coverage:
+* Test coverage:
 
-        Added parser version and parsed HTML details to named entity failures.
-        Accounted for CPython's legacy attribute decoding in entity tests.
+    Added parser version and parsed HTML details to named entity failures.
+    Accounted for CPython's legacy attribute decoding in entity tests.
 
-        Updated URL fallback tests to capture the existing behavior of
-        ``get_discrete_url()`` when the final document URL is local.
+    Updated URL fallback tests to capture the existing behavior of
+    ``get_discrete_url()`` when the final document URL is local.
 
-        Added a shared conflicting-metadata document and adversarial tests for
-        ``select_first_match`` in ``tests/test_strategy_selection.py``, covering
-        all 325 ordered nonempty strategy subsets, sparse fields, duplicates,
-        empty values, constructor defaults, overrides, invalid strategies, and
-        custom encoders.
-
+    Added a shared conflicting-metadata document and adversarial tests for
+    ``select_first_match`` in ``tests/test_strategy_selection.py``, covering
+    all 325 ordered nonempty strategy subsets, sparse fields, duplicates,
+    empty values, constructor defaults, overrides, invalid strategies, and
+    custom encoders.
 
 2.0.0
 
