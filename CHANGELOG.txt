@@ -3,6 +3,7 @@ Unreleased
     Added Py3.15 support
     Raised the minimum supported Python version to 3.10 and removed the direct
     dependency on ``typing_extensions``.
+    Removed the Python 2 socket compatibility branch from peer-address tracking.
 
     Test coverage:
 
