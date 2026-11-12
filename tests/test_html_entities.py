@@ -3,12 +3,14 @@
 # stdlib
 from html import unescape
 from html.entities import html5 as HTML5_ENTITIES
-from importlib.metadata import version
+from html.parser import HTMLParser
+from importlib import import_module
 import sys
-from typing import Tuple
+from typing import List, Optional, Tuple, Type
 
 # pypi
 from bs4 import BeautifulSoup
+from bs4 import __version__ as BS4_VERSION
 import pytest
 
 # local
@@ -73,6 +75,23 @@ COMMON_ENTITIES = (
 )
 
 
+class AttributeEntityProbe(HTMLParser):
+    """Check whether CPython applies legacy unescape rules to attributes."""
+
+    legacy_attribute_unescape = False
+
+    def handle_starttag(
+        self, tag: str, attrs: List[Tuple[str, Optional[str]]]
+    ) -> None:
+        """Detect the behavior fixed by CPython issue #69426."""
+        self.legacy_attribute_unescape = dict(attrs).get("content") == "&=1"
+
+
+_attribute_probe = AttributeEntityProbe()
+_attribute_probe.feed('<meta content="&amp=1">')
+_attribute_probe.close()
+
+
 def pytest_generate_tests(metafunc):
     if "html5_entity" not in metafunc.fixturenames:
         return
@@ -121,7 +140,7 @@ def expected_title_text(backend, name, decoded, legacy, semicolon):
         return decoded
     # lxml/html5lib consume the longest permitted legacy prefix in title text.
     # Example: &notin (no ;) becomes "\u00acin", whereas html.parser returns
-    # "\u2209". In quoted attributes all backends preserve &notin literally.
+    # "\u2209". Attribute handling is checked separately.
     for length in range(len(name) - 1, 0, -1):
         prefix = name[:length]
         if prefix in HTML5_ENTITIES:
@@ -134,12 +153,14 @@ def entity_failure_details(
 ) -> str:
     """Capture parser output before metadata extraction on assertion failure."""
     soup = page.parsed_result.soup
-    backend_version = sys.version if backend == "html.parser" else version(backend)
+    backend_version = (
+        sys.version if backend == "html.parser" else import_module(backend).__version__
+    )
     title = soup.title
     parsed_title = title.get_text() if title is not None else None
     return (
         f"Python={sys.version}\n"
-        f"BeautifulSoup={version('beautifulsoup4')}\n"
+        f"BeautifulSoup={BS4_VERSION}\n"
         f"backend={backend} ({backend_version}), builder={type(soup.builder)!r}\n"
         f"reference={reference!a}, legacy={legacy}, "
         f"html.unescape(reference)={unescape(reference)!a}\n"
@@ -150,7 +171,7 @@ def entity_failure_details(
 
 
 def check_entity(
-    parser_class: Tuple[str, type[MetadataParser]],
+    parser_class: Tuple[str, Type[MetadataParser]],
     name: str,
     decoded: str,
     legacy: bool,
@@ -159,7 +180,11 @@ def check_entity(
     """Check title text and quoted attributes for the same entity reference."""
     backend, parser = parser_class
     reference = "&" + name + (";" if semicolon else "")
-    expected_attribute = f"[{decoded if semicolon or legacy else reference}]"
+    attribute_text = decoded if semicolon or legacy else reference
+    if backend == "html.parser" and _attribute_probe.legacy_attribute_unescape:
+        # Older HTMLParser releases delegate attribute decoding to html.unescape.
+        attribute_text = unescape(reference)
+    expected_attribute = f"[{attribute_text}]"
     title_text = expected_title_text(backend, name, decoded, legacy, semicolon)
     expected_title = f"[{title_text}]"
     html = (
@@ -201,8 +226,11 @@ def test_full_html5_named_entities(parser_class, html5_entity, semicolon):
 
 
 @pytest.mark.parametrize("query", ("current=2", "currency=2", "amp=2"))
-def test_entity_prefix_in_url_attribute_preserves_query_parameter(parser_class, query):
-    _, parser = parser_class
+def test_entity_prefix_in_url_attribute_matches_backend(
+    parser_class: Tuple[str, Type[MetadataParser]], query: str
+) -> None:
+    """Check both URL fields against the backend's attribute decoding rules."""
+    backend, parser = parser_class
     url = "https://example.com/?first=1&" + query
     page = parser(
         html=(
@@ -211,5 +239,8 @@ def test_entity_prefix_in_url_attribute_preserves_query_parameter(parser_class, 
         )
         % (url, url)
     )
-    assert page.parsed_result.select_first_match("canonical", ["page"]) == url
-    assert page.parsed_result.select_first_match("url", ["og"]) == url
+    expected = url
+    if backend == "html.parser" and _attribute_probe.legacy_attribute_unescape:
+        expected = unescape(url)
+    assert page.parsed_result.select_first_match("canonical", ["page"]) == expected
+    assert page.parsed_result.select_first_match("url", ["og"]) == expected

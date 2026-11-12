@@ -5,6 +5,7 @@ Unreleased
     Test coverage:
 
         Added parser version and parsed HTML details to named entity failures.
+        Accounted for CPython's legacy attribute decoding in entity tests.
 
         Updated URL fallback tests to capture the existing behavior of
         ``get_discrete_url()`` when the final document URL is local.
