@@ -1,5 +1,7 @@
 Unreleased
 
+    Added Py3.15 support
+
     Test coverage:
 
         Added a shared conflicting-metadata document and adversarial tests for
